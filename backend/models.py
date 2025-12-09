@@ -255,9 +255,8 @@ class TimeEntry(db.Model):
         return self.overtime_hours
 
     def __repr__(self):
-        return f"<TimeEntry {self.date} - {
-            self.resident.name if self.resident else 'Unknown'
-        }>"
+        resident_name = self.resident.name if self.resident else 'Unknown'
+        return f"<TimeEntry {self.date} - {resident_name}>"
 
 
 class DailySheet(db.Model):
