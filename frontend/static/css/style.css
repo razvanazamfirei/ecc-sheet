@@ -21,12 +21,12 @@ body {
     padding: 1em 0;
 }
 
-#appLogo {
+#app-logo {
     display: inline-block;
     vertical-align: middle;
 }
 
-#emojiLogo {
+#emoji-logo {
     font-size: 3em;
     line-height: 1;
 }

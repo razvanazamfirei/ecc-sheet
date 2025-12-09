@@ -18,7 +18,9 @@
       "Bash(timeout 5 uv run:*)",
       "Bash(PORT=5001 uv run:*)",
       "Bash(curl:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo create:*)"
     ],
     "deny": [],
     "ask": []
