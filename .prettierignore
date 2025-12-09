@@ -1,0 +1,16 @@
+# Dependencies
+node_modules
+.venv
+
+# Build outputs
+frontend/static/dist
+*.pyc
+__pycache__
+
+# Database and instance files
+instance
+
+# Other
+.DS_Store
+*.log
+migrations

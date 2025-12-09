@@ -1,0 +1,8 @@
+[tools]
+python = "3.13"
+
+[env]
+_.python.venv = { path = ".venv", create = true, uv_create_args = [
+  "--system-site-packages",
+  "--seed",
+] }

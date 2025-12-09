@@ -1,0 +1,122 @@
+name: CI
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main, develop]
+
+jobs:
+    backend-tests:
+        name: Backend Tests
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Install UV
+              run: |
+                  curl -LsSf https://astral.sh/uv/install.sh | sh
+                  echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+            - name: Create virtual environment
+              run: uv venv
+
+            - name: Install dependencies
+              run: |
+                  source .venv/bin/activate
+                  uv sync
+
+            - name: Run database migrations
+              run: |
+                  source .venv/bin/activate
+                  uv run flask --app backend.app db upgrade
+              env:
+                  SECRET_KEY: test-secret-key-for-ci
+                  DATABASE_URL: sqlite:///test.db
+                  USER_NAME: CI-Test-User
+
+            - name: Run tests
+              run: |
+                  source .venv/bin/activate
+                  uv run pytest tests/ -v --tb=short
+              env:
+                  SECRET_KEY: test-secret-key-for-ci
+                  DATABASE_URL: sqlite:///test.db
+                  USER_NAME: CI-Test-User
+
+    frontend-build:
+        name: Frontend Build & Lint
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            - name: Install dependencies
+              run: bun install
+
+            - name: Check Prettier formatting
+              run: bun run format:check
+
+            - name: Lint CSS
+              run: bun run lint:css
+
+            - name: Build frontend assets
+              run: bun run build
+
+            - name: Verify build outputs
+              run: |
+                  test -f frontend/static/dist/vendor.css || exit 1
+                  test -f frontend/static/dist/vendor.js || exit 1
+                  echo "Build outputs verified successfully"
+
+    security-scan:
+        name: Security Scan
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Install UV
+              run: |
+                  curl -LsSf https://astral.sh/uv/install.sh | sh
+                  echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+            - name: Create virtual environment
+              run: uv venv
+
+            - name: Install dependencies
+              run: |
+                  source .venv/bin/activate
+                  uv sync
+
+            - name: Run Bandit security scan
+              run: |
+                  source .venv/bin/activate
+                  uv pip install bandit
+                  bandit -r backend/ -f json -o bandit-report.json || true
+
+            - name: Upload Bandit report
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: bandit-security-report
+                  path: bandit-report.json

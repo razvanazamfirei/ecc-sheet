@@ -1,0 +1,411 @@
+{% extends "base.html" %} {% block title %}Daily Sheet - {{ today.strftime('%B %d, %Y') }}{% endblock %}
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4 sheet-header">
+        <div>
+            <h2 class="mb-0"><i class="bi bi-calendar3 me-2"></i>ECC Sheet</h2>
+            <p class="text-muted mb-0" id="sheet-date">{{ today.strftime('%B %d, %Y') }}</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap sheet-controls">
+            {% if not daily_sheet.locked %}
+                <form
+                    method="POST"
+                    action="{{ url_for('import_schedule', date_str=today.strftime('%Y-%m-%d')) }}"
+                    class="d-inline"
+                >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button
+                        type="submit"
+                        class="btn btn-info btn-sm"
+                        onclick="return confirm('Import schedule from Amion? This will add entries for residents assigned to roles.')"
+                    >
+                        <i class="bi bi-cloud-download me-1"></i>Import Schedule
+                    </button>
+                </form>
+            {% endif %}
+            <form
+                method="POST"
+                action="{{ url_for('lock_sheet', date_str=today.strftime('%Y-%m-%d')) }}"
+                class="d-inline"
+            >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="btn btn-{{ 'warning' if daily_sheet.locked else 'success' }} btn-sm">
+                    <i class="bi bi-{{ 'unlock' if daily_sheet.locked else 'lock' }} me-1"></i>
+                    {% if daily_sheet.locked %}Unlock Sheet{% else %}Lock Sheet{% endif %}
+                </button>
+            </form>
+            {% if daily_sheet.locked and daily_sheet.locked_by %}
+                <span class="badge bg-warning text-dark">
+                    <i class="bi bi-lock-fill me-1"></i>
+                    Locked by {{ daily_sheet.locked_by }}
+                    {% if daily_sheet.locked_at %}
+                        at
+                        {{
+                            daily_sheet.locked_at.strftime('%m/%d
+                            %H:%M')
+                        }}
+                    {% endif %}
+                </span>
+            {% endif %}
+            {% if daily_sheet.submitted %}
+                <span class="badge bg-success">
+                    <i class="bi bi-check-circle-fill me-1"></i>
+                    Submitted at {{ daily_sheet.submitted_at.strftime('%H:%M') }}
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-center gap-2 mb-4 date-navigation">
+        <a
+            href="{{ url_for('view_sheet', date_str=prev_date.strftime('%Y-%m-%d')) }}"
+            class="btn btn-outline-secondary"
+        >
+            <i class="bi bi-chevron-left me-1"></i>Previous Day
+        </a>
+        <button type="button" class="btn btn-primary" onclick="goToToday()">Today</button>
+        <a
+            href="{{ url_for('view_sheet', date_str=next_date.strftime('%Y-%m-%d')) }}"
+            class="btn btn-outline-secondary"
+        >
+            Next Day<i class="bi bi-chevron-right ms-1"></i>
+        </a>
+    </div>
+
+    {% if not daily_sheet.locked %}
+        <div class="card mb-4 add-entry-form">
+            <div class="card-body">
+                <h5 class="card-title mb-3"><i class="bi bi-plus-circle me-2"></i>Add New Entry</h5>
+                <form method="POST" action="{{ url_for('add_entry') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <input type="hidden" name="date" value="{{ today.strftime('%Y-%m-%d') }}" />
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="role_id" class="form-label">Role</label>
+                            <select name="role_id" id="role_id" class="form-select" required>
+                                <option value="">Select Role</option>
+                                {% for role in roles %}
+                                    <option value="{{ role.id }}">{{ role.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="resident_id" class="form-label">Resident</label>
+                            <select name="resident_id" id="resident_id" class="form-select" required>
+                                <option value="">Select Resident</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="exit_time" class="form-label">Exit Time</label>
+                            <input
+                                type="time"
+                                name="exit_time"
+                                id="exit_time"
+                                class="form-control"
+                                step="900"
+                                placeholder="HH:MM"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-2"></i>Add Entry
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="card entries-table">
+        <div class="card-header d-flex justify-content-between align-items-center entries-header">
+            <h5 class="mb-0"><i class="bi bi-table me-2"></i>Entries</h5>
+            {% if not daily_sheet.locked and time_entries %}
+                <div class="btn-group btn-group-sm edit-all-controls" role="group">
+                    <button id="edit-all-btn" onclick="toggleEditAll()" class="btn btn-outline-secondary">
+                        <i class="bi bi-pencil-square me-1"></i>Edit All
+                    </button>
+                    <button id="save-all-btn" onclick="saveAll()" class="btn btn-success" style="display: none;">
+                        <i class="bi bi-check-all me-1"></i>Save All
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+        <div class="card-body p-0">
+            {% if time_entries %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Role</th>
+                                <th>Name</th>
+                                <th>Exit Time</th>
+                                <th>Overtime</th>
+                                {% if not daily_sheet.locked %}
+                                    <th class="text-end">Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in time_entries %}
+                                <tr id="entry-row-{{ entry.id }}" data-entry-id="{{ entry.id }}">
+                                    <td><span class="badge bg-secondary">{{ entry.role.name }}</span></td>
+                                    <td>{{ entry.resident.name }}</td>
+                                    <td class="exit-time-cell" id="cell-{{ entry.id }}">
+                                        <span
+                                            class="time-display"
+                                            id="display-{{ entry.id }}"
+                                            onclick="{% if not daily_sheet.locked %}editEntry({{ entry.id }}){% endif %}"
+                                            {%
+                                                if
+                                                not
+                                                daily_sheet.locked
+                                            %}
+                                                title="Click to edit time"
+                                            {% endif %}
+                                        >
+                                            {% if entry.exit_time %}
+                                                {{ entry.exit_time.strftime('%H:%M') }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </span>
+                                        <form
+                                            method="POST"
+                                            action="{{ url_for('update_entry', entry_id=entry.id) }}"
+                                            class="time-edit-form"
+                                            id="form-{{ entry.id }}"
+                                            style="display: none;"
+                                        >
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                            <input
+                                                type="time"
+                                                name="exit_time"
+                                                id="input-{{ entry.id }}"
+                                                value="{{ entry.exit_time.strftime('%H:%M') if entry.exit_time else '' }}"
+                                                step="900"
+                                                class="inline-time-input form-control form-control-sm"
+                                            />
+                                        </form>
+                                    </td>
+                                    <td class="overtime-cell">
+                                        <span id="overtime-{{ entry.id }}"
+                                            >{{ "%.2f"|format(entry.calculate_overtime_hours()) }} hrs</span
+                                        >
+                                    </td>
+                                    {% if not daily_sheet.locked %}
+                                        <td class="text-end" id="actions-{{ entry.id }}">
+                                            <div class="btn-group btn-group-sm action-buttons" role="group">
+                                                <button
+                                                    onclick="editEntry({{ entry.id }})"
+                                                    class="btn btn-outline-primary edit-btn"
+                                                >
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button
+                                                    onclick="saveEntry({{ entry.id }})"
+                                                    class="btn btn-outline-success save-btn"
+                                                    style="display: none;"
+                                                >
+                                                    <i class="bi bi-check"></i>
+                                                </button>
+                                                <button
+                                                    onclick="cancelEdit({{ entry.id }})"
+                                                    class="btn btn-outline-secondary cancel-btn"
+                                                    style="display: none;"
+                                                >
+                                                    <i class="bi bi-x"></i>
+                                                </button>
+                                                <form
+                                                    method="POST"
+                                                    action="{{ url_for('delete_entry', entry_id=entry.id) }}"
+                                                    style="display: inline;"
+                                                    class="btn-group delete-form"
+                                                >
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                                    <button
+                                                        type="submit"
+                                                        class="btn btn-outline-danger"
+                                                        onclick="return confirm('Delete this entry?')"
+                                                    >
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="3"><strong>Total Overtime:</strong></td>
+                                <td class="overtime-cell">
+                                    <strong
+                                        >{{ "%.2f"|format(time_entries|sum(attribute='overtime_hours')|default(0, true)) }}
+                                        hrs</strong
+                                    >
+                                </td>
+                                <td {% if not daily_sheet.locked %}class="text-end"{% endif %}></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            {% else %}
+                <div class="p-4 text-center text-muted no-entries">
+                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                    <p>No entries for this date.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        let editAllMode = false;
+        const originalValues = {};
+
+        // Load active residents when page loads
+        document.addEventListener("DOMContentLoaded", function () {
+            loadActiveResidents();
+        });
+
+        function loadActiveResidents() {
+            fetch("/api/residents/active")
+                .then((response) => response.json())
+                .then((residents) => {
+                    const select = document.getElementById("resident_id");
+                    if (select) {
+                        select.innerHTML = '<option value="">Select Resident</option>';
+                        residents.forEach((resident) => {
+                            const option = document.createElement("option");
+                            option.value = resident.id;
+                            option.textContent = resident.name;
+                            select.appendChild(option);
+                        });
+                    }
+                });
+        }
+
+        function editEntry(entryId) {
+            // Store original value
+            const input = document.getElementById("input-" + entryId);
+            originalValues[entryId] = input.value;
+
+            // Toggle visibility
+            document.getElementById("display-" + entryId).style.display = "none";
+            document.getElementById("form-" + entryId).style.display = "inline";
+
+            // Toggle buttons
+            const actionsCell = document.getElementById("actions-" + entryId);
+            actionsCell.querySelector(".edit-btn").style.display = "none";
+            actionsCell.querySelector(".save-btn").style.display = "inline-block";
+            actionsCell.querySelector(".cancel-btn").style.display = "inline-block";
+            actionsCell.querySelector(".delete-form").style.display = "none";
+
+            // Focus the input
+            input.focus();
+        }
+
+        function saveEntry(entryId) {
+            // Submit the form
+            document.getElementById("form-" + entryId).submit();
+        }
+
+        function cancelEdit(entryId) {
+            // Restore original value
+            if (originalValues[entryId] !== undefined) {
+                document.getElementById("input-" + entryId).value = originalValues[entryId];
+            }
+
+            // Toggle visibility
+            document.getElementById("display-" + entryId).style.display = "inline";
+            document.getElementById("form-" + entryId).style.display = "none";
+
+            // Toggle buttons
+            const actionsCell = document.getElementById("actions-" + entryId);
+            actionsCell.querySelector(".edit-btn").style.display = "inline-block";
+            actionsCell.querySelector(".save-btn").style.display = "none";
+            actionsCell.querySelector(".cancel-btn").style.display = "none";
+            actionsCell.querySelector(".delete-form").style.display = "inline";
+        }
+
+        function toggleEditAll() {
+            editAllMode = !editAllMode;
+            const editAllBtn = document.getElementById("edit-all-btn");
+            const saveAllBtn = document.getElementById("save-all-btn");
+
+            if (editAllMode) {
+                // Enable edit mode for all entries
+                editAllBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel All';
+                editAllBtn.classList.remove("btn-outline-secondary");
+                editAllBtn.classList.add("btn-warning");
+                saveAllBtn.style.display = "inline-block";
+
+                // Get all entry rows and enable editing
+                const rows = document.querySelectorAll("[data-entry-id]");
+                rows.forEach((row) => {
+                    const entryId = row.dataset.entryId;
+                    editEntry(entryId);
+                });
+            } else {
+                // Disable edit mode for all entries
+                editAllBtn.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Edit All';
+                editAllBtn.classList.remove("btn-warning");
+                editAllBtn.classList.add("btn-outline-secondary");
+                saveAllBtn.style.display = "none";
+
+                // Cancel all edits
+                const rows = document.querySelectorAll("[data-entry-id]");
+                rows.forEach((row) => {
+                    const entryId = row.dataset.entryId;
+                    cancelEdit(entryId);
+                });
+            }
+        }
+
+        async function saveAll() {
+            const rows = document.querySelectorAll("[data-entry-id]");
+            const savePromises = [];
+            const saveAllBtn = document.getElementById("save-all-btn");
+            const editAllBtn = document.getElementById("edit-all-btn");
+
+            // Disable buttons and show loading state
+            saveAllBtn.disabled = true;
+            editAllBtn.disabled = true;
+            saveAllBtn.innerHTML =
+                '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+
+            // Collect all forms to submit
+            for (const row of rows) {
+                const entryId = row.dataset.entryId;
+                const form = document.getElementById("form-" + entryId);
+                const formData = new FormData(form);
+
+                // Submit each form via fetch
+                const promise = fetch(form.action, {
+                    method: "POST",
+                    body: formData,
+                });
+                savePromises.push(promise);
+            }
+
+            try {
+                // Wait for all saves to complete
+                await Promise.all(savePromises);
+                // Reload the page to show updated data
+                window.location.reload();
+            } catch (error) {
+                // Re-enable buttons on error
+                saveAllBtn.disabled = false;
+                editAllBtn.disabled = false;
+                saveAllBtn.innerHTML = '<i class="bi bi-check-all me-1"></i>Save All';
+                alert("Error saving entries. Please try again.");
+                console.error("Save all error:", error);
+            }
+        }
+    </script>
+{% endblock %}

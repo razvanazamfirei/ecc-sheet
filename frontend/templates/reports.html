@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+    <div class="mb-4">
+        <h2 class="mb-0"><i class="bi bi-graph-up me-2"></i>Time Reports</h2>
+        <p class="text-muted">Generate overtime reports for residents over a date range</p>
+    </div>
+    <div class="card mb-4 report-form">
+        <div class="card-body">
+            <h5 class="card-title mb-3"><i class="bi bi-calendar-range me-2"></i>Generate Report</h5>
+            <form method="POST" action="{{ url_for('generate_report') }}" id="report-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" name="start_date" id="start_date" class="form-control" required />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" name="end_date" id="end_date" class="form-control" required />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="resident_filter" class="form-label">Resident</label>
+                        <select name="resident_id" id="resident_filter" class="form-select">
+                            <option value="">All Residents</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-bar-graph me-2"></i>Generate Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card quick-reports">
+        <div class="card-body">
+            <h5 class="card-title mb-3"><i class="bi bi-lightning me-2"></i>Quick Reports</h5>
+            <p class="text-muted mb-3">Select a predefined date range</p>
+            <div class="btn-group" role="group" aria-label="Quick report buttons">
+                <button type="button" onclick="setDateRange('week')" class="btn btn-outline-secondary">
+                    <i class="bi bi-calendar-week me-1"></i>Last 7 Days
+                </button>
+                <button type="button" onclick="setDateRange('month')" class="btn btn-outline-secondary">
+                    <i class="bi bi-calendar-month me-1"></i>Last 30 Days
+                </button>
+                <button type="button" onclick="setDateRange('quarter')" class="btn btn-outline-secondary">
+                    <i class="bi bi-calendar3 me-1"></i>Last 90 Days
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setDateRange(period, autoSubmit = true) {
+            // Use Luxon utilities for timezone-aware date calculations
+            const dateRange = window.LuxonUtils.getDateRange(period);
+
+            document.getElementById("start_date").value = dateRange.startDate;
+            document.getElementById("end_date").value = dateRange.endDate;
+
+            // Auto-submit the form if requested (for quick report buttons)
+            if (autoSubmit) {
+                document.getElementById("report-form").submit();
+            }
+        }
+
+        function loadResidentsForReport() {
+            fetch("/api/residents/active")
+                .then((response) => response.json())
+                .then((residents) => {
+                    const select = document.getElementById("resident_filter");
+                    select.innerHTML = '<option value="">All Residents</option>';
+                    residents.forEach((resident) => {
+                        const option = document.createElement("option");
+                        option.value = resident.id;
+                        option.textContent = resident.name;
+                        select.appendChild(option);
+                    });
+                })
+                .catch((error) => {
+                    console.error("Error loading residents:", error);
+                });
+        }
+
+        // Set default to last 7 days (without auto-submit) and load residents
+        document.addEventListener("DOMContentLoaded", function () {
+            setDateRange("week", false);
+            loadResidentsForReport();
+        });
+    </script>
+{% endblock %}

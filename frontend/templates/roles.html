@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Manage Roles{% endblock %}
+{% block content %}
+    <div class="mb-4">
+        <h2 class="mb-0"><i class="bi bi-briefcase me-2"></i>Manage Roles</h2>
+        <p class="text-muted">Configure cutoff times for overtime calculation</p>
+    </div>
+    <div class="card roles-table">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Role Configuration</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if roles %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Role Name</th>
+                                <th>Cutoff Time</th>
+                                <th>Display Order</th>
+                                <th>Current Setting</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for role in roles %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ role.name }}</span>
+                                    </td>
+                                    <td>
+                                        <form
+                                            method="POST"
+                                            action="{{ url_for('update_role', role_id=role.id) }}"
+                                            class="d-inline-flex align-items-center gap-2"
+                                        >
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                            <div class="input-group input-group-sm" style="width: 180px;">
+                                                <input
+                                                    type="number"
+                                                    name="cutoff_hour"
+                                                    value="{{ role.cutoff_hour }}"
+                                                    min="0"
+                                                    max="23"
+                                                    class="form-control"
+                                                    required
+                                                    placeholder="HH"
+                                                />
+                                                <span class="input-group-text">:</span>
+                                                <input
+                                                    type="number"
+                                                    name="cutoff_minute"
+                                                    value="{{ role.cutoff_minute }}"
+                                                    min="0"
+                                                    max="59"
+                                                    class="form-control"
+                                                    required
+                                                    placeholder="MM"
+                                                />
+                                            </div>
+                                            <button type="submit" class="btn btn-primary btn-sm">
+                                                <i class="bi bi-check-circle me-1"></i>Update
+                                            </button>
+                                        </form>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ role.display_order }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted small">
+                                            <i class="bi bi-clock me-1"></i>Current:
+                                            {{ "%02d"|format(role.cutoff_hour) }}:{{ "%02d"|format(role.cutoff_minute) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="p-4 text-center text-muted">
+                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                    <p>No roles found.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="alert alert-info mt-4" role="alert">
+        <h5 class="alert-heading"><i class="bi bi-info-circle me-2"></i>How Cutoff Times Work</h5>
+        <p class="mb-2">
+            The cutoff time determines when overtime begins. Overtime is calculated for any exit time after the cutoff.
+        </p>
+        <hr />
+        <p class="mb-1"><strong>Examples:</strong></p>
+        <ul class="mb-0">
+            <li>Cutoff: 17:30, Exit: 19:00 → <strong>Overtime: 1.5 hours</strong></li>
+            <li>Cutoff: 17:30, Exit: 16:00 → <strong>Overtime: 0 hours</strong></li>
+            <li>Cutoff: 17:30, Exit: 02:00 (next day) → <strong>Overnight shift handled correctly</strong></li>
+        </ul>
+    </div>
+{% endblock %}

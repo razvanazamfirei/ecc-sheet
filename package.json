@@ -1,0 +1,29 @@
+{
+    "name": "ecc-sheet",
+    "version": "1.0.0",
+    "description": "ECC Sheet automation with Flask backend and vanilla JavaScript frontend",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "format:js": "prettier --write \"frontend/static/js/**/*.js\"",
+        "format:css": "prettier --write \"frontend/static/css/**/*.css\"",
+        "format:html": "prettier --write \"frontend/templates/**/*.html\"",
+        "lint:css": "stylelint \"frontend/static/css/**/*.css\"",
+        "format": "bun run format:js && bun run format:css && bun run format:html",
+        "format:check": "prettier --check \"frontend/**/*.{js,css,html}\"",
+        "build": "vite build",
+        "dev": "vite build --watch"
+    },
+    "devDependencies": {
+        "prettier": "^3.7.4",
+        "prettier-plugin-jinja-template": "^2.1.0",
+        "stylelint": "^16.26.1",
+        "stylelint-config-standard": "^39.0.1",
+        "vite": "^7.2.7"
+    },
+    "dependencies": {
+        "bootstrap": "^5.3.8",
+        "bootstrap-icons": "^1.13.1",
+        "luxon": "^3.7.2"
+    }
+}

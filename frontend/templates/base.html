@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en-GB">
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{% block title %}ECC Overtime Sheet{% endblock %}</title>
+
+        <!-- Vendor CSS (Bootstrap + Bootstrap Icons) -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='dist/vendor.css') }}" />
+
+        <!-- Custom CSS (for overrides) -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    </head>
+    <body>
+        <div class="container">
+            <!-- Header with Logo -->
+            <div id="header" class="hup-header">
+                <div id="appLogo">
+                    <span id="emojiLogo" style="display: block">⏱️</span>
+                </div>
+
+                <!-- Navigation -->
+                <div style="display: inline-flex; vertical-align: middle; padding-top: 1em">
+                    <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-primary me-2">
+                        <i class="bi bi-calendar3 me-1"></i>Daily Sheet
+                    </a>
+
+                    {% if is_admin %}
+                        <div class="dropdown me-2">
+                            <button
+                                class="btn btn-info btn-sm dropdown-toggle"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                            >
+                                <i class="bi bi-gear me-1"></i>Admin
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('residents') }}">
+                                        <i class="bi bi-people me-2"></i>Residents
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('roles') }}">
+                                        <i class="bi bi-briefcase me-2"></i>Roles
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('audit_log') }}">
+                                        <i class="bi bi-shield-check me-2"></i>Audit Log
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <a href="{{ url_for('reports') }}" class="btn btn-sm btn-outline-primary me-2">
+                        <i class="bi bi-graph-up me-1"></i>Reports
+                    </a>
+
+                    <div class="dropdown">
+                        <button
+                            class="btn btn-info btn-sm dropdown-toggle"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                        >
+                            <i class="bi bi-person-circle me-1"></i>{{ current_user }}
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><span class="dropdown-item-text">Logged in as: {{ current_user }}</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <hr />
+            </div>
+
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages mb-3">
+                        {% for category, message in messages %}
+                            <div
+                                class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} alert-dismissible fade show"
+                                role="alert"
+                            >
+                                <i
+                                    class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' if category == 'error' else 'info-circle' }} me-2"
+                                ></i>
+                                {{ message }}
+                                <button
+                                    type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"
+                                    aria-label="Close"
+                                ></button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Main Content -->
+            {% block content %}{% endblock %}
+
+            <!-- Penn Medicine Footer -->
+            <div class="penn-footer">
+                <hr />
+                <div class="d-flex align-items-center justify-content-center">
+                    <i class="bi bi-shield-fill-check text-primary" style="font-size: 1.5em; margin-right: 0.5em"></i>
+                    <span style="font-size: 80%">Department of Anesthesiology and Critical Care</span>
+                </div>
+                <div>&nbsp;</div>
+            </div>
+        </div>
+
+        <!-- Vendor JS (Bootstrap + Luxon) -->
+        <script src="{{ url_for('static', filename='dist/vendor.js') }}"></script>
+
+        <!-- Luxon Utilities -->
+        <script src="{{ url_for('static', filename='js/luxon-utils.js') }}"></script>
+
+        <!-- Application Scripts -->
+        <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+        {% block scripts %}{% endblock %}
+    </body>
+</html>
