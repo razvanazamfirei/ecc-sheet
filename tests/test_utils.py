@@ -294,9 +294,9 @@ class TestBackupDatabase:
 
             # Verify backup file exists
             assert pathlib.Path(backup_dir).exists()
-            backups = pathlib.Path.iterdir(backup_dir)
+            backups = list(pathlib.Path(backup_dir).iterdir())
             assert len(backups) > 0
-            assert backups[0].endswith(".db")
+            assert backups[0].name.endswith(".db")
 
     def test_backup_database_nonexistent_file(self, tmp_path):
         """Test backup of non-existent database"""
