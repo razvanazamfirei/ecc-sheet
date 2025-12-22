@@ -188,15 +188,21 @@ def add_entry():
         if exit_time_str:
             exit_time = datetime.strptime(exit_time_str, "%H:%M").time()  # noqa: DTZ007
 
+        # Parse boolean fields (checkboxes send "on" when checked)
+        airway_assist = request.form.get("airway_assist") == "on"
+        emergency = request.form.get("emergency") == "on"
+        dinner_break = request.form.get("dinner_break") == "on"
+        paper_record = request.form.get("paper_record") == "on"
+
         entry = TimeEntry(
             date=sheet_date,
             resident_id=resident_id,
             role_id=role_id,
             exit_time=exit_time,
-            airway_assist=False,
-            emergency=False,
-            dinner_break=False,
-            paper_record=False,
+            airway_assist=airway_assist,
+            emergency=emergency,
+            dinner_break=dinner_break,
+            paper_record=paper_record,
         )
 
         db.session.add(entry)

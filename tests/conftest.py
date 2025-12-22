@@ -162,6 +162,12 @@ def clean_database(app):
                 db.session.query(DailySheet.id).filter_by(date=date.today())
             )
         ).delete(synchronize_session=False)
+
+        # Unlock today's sheet if it exists
+        today_sheet = DailySheet.query.filter_by(date=date.today()).first()
+        if today_sheet:
+            today_sheet.locked = False
+
         db.session.commit()
 
         yield

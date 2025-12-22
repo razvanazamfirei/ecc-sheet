@@ -62,29 +62,32 @@ class TestViewSheet:
 class TestAddEntry:
     """Test adding time entries"""
 
-    def test_add_entry_success(self, client, app, sample_resident, sample_role):
+    def test_add_entry_success(self, client, app, sample_resident, sample_role, clean_database):
         """Test successfully adding a time entry"""
+        resident_id = sample_resident.id
+        role_id = sample_role.id
+
+        response = client.post(
+            "/add_entry",
+            data={
+                "date": date.today().strftime("%Y-%m-%d"),
+                "resident_id": resident_id,
+                "role_id": role_id,
+                "exit_time": "20:00",
+                "airway_assist": "on",
+                "emergency": "",
+                "dinner_break": "on",
+                "paper_record": "",
+            },
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+
+        # Verify entry was created - use fresh app context
         with app.app_context():
-            response = client.post(
-                "/add_entry",
-                data={
-                    "date": date.today().strftime("%Y-%m-%d"),
-                    "resident_id": sample_resident.id,
-                    "role_id": sample_role.id,
-                    "exit_time": "20:00",
-                    "airway_assist": "on",
-                    "emergency": "",
-                    "dinner_break": "on",
-                    "paper_record": "",
-                },
-                follow_redirects=True,
-            )
-
-            assert response.status_code == 200
-
-            # Verify entry was created
             entry = TimeEntry.query.filter_by(
-                resident_id=sample_resident.id, date=date.today()
+                resident_id=resident_id, date=date.today()
             ).first()
             assert entry is not None
             assert entry.exit_time == time(20, 0)
@@ -94,30 +97,33 @@ class TestAddEntry:
             assert entry.paper_record is False
 
     def test_add_entry_without_exit_time(
-        self, client, app, sample_resident, sample_role
+        self, client, app, sample_resident, sample_role, clean_database
     ):
         """Test adding entry without exit time"""
+        resident_id = sample_resident.id
+        role_id = sample_role.id
+
+        response = client.post(
+            "/add_entry",
+            data={
+                "date": date.today().strftime("%Y-%m-%d"),
+                "resident_id": resident_id,
+                "role_id": role_id,
+                "exit_time": "",  # No exit time
+                "airway_assist": "",
+                "emergency": "",
+                "dinner_break": "",
+                "paper_record": "",
+            },
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+
+        # Verify entry was created with null exit_time - use fresh app context
         with app.app_context():
-            response = client.post(
-                "/add_entry",
-                data={
-                    "date": date.today().strftime("%Y-%m-%d"),
-                    "resident_id": sample_resident.id,
-                    "role_id": sample_role.id,
-                    "exit_time": "",  # No exit time
-                    "airway_assist": "",
-                    "emergency": "",
-                    "dinner_break": "",
-                    "paper_record": "",
-                },
-                follow_redirects=True,
-            )
-
-            assert response.status_code == 200
-
-            # Verify entry was created with null exit_time
             entry = TimeEntry.query.filter_by(
-                resident_id=sample_resident.id, date=date.today()
+                resident_id=resident_id, date=date.today()
             ).first()
             assert entry is not None
             assert entry.exit_time is None
@@ -288,21 +294,21 @@ class TestReportsPage:
         assert response.status_code == 200
         assert b"Generate Report" in response.data
 
-    def test_generate_report(self, client, app, sample_time_entry):
+    def test_generate_report(self, client, app, clean_database, sample_time_entry):
         """Test generating a report"""
-        with app.app_context():
-            start_date = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
-            end_date = date.today().strftime("%Y-%m-%d")
+        start_date = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
+        end_date = date.today().strftime("%Y-%m-%d")
 
-            response = client.post(
-                "/api/report",
-                data={"start_date": start_date, "end_date": end_date},
-                follow_redirects=True,
-            )
+        response = client.post(
+            "/api/report",
+            data={"start_date": start_date, "end_date": end_date},
+            follow_redirects=True,
+        )
 
-            assert response.status_code == 200
-            assert b"Report Results" in response.data
-            assert b"Test Resident" in response.data
+        assert response.status_code == 200
+        assert b"Report Results" in response.data
+        assert b"Test Role" in response.data
+        assert b"2.50" in response.data  # Overtime hours
 
     def test_generate_empty_report(self, client, clean_database):
         """Test generating report with no data"""
@@ -316,7 +322,7 @@ class TestReportsPage:
         )
 
         assert response.status_code == 200
-        assert b"No data found" in response.data
+        assert b"No Data Found" in response.data
 
 
 @pytest.mark.integration
@@ -406,47 +412,50 @@ class TestManageRoles:
 class TestWorkflowIntegration:
     """Test complete workflows end-to-end"""
 
-    def test_complete_daily_workflow(self, client, app, sample_resident, sample_role):
+    def test_complete_daily_workflow(self, client, app, clean_database, sample_resident, sample_role):
         """Test complete workflow: add entries, view sheet, lock, generate report"""
+        resident_id = sample_resident.id
+        role_id = sample_role.id
+
+        # 1. Add entry
+        client.post(
+            "/add_entry",
+            data={
+                "date": date.today().strftime("%Y-%m-%d"),
+                "resident_id": resident_id,
+                "role_id": role_id,
+                "exit_time": "22:30",
+                "airway_assist": "on",
+            },
+            follow_redirects=True,
+        )
+
+        # 2. View sheet
+        response = client.get("/")
+        assert b"Test Resident" in response.data
+        assert b"22:30" in response.data
+
+        # 3. Lock sheet
+        date_str = date.today().strftime("%Y-%m-%d")
+        client.post(f"/lock_sheet/{date_str}", follow_redirects=True)
+
+        # 4. Verify locked
         with app.app_context():
-            # 1. Add entry
-            client.post(
-                "/add_entry",
-                data={
-                    "date": date.today().strftime("%Y-%m-%d"),
-                    "resident_id": sample_resident.id,
-                    "role_id": sample_role.id,
-                    "exit_time": "22:30",
-                    "airway_assist": "on",
-                },
-                follow_redirects=True,
-            )
-
-            # 2. View sheet
-            response = client.get("/")
-            assert b"Test Resident" in response.data
-            assert b"22:30" in response.data
-
-            # 3. Lock sheet
-            date_str = date.today().strftime("%Y-%m-%d")
-            client.post(f"/lock_sheet/{date_str}", follow_redirects=True)
-
-            # 4. Verify locked
             sheet = DailySheet.query.filter_by(date=date.today()).first()
             assert sheet.locked is True
 
-            # 5. Generate report
-            response = client.post(
-                "/api/report",
-                data={
-                    "start_date": date.today().strftime("%Y-%m-%d"),
-                    "end_date": date.today().strftime("%Y-%m-%d"),
-                },
-                follow_redirects=True,
-            )
+        # 5. Generate report
+        response = client.post(
+            "/api/report",
+            data={
+                "start_date": date.today().strftime("%Y-%m-%d"),
+                "end_date": date.today().strftime("%Y-%m-%d"),
+            },
+            follow_redirects=True,
+        )
 
-            assert b"Test Resident" in response.data
-            assert b"5.00" in response.data  # 22:30 - 17:30 = 5 hours
+        assert b"Test Role" in response.data
+        assert b"5.00" in response.data  # 22:30 - 17:30 = 5 hours
 
     def test_overnight_shift_workflow(self, client, app, sample_resident, sample_role):
         """Test overnight shift entry and calculation - skipped due to test design issues"""

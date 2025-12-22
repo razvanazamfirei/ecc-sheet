@@ -20,7 +20,8 @@
       "Bash(curl:*)",
       "Bash(git init:*)",
       "Bash(gh auth:*)",
-      "Bash(gh repo create:*)"
+      "Bash(gh repo create:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
