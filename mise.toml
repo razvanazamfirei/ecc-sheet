@@ -6,3 +6,24 @@ _.python.venv = { path = ".venv", create = true, uv_create_args = [
   "--system-site-packages",
   "--seed",
 ] }
+FLASK_APP = "backend.app"
+
+[tasks.setup]
+description = "Initial project setup"
+run = ["uv sync", "bun install", "bun run build", "uv run flask db upgrade"]
+
+[tasks.dev]
+description = "Run development server"
+run = "uv run python -m backend.app"
+
+[tasks.test]
+description = "Run tests"
+run = "uv run pytest tests/ -v"
+
+[tasks.build]
+description = "Build frontend"
+run = "bun run build"
+
+[tasks.migrate]
+description = "Run database migrations"
+run = "uv run flask db upgrade"
