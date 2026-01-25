@@ -16,6 +16,7 @@ dependencies = [
   "pytest-cov>=4.1.0",
   "requests>=2.31.0",
   "flask-migrate>=4.0.5",
+  "urllib3>=2.6.3",
 ]
 
 [build-system]
