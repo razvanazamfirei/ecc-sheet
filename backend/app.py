@@ -23,7 +23,7 @@ from .config import Config
 from .email_service import send_report_email
 from .models import AuditLog, DailySheet, Resident, Role, TimeEntry, db
 from .staff_import import import_staff_list
-from .utils import philly_today, setup_logging
+from .utils import get_philadelphia_time, philly_today, setup_logging
 
 # Get the project root directory (parent of backend/)
 project_root = Path(__file__).parent.parent
@@ -126,6 +126,7 @@ def index():
         today=today,
         prev_date=prev_date,
         next_date=next_date,
+        current_time=get_philadelphia_time(),
     )
 
 
@@ -162,6 +163,7 @@ def view_sheet(date_str):
         today=sheet_date,
         prev_date=prev_date,
         next_date=next_date,
+        current_time=get_philadelphia_time(),
     )
 
 

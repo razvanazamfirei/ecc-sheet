@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Import Warning{% endblock %}
+{% block content %}
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Import Warning
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="lead">This import would affect existing entries for {{ date.strftime('%B %d, %Y') }}:</p>
+
+                {% if conflicts.data_loss %}
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-exclamation-octagon-fill me-2"></i>
+                            DATA LOSS WARNING ({{ conflicts.data_loss|length }})
+                        </h5>
+                        <p>
+                            The following entries already have exit times entered. Proceeding will
+                            <strong>permanently delete this data</strong>:
+                        </p>
+                        <ul class="mb-0">
+                            {% for conflict in conflicts.data_loss %}
+                                <li>
+                                    <strong>{{ conflict.role }}:</strong> {{ conflict.resident }} (exit time
+                                    {{ conflict.exit_time }} would be lost)
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                {% if conflicts.duplicates %}
+                    <div class="alert alert-warning">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            DUPLICATE ENTRIES ({{ conflicts.duplicates|length }})
+                        </h5>
+                        <p>The following entries already exist but have no exit times (safe to skip):</p>
+                        <ul class="mb-0">
+                            {% for conflict in conflicts.duplicates %}
+                                <li>
+                                    <strong>{{ conflict.role }}:</strong> {{ conflict.resident }} (entry exists, no exit
+                                    time)
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <div class="mt-4">
+                    <h5>What would you like to do?</h5>
+
+                    {% if conflicts.data_loss %}
+                        <form method="POST" action="{{ url_for('import_schedule', date_str=date_str) }}" class="mb-3">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                            <input type="hidden" name="confirmed" value="true" />
+                            <input type="hidden" name="skip_existing" value="true" />
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="bi bi-shield-check me-2"></i>
+                                Skip Entries with Exit Times (Recommended)
+                            </button>
+                            <p class="text-muted mt-2">
+                                This will only import new entries. Existing entries with exit times will be preserved.
+                            </p>
+                        </form>
+
+                        <form
+                            method="POST"
+                            action="{{ url_for('import_schedule', date_str=date_str) }}"
+                            onsubmit="return confirm('Are you SURE? This will permanently delete {{ conflicts.data_loss|length }} exit times that have already been entered. This cannot be undone.')"
+                            class="mb-3"
+                        >
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                            <input type="hidden" name="confirmed" value="true" />
+                            <input type="hidden" name="skip_existing" value="false" />
+                            <button type="submit" class="btn btn-danger btn-lg">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                Overwrite All (Data Will Be Lost)
+                            </button>
+                            <p class="text-muted mt-2">
+                                This will delete existing exit times and replace with blank entries from Amion.
+                            </p>
+                        </form>
+                    {% else %}
+                        <form method="POST" action="{{ url_for('import_schedule', date_str=date_str) }}" class="mb-3">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                            <input type="hidden" name="confirmed" value="true" />
+                            <input type="hidden" name="skip_existing" value="false" />
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-cloud-download me-2"></i>
+                                Continue Import
+                            </button>
+                            <p class="text-muted mt-2">
+                                Import will skip {{ conflicts.duplicates|length }} duplicate entries.
+                            </p>
+                        </form>
+                    {% endif %}
+
+                    <a href="{{ url_for('view_sheet', date_str=date_str) }}" class="btn btn-secondary btn-lg">
+                        <i class="bi bi-x-circle me-2"></i>
+                        Cancel Import
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
