@@ -44,33 +44,16 @@
                         <i class="bi bi-cloud-download me-1"></i>Import Schedule
                     </button>
                 </form>
-                {% set last_import = time_entries|selectattr('source', 'equalto', 'amion_import')|selectattr('import_transaction')|map(attribute='import_transaction')|unique|list|last %}
-                {% if last_import and last_import.is_undoable %}
-                    <form
-                        method="POST"
-                        action="{{ url_for('undo_import', transaction_id=last_import.id) }}"
-                        class="d-inline"
-                    >
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                        <button
-                            type="submit"
-                            class="btn btn-warning btn-sm"
-                            onclick="return confirm('Undo the last import? This will remove {{ last_import.entries_created }} entries.')"
-                        >
-                            <i class="bi bi-arrow-counterclockwise me-1"></i>Undo Import
-                        </button>
-                    </form>
-                {% endif %}
             {% endif %}
             <form
                 method="POST"
                 action="{{ url_for('lock_sheet', date_str=today.strftime('%Y-%m-%d')) }}"
                 class="d-inline"
+                id="lock-sheet-form"
                 {% if not daily_sheet.locked and missing_count > 0 %}
-                    onsubmit="return confirm('Warning: {{ missing_count }} entries are missing exit times.\n\nThese
-                    residents will not receive overtime
-                    credit:\n{{ time_entries|selectattr("exit_time", "none")|map(attribute="resident.name")|join(", ") }}\n\nLock
-                    anyway?')"
+                    data-missing-count="{{ missing_count }}"
+                    data-missing-residents="{{ time_entries|selectattr('exit_time', 'none')|map(attribute='resident.name')|list|tojson }}"
+                    onsubmit="return confirmLockWithMissing(this)"
                 {% endif %}
             >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -212,7 +195,7 @@
                                     </td>
                                     <td>{{ entry.resident.name }}</td>
                                     <td
-                                        class="exit-time-cell{% if not entry.exit_time %}missing{% endif %}"
+                                        class="exit-time-cell{% if not entry.exit_time %} missing{% endif %}"
                                         id="cell-{{ entry.id }}"
                                     >
                                         <span
@@ -344,6 +327,19 @@
                         });
                     }
                 });
+        }
+
+        function confirmLockWithMissing(form) {
+            const missingCount = form.dataset.missingCount;
+            const missingResidents = JSON.parse(form.dataset.missingResidents || "[]");
+            const message =
+                "Warning: " +
+                missingCount +
+                " entries are missing exit times.\n\n" +
+                "These residents will not receive overtime credit:\n" +
+                missingResidents.join(", ") +
+                "\n\nLock anyway?";
+            return confirm(message);
         }
 
         function editEntry(entryId) {
