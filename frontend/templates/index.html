@@ -1,5 +1,28 @@
 {% extends "base.html" %} {% block title %}Daily Sheet - {{ today.strftime('%B %d, %Y') }}{% endblock %}
 {% block content %}
+    {% set missing_count = time_entries|selectattr('exit_time', 'none')|list|length %}
+
+    {# Auto-lock warning banner (8 AM - 9 AM) #}
+    {% if not daily_sheet.locked and current_time.hour == 8 %}
+        {% set minutes_until_lock = 60 - current_time.minute %}
+        <div class="alert alert-warning alert-dismissible fade show auto-lock-warning" role="alert">
+            <i class="bi bi-clock-fill me-2"></i>
+            <strong>Warning: This sheet will auto-lock at 09:00 AM</strong>
+            <span id="countdown-timer" data-minutes="{{ minutes_until_lock }}">
+                ({{ minutes_until_lock }} minutes remaining)
+            </span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endif %}
+
+    {% if missing_count > 0 %}
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>{{ missing_count }} entries missing exit times</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endif %}
+
     <div class="d-flex justify-content-between align-items-center mb-4 sheet-header">
         <div>
             <h2 class="mb-0"><i class="bi bi-calendar3 me-2"></i>ECC Sheet</h2>
@@ -21,11 +44,34 @@
                         <i class="bi bi-cloud-download me-1"></i>Import Schedule
                     </button>
                 </form>
+                {% set last_import = time_entries|selectattr('source', 'equalto', 'amion_import')|selectattr('import_transaction')|map(attribute='import_transaction')|unique|list|last %}
+                {% if last_import and last_import.is_undoable %}
+                    <form
+                        method="POST"
+                        action="{{ url_for('undo_import', transaction_id=last_import.id) }}"
+                        class="d-inline"
+                    >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button
+                            type="submit"
+                            class="btn btn-warning btn-sm"
+                            onclick="return confirm('Undo the last import? This will remove {{ last_import.entries_created }} entries.')"
+                        >
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Undo Import
+                        </button>
+                    </form>
+                {% endif %}
             {% endif %}
             <form
                 method="POST"
                 action="{{ url_for('lock_sheet', date_str=today.strftime('%Y-%m-%d')) }}"
                 class="d-inline"
+                {% if not daily_sheet.locked and missing_count > 0 %}
+                    onsubmit="return confirm('Warning: {{ missing_count }} entries are missing exit times.\n\nThese
+                    residents will not receive overtime
+                    credit:\n{{ time_entries|selectattr("exit_time", "none")|map(attribute="resident.name")|join(", ") }}\n\nLock
+                    anyway?')"
+                {% endif %}
             >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <button type="submit" class="btn btn-{{ 'warning' if daily_sheet.locked else 'success' }} btn-sm">
@@ -38,11 +84,7 @@
                     <i class="bi bi-lock-fill me-1"></i>
                     Locked by {{ daily_sheet.locked_by }}
                     {% if daily_sheet.locked_at %}
-                        at
-                        {{
-                            daily_sheet.locked_at.strftime('%m/%d
-                            %H:%M')
-                        }}
+                        at {{ daily_sheet.locked_at.strftime('%m/%d %H:%M') }}
                     {% endif %}
                 </span>
             {% endif %}
@@ -152,26 +194,40 @@
                         </thead>
                         <tbody>
                             {% for entry in time_entries %}
-                                <tr id="entry-row-{{ entry.id }}" data-entry-id="{{ entry.id }}">
-                                    <td><span class="badge bg-secondary">{{ entry.role.name }}</span></td>
+                                <tr
+                                    id="entry-row-{{ entry.id }}"
+                                    data-entry-id="{{ entry.id }}"
+                                    {% if not entry.exit_time %}class="entry-missing-data"{% endif %}
+                                >
+                                    <td>
+                                        <span class="badge bg-secondary">{{ entry.role.name }}</span>
+                                        {% if entry.source == 'amion_import' %}
+                                            <span
+                                                class="badge bg-info"
+                                                title="Imported from Amion on {{ entry.import_transaction.timestamp.strftime('%m/%d %H:%M') if entry.import_transaction else 'N/A' }}"
+                                            >
+                                                <i class="bi bi-cloud-download"></i>
+                                            </span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ entry.resident.name }}</td>
-                                    <td class="exit-time-cell" id="cell-{{ entry.id }}">
+                                    <td
+                                        class="exit-time-cell{% if not entry.exit_time %}missing{% endif %}"
+                                        id="cell-{{ entry.id }}"
+                                    >
                                         <span
                                             class="time-display"
                                             id="display-{{ entry.id }}"
                                             onclick="{% if not daily_sheet.locked %}editEntry({{ entry.id }}){% endif %}"
-                                            {%
-                                                if
-                                                not
-                                                daily_sheet.locked
-                                            %}
-                                                title="Click to edit time"
-                                            {% endif %}
+                                            {% if not daily_sheet.locked %}title="Click to edit time"{% endif %}
                                         >
                                             {% if entry.exit_time %}
                                                 {{ entry.exit_time.strftime('%H:%M') }}
                                             {% else %}
-                                                <span class="text-muted">-</span>
+                                                <span class="text-warning">
+                                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                                    Missing exit time
+                                                </span>
                                             {% endif %}
                                         </span>
                                         <form
@@ -406,6 +462,30 @@
                 alert("Error saving entries. Please try again.");
                 console.error("Save all error:", error);
             }
+        }
+
+        // Auto-lock countdown timer
+        function updateCountdown() {
+            const timer = document.getElementById("countdown-timer");
+            if (!timer) return;
+
+            let minutes = parseInt(timer.dataset.minutes);
+            if (minutes > 0) {
+                minutes--;
+                timer.dataset.minutes = minutes;
+                timer.textContent = `(${minutes} minutes remaining)`;
+
+                if (minutes === 0) {
+                    timer.textContent = "(Locking now...)";
+                    // Reload page after a few seconds to show locked state
+                    setTimeout(() => window.location.reload(), 3000);
+                }
+            }
+        }
+
+        // Update countdown every minute
+        if (document.getElementById("countdown-timer")) {
+            setInterval(updateCountdown, 60000); // 60 seconds
         }
     </script>
 {% endblock %}
