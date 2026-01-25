@@ -195,7 +195,7 @@
                                     </td>
                                     <td>{{ entry.resident.name }}</td>
                                     <td
-                                        class="exit-time-cell{% if not entry.exit_time %}missing{% endif %}"
+                                        class="exit-time-cell{% if not entry.exit_time %} missing{% endif %}"
                                         id="cell-{{ entry.id }}"
                                     >
                                         <span

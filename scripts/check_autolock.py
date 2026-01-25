@@ -7,7 +7,7 @@ Usage: Run this script via cron every minute between 8-9 AM:
     * 8-9 * * * /path/to/.venv/bin/python /path/to/scripts/check_autolock.py
 """
 
-import os
+
 import sys
 from datetime import UTC, datetime, time
 from pathlib import Path
@@ -43,7 +43,7 @@ def auto_lock_sheets():
         # Find all unlocked sheets before today
         unlocked_sheets = DailySheet.query.filter(
             DailySheet.date < today,
-            DailySheet.locked == False
+            DailySheet.locked.is_(False)
         ).all()
 
         locked_count = 0
@@ -76,7 +76,7 @@ def main():
     try:
         if should_auto_lock():
             print(f"Running auto-lock check at {datetime.now()}")
-            locked_count = auto_lock_sheets()
+            auto_lock_sheets()
             sys.exit(0)
         else:
             # Not time yet, exit silently
