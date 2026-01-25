@@ -69,8 +69,8 @@ describe("LuxonUtils", () => {
 
     describe("getDateRange", () => {
         beforeEach(() => {
-            // Set a fixed time for consistent testing
-            Settings.now = () => new Date(2024, 5, 15).valueOf(); // June 15, 2024
+            // Set a fixed time for consistent testing (noon to avoid timezone issues)
+            Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf(); // June 15, 2024 at noon
         });
 
         afterEach(() => {
@@ -142,7 +142,7 @@ describe("LuxonUtils", () => {
 
     describe("getDaysAgo", () => {
         beforeEach(() => {
-            Settings.now = () => new Date(2024, 5, 15).valueOf();
+            Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf();
         });
 
         afterEach(() => {
@@ -157,7 +157,7 @@ describe("LuxonUtils", () => {
 
     describe("getDaysFromNow", () => {
         beforeEach(() => {
-            Settings.now = () => new Date(2024, 5, 15).valueOf();
+            Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf();
         });
 
         afterEach(() => {
@@ -181,7 +181,7 @@ describe("LuxonUtils", () => {
 
     describe("isValidDateRange", () => {
         beforeEach(() => {
-            Settings.now = () => new Date(2024, 5, 15).valueOf();
+            Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf();
         });
 
         afterEach(() => {
