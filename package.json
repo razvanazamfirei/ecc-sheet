@@ -12,9 +12,12 @@
         "format": "bun run format:js && bun run format:css && bun run format:html",
         "format:check": "prettier --check \"frontend/**/*.{js,css,html}\"",
         "build": "vite build",
-        "dev": "vite build --watch"
+        "dev": "vite build --watch",
+        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+        "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
     },
     "devDependencies": {
+        "jest": "^29.7.0",
         "prettier": "^3.8.1",
         "prettier-plugin-jinja-template": "^2.1.0",
         "stylelint": "^17.0.0",

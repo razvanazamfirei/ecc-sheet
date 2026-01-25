@@ -52,6 +52,8 @@ instance/
 # Testing
 .pytest_cache/
 .coverage
+coverage.xml
+coverage/
 htmlcov/
 test_*.py  # Temporary test files in root directory
 

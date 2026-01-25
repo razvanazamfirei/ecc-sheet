@@ -42,14 +42,51 @@ jobs:
                   DATABASE_URL: sqlite:///test.db
                   USER_NAME: CI-Test-User
 
-            - name: Run tests
+            - name: Run tests with coverage
               run: |
                   source .venv/bin/activate
-                  uv run pytest tests/ -v --tb=short
+                  uv run pytest tests/ -v --tb=short --cov=backend --cov-branch --cov-report=xml --cov-report=term
               env:
                   SECRET_KEY: test-secret-key-for-ci
                   DATABASE_URL: sqlite:///test.db
                   USER_NAME: CI-Test-User
+
+            - name: Upload backend coverage to Codecov
+              uses: codecov/codecov-action@v5
+              with:
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  files: ./coverage.xml
+                  flags: backend
+                  name: backend-coverage
+                  fail_ci_if_error: false
+
+    frontend-tests:
+        name: Frontend Tests
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v6
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            - name: Install dependencies
+              run: bun install
+
+            - name: Run tests with coverage
+              run: bun run test:coverage
+
+            - name: Upload frontend coverage to Codecov
+              uses: codecov/codecov-action@v5
+              with:
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  files: ./coverage/frontend/cobertura-coverage.xml
+                  flags: frontend
+                  name: frontend-coverage
+                  fail_ci_if_error: false
 
     frontend-build:
         name: Frontend Build & Lint
