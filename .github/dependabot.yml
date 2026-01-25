@@ -9,9 +9,13 @@ updates:
       labels:
           - "dependencies"
           - "python"
+      groups:
+        python-deps:
+          patterns:
+            - "*"
 
     # JavaScript dependencies
-    - package-ecosystem: "npm"
+    - package-ecosystem: "bun"
       directory: "/"
       schedule:
           interval: "weekly"
@@ -19,6 +23,10 @@ updates:
       labels:
           - "dependencies"
           - "javascript"
+      groups:
+        javascript-deps:
+          patterns:
+            - "*"
 
     # GitHub Actions
     - package-ecosystem: "github-actions"
@@ -29,3 +37,7 @@ updates:
       labels:
           - "dependencies"
           - "github-actions"
+      groups:
+        actions-deps:
+          patterns:
+            - "*"
