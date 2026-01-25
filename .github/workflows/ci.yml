@@ -1,161 +1,144 @@
 name: CI
 
 on:
-    push:
-        branches: [main, develop]
-    pull_request:
-        branches: [main, develop]
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
 
 jobs:
-    backend-tests:
-        name: Backend Tests
-        runs-on: ubuntu-latest
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
 
-            - name: Set up Python
-              uses: actions/setup-python@v6
-              with:
-                  python-version: "3.13"
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-            - name: Install UV
-              run: |
-                  curl -LsSf https://astral.sh/uv/install.sh | sh
-                  echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Create virtual environment
+        run: uv venv
 
-            - name: Create virtual environment
-              run: uv venv
+      - name: Install dependencies
+        run: |
+          source .venv/bin/activate
+          uv sync
 
-            - name: Install dependencies
-              run: |
-                  source .venv/bin/activate
-                  uv sync
+      - name: Run database migrations
+        run: |
+          source .venv/bin/activate
+          uv run flask --app backend.app db upgrade
+        env:
+          SECRET_KEY: test-secret-key-for-ci
+          DATABASE_URL: sqlite:///test.db
+          USER_NAME: CI-Test-User
 
-            - name: Run database migrations
-              run: |
-                  source .venv/bin/activate
-                  uv run flask --app backend.app db upgrade
-              env:
-                  SECRET_KEY: test-secret-key-for-ci
-                  DATABASE_URL: sqlite:///test.db
-                  USER_NAME: CI-Test-User
+      - name: Run tests with coverage
+        run: |
+          source .venv/bin/activate
+          uv run pytest tests/ -v --tb=short --cov=backend --cov-branch --cov-report=xml --cov-report=term
+        env:
+          SECRET_KEY: test-secret-key-for-ci
+          DATABASE_URL: sqlite:///test.db
+          USER_NAME: CI-Test-User
 
-            - name: Run tests with coverage
-              run: |
-                  source .venv/bin/activate
-                  uv run pytest tests/ -v --tb=short --cov=backend --cov-branch --cov-report=xml --cov-report=term
-              env:
-                  SECRET_KEY: test-secret-key-for-ci
-                  DATABASE_URL: sqlite:///test.db
-                  USER_NAME: CI-Test-User
+      - name: Upload backend coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
 
-            - name: Upload backend coverage to Codecov
-              if: always()
-              uses: codecov/codecov-action@v5
-              with:
-                  token: ${{ secrets.CODECOV_TOKEN }}
-                  files: ./coverage.xml
-                  flags: backend
-                  name: backend-coverage
-                  fail_ci_if_error: false
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
 
-    frontend-tests:
-        name: Frontend Tests
-        runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install
+      - name: Run tests with coverage
+        run: bun run test:coverage
+      - name: Upload frontend coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/frontend/cobertura-coverage.xml
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v6
+  frontend-build:
+    name: Frontend Build & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install
+      - name: Check Prettier formatting
+        run: bun run format:check
+      - name: Lint CSS
+        run: bun run lint:css
+      - name: Build frontend assets
+        run: bun run build
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Verify build outputs
+        run: |
+          test -f frontend/static/dist/vendor.css || exit 1
+          test -f frontend/static/dist/vendor.js || exit 1
+          echo "Build outputs verified successfully"
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
-              with:
-                  bun-version: latest
-
-            - name: Install dependencies
-              run: bun install
-
-            - name: Run tests with coverage
-              run: bun run test:coverage
-
-            - name: Upload frontend coverage to Codecov
-              if: always()
-              uses: codecov/codecov-action@v5
-              with:
-                  token: ${{ secrets.CODECOV_TOKEN }}
-                  files: ./coverage/frontend/cobertura-coverage.xml
-                  flags: frontend
-                  name: frontend-coverage
-                  fail_ci_if_error: false
-
-    frontend-build:
-        name: Frontend Build & Lint
-        runs-on: ubuntu-latest
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v6
-
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
-              with:
-                  bun-version: latest
-
-            - name: Install dependencies
-              run: bun install
-
-            - name: Check Prettier formatting
-              run: bun run format:check
-
-            - name: Lint CSS
-              run: bun run lint:css
-
-            - name: Build frontend assets
-              run: bun run build
-
-            - name: Verify build outputs
-              run: |
-                  test -f frontend/static/dist/vendor.css || exit 1
-                  test -f frontend/static/dist/vendor.js || exit 1
-                  echo "Build outputs verified successfully"
-
-    security-scan:
-        name: Security Scan
-        runs-on: ubuntu-latest
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v6
-
-            - name: Set up Python
-              uses: actions/setup-python@v6
-              with:
-                  python-version: "3.13"
-
-            - name: Install UV
-              run: |
-                  curl -LsSf https://astral.sh/uv/install.sh | sh
-                  echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-            - name: Create virtual environment
-              run: uv venv
-
-            - name: Install dependencies
-              run: |
-                  source .venv/bin/activate
-                  uv sync
-
-            - name: Run Bandit security scan
-              run: |
-                  source .venv/bin/activate
-                  uv pip install bandit
-                  bandit -r backend/ -f json -o bandit-report.json || true
-
-            - name: Upload Bandit report
-              uses: actions/upload-artifact@v6
-              if: always()
-              with:
-                  name: bandit-security-report
-                  path: bandit-report.json
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Create virtual environment
+        run: uv venv
+      - name: Install dependencies
+        run: |
+          source .venv/bin/activate
+          uv sync
+      - name: Run Bandit security scan
+        run: |
+          source .venv/bin/activate
+          uv pip install bandit
+          bandit -r backend/ -f json -o bandit-report.json || true
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: bandit-security-report
+          path: bandit-report.json

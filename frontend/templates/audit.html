@@ -3,170 +3,202 @@
 {% block title %}Audit Log{% endblock %}
 
 {% block content %}
-    <div class="mb-4">
-        <h2 class="mb-0"><i class="bi bi-shield-check me-2"></i>Audit Trail</h2>
-        <p class="text-muted">Complete history of all changes in the system</p>
+  <div class="mb-4">
+    <h2 class="mb-0"><i class="bi bi-shield-check me-2"></i>Audit Trail</h2>
+    <p class="text-muted">Complete history of all changes in the system</p>
+  </div>
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title mb-3">
+        <i class="bi bi-funnel me-2"></i>Filter Audit Log
+      </h5>
+      <form method="GET" action="{{ url_for('audit_log') }}">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label for="entity_type" class="form-label">Entity Type</label>
+            <select name="entity_type" id="entity_type" class="form-select">
+              <option value="">All Types</option>
+              <option
+                value="TimeEntry"
+                {% if request.args.get('entity_type') == 'TimeEntry' %}selected{% endif %}>
+                Time Entries
+              </option>
+              <option
+                value="DailySheet"
+                {% if request.args.get('entity_type') == 'DailySheet' %}selected{% endif %}>
+                Daily Sheets
+              </option>
+              <option
+                value="Resident"
+                {% if request.args.get('entity_type') == 'Resident' %}selected{% endif %}>
+                Residents
+              </option>
+              <option
+                value="Schedule"
+                {% if request.args.get('entity_type') == 'Schedule' %}selected{% endif %}>
+                Schedule Imports
+              </option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label for="action" class="form-label">Action</label>
+            <select name="action" id="action" class="form-select">
+              <option value="">All Actions</option>
+              <option
+                value="CREATE"
+                {% if request.args.get('action') == 'CREATE' %}selected{% endif %}>
+                Create
+              </option>
+              <option
+                value="UPDATE"
+                {% if request.args.get('action') == 'UPDATE' %}selected{% endif %}>
+                Update
+              </option>
+              <option
+                value="DELETE"
+                {% if request.args.get('action') == 'DELETE' %}selected{% endif %}>
+                Delete
+              </option>
+              <option
+                value="LOCK"
+                {% if request.args.get('action') == 'LOCK' %}selected{% endif %}>
+                Lock
+              </option>
+              <option
+                value="UNLOCK"
+                {% if request.args.get('action') == 'UNLOCK' %}selected{% endif %}>
+                Unlock
+              </option>
+              <option
+                value="IMPORT"
+                {% if request.args.get('action') == 'IMPORT' %}selected{% endif %}>
+                Import
+              </option>
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <label for="limit" class="form-label">Limit</label>
+            <select name="limit" id="limit" class="form-select">
+              <option
+                value="50"
+                {% if request.args.get('limit') == '50' %}selected{% endif %}>
+                50
+              </option>
+              <option
+                value="100"
+                {% if request.args.get('limit', '100') == '100' %}selected{% endif %}>
+                100
+              </option>
+              <option
+                value="500"
+                {% if request.args.get('limit') == '500' %}selected{% endif %}>
+                500
+              </option>
+              <option
+                value="1000"
+                {% if request.args.get('limit') == '1000' %}selected{% endif %}>
+                1000
+              </option>
+            </select>
+          </div>
+
+          <div class="col-md-4 d-flex align-items-end gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-search me-1"></i>Filter
+            </button>
+            <a
+              href="{{ url_for('audit_log') }}"
+              class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Clear
+            </a>
+          </div>
+        </div>
+      </form>
     </div>
-    <div class="card mb-4">
-        <div class="card-body">
-            <h5 class="card-title mb-3"><i class="bi bi-funnel me-2"></i>Filter Audit Log</h5>
-            <form method="GET" action="{{ url_for('audit_log') }}">
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <label for="entity_type" class="form-label">Entity Type</label>
-                        <select name="entity_type" id="entity_type" class="form-select">
-                            <option value="">All Types</option>
-                            <option
-                                value="TimeEntry"
-                                {% if request.args.get('entity_type') == 'TimeEntry' %}selected{% endif %}
-                            >
-                                Time Entries
-                            </option>
-                            <option
-                                value="DailySheet"
-                                {% if request.args.get('entity_type') == 'DailySheet' %}selected{% endif %}
-                            >
-                                Daily Sheets
-                            </option>
-                            <option
-                                value="Resident"
-                                {% if request.args.get('entity_type') == 'Resident' %}selected{% endif %}
-                            >
-                                Residents
-                            </option>
-                            <option
-                                value="Schedule"
-                                {% if request.args.get('entity_type') == 'Schedule' %}selected{% endif %}
-                            >
-                                Schedule Imports
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="action" class="form-label">Action</label>
-                        <select name="action" id="action" class="form-select">
-                            <option value="">All Actions</option>
-                            <option value="CREATE" {% if request.args.get('action') == 'CREATE' %}selected{% endif %}>
-                                Create
-                            </option>
-                            <option value="UPDATE" {% if request.args.get('action') == 'UPDATE' %}selected{% endif %}>
-                                Update
-                            </option>
-                            <option value="DELETE" {% if request.args.get('action') == 'DELETE' %}selected{% endif %}>
-                                Delete
-                            </option>
-                            <option value="LOCK" {% if request.args.get('action') == 'LOCK' %}selected{% endif %}>
-                                Lock
-                            </option>
-                            <option value="UNLOCK" {% if request.args.get('action') == 'UNLOCK' %}selected{% endif %}>
-                                Unlock
-                            </option>
-                            <option value="IMPORT" {% if request.args.get('action') == 'IMPORT' %}selected{% endif %}>
-                                Import
-                            </option>
-                        </select>
-                    </div>
+  </div>
 
-                    <div class="col-md-2">
-                        <label for="limit" class="form-label">Limit</label>
-                        <select name="limit" id="limit" class="form-select">
-                            <option value="50" {% if request.args.get('limit') == '50' %}selected{% endif %}>50</option>
-                            <option value="100" {% if request.args.get('limit', '100') == '100' %}selected{% endif %}>
-                                100
-                            </option>
-                            <option value="500" {% if request.args.get('limit') == '500' %}selected{% endif %}>
-                                500
-                            </option>
-                            <option value="1000" {% if request.args.get('limit') == '1000' %}selected{% endif %}>
-                                1000
-                            </option>
-                        </select>
-                    </div>
-
-                    <div class="col-md-4 d-flex align-items-end gap-2">
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>Filter</button>
-                        <a href="{{ url_for('audit_log') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle me-1"></i>Clear
-                        </a>
-                    </div>
-                </div>
-            </form>
+  {% if entries %}
+    <div class="card">
+      <div
+        class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Audit Entries</h5>
+        <span class="badge bg-secondary">{{ entries|length }} entries</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Entity</th>
+                <th>Details</th>
+                <th>IP Address</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in entries %}
+                <tr>
+                  <td class="text-nowrap">
+                    <small>{{ entry.timestamp.strftime('%Y-%m-%d') }}</small
+                    ><br />
+                    <small class="text-muted"
+                      >{{ entry.timestamp.strftime('%H:%M:%S') }}</small
+                    >
+                  </td>
+                  <td><i class="bi bi-person me-1"></i>{{ entry.user }}</td>
+                  <td>
+                    <span
+                      class="badge bg-{{ 'success' if entry.action == 'CREATE' else 'warning' if entry.action in ['UPDATE', 'LOCK', 'UNLOCK'] else 'danger' if entry.action == 'DELETE' else 'info' }}">
+                      <i
+                        class="bi bi-{{ 'plus-circle' if entry.action == 'CREATE' else 'pencil' if entry.action == 'UPDATE' else 'trash' if entry.action == 'DELETE' else 'lock' if entry.action == 'LOCK' else 'unlock' if entry.action == 'UNLOCK' else 'download' }} me-1"></i>
+                      {{ entry.action }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge bg-light text-dark"
+                      >{{ entry.entity_type }}</span
+                    >
+                    {% if entry.entity_id %}
+                      <small class="text-muted">#{{ entry.entity_id }}</small>
+                    {% endif %}
+                  </td>
+                  <td class="audit-details">
+                    {% if entry.details %}
+                      <details>
+                        <summary>View Details</summary>
+                        <pre>{{ entry.details }}</pre>
+                      </details>
+                    {% else %}
+                      <span class="text-muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <small class="text-muted"
+                      >{{ entry.ip_address or '-' }}</small
+                    >
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
+      </div>
     </div>
-
-    {% if entries %}
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Audit Entries</h5>
-                <span class="badge bg-secondary">{{ entries|length }} entries</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>User</th>
-                                <th>Action</th>
-                                <th>Entity</th>
-                                <th>Details</th>
-                                <th>IP Address</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for entry in entries %}
-                                <tr>
-                                    <td class="text-nowrap">
-                                        <small>{{ entry.timestamp.strftime('%Y-%m-%d') }}</small><br />
-                                        <small class="text-muted">{{ entry.timestamp.strftime('%H:%M:%S') }}</small>
-                                    </td>
-                                    <td><i class="bi bi-person me-1"></i>{{ entry.user }}</td>
-                                    <td>
-                                        <span
-                                            class="badge bg-{{ 'success' if entry.action == 'CREATE' else 'warning' if entry.action in ['UPDATE', 'LOCK', 'UNLOCK'] else 'danger' if entry.action == 'DELETE' else 'info' }}"
-                                        >
-                                            <i
-                                                class="bi bi-{{ 'plus-circle' if entry.action == 'CREATE' else 'pencil' if entry.action == 'UPDATE' else 'trash' if entry.action == 'DELETE' else 'lock' if entry.action == 'LOCK' else 'unlock' if entry.action == 'UNLOCK' else 'download' }} me-1"
-                                            ></i>
-                                            {{ entry.action }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light text-dark">{{ entry.entity_type }}</span>
-                                        {% if entry.entity_id %}
-                                            <small class="text-muted">#{{ entry.entity_id }}</small>
-                                        {% endif %}
-                                    </td>
-                                    <td class="audit-details">
-                                        {% if entry.details %}
-                                            <details>
-                                                <summary>View Details</summary>
-                                                <pre>{{ entry.details }}</pre>
-                                            </details>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <small class="text-muted">{{ entry.ip_address or '-' }}</small>
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    {% else %}
-        <div class="card">
-            <div class="card-body text-center py-5">
-                <i class="bi bi-inbox display-1 text-muted d-block mb-3"></i>
-                <h4 class="text-muted mb-3">No Audit Entries</h4>
-                <p class="text-muted mb-4">No audit entries found matching your filters.</p>
-                <a href="{{ url_for('audit_log') }}" class="btn btn-primary">
-                    <i class="bi bi-arrow-clockwise me-2"></i>Clear Filters
-                </a>
-            </div>
-        </div>
-    {% endif %}
+  {% else %}
+    <div class="card">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-inbox display-1 text-muted d-block mb-3"></i>
+        <h4 class="text-muted mb-3">No Audit Entries</h4>
+        <p class="text-muted mb-4">
+          No audit entries found matching your filters.
+        </p>
+        <a href="{{ url_for('audit_log') }}" class="btn btn-primary">
+          <i class="bi bi-arrow-clockwise me-2"></i>Clear Filters
+        </a>
+      </div>
+    </div>
+  {% endif %}
 {% endblock %}

@@ -1,21 +1,29 @@
-import { defineConfig } from 'vite';
-import { resolve } from 'path';
+import { defineConfig } from "vite";
+import { resolve } from "path";
+import { codecovVitePlugin } from "@codecov/vite-plugin";
 
 export default defineConfig({
-  base: './',
+  base: "./",
   build: {
-    outDir: 'frontend/static/dist',
+    outDir: "frontend/static/dist",
     emptyOutDir: true,
     rollupOptions: {
       input: {
         // Main vendor bundle
-        vendor: resolve(__dirname, 'frontend/static/js/vendor.js'),
+        vendor: resolve(__dirname, "frontend/static/js/vendor.js"),
       },
       output: {
-        entryFileNames: '[name].js',
-        chunkFileNames: '[name].js',
-        assetFileNames: '[name].[ext]'
-      }
-    }
-  }
+        entryFileNames: "[name].js",
+        chunkFileNames: "[name].js",
+        assetFileNames: "[name].[ext]",
+      },
+    },
+  },
+  plugins: [
+    codecovVitePlugin({
+      enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
+      bundleName: "ecc-sheet",
+      uploadToken: process.env.CODECOV_TOKEN,
+    }),
+  ],
 });

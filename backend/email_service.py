@@ -1,6 +1,7 @@
 """
 Email service for sending reports with CSV attachments
 """
+
 import csv
 import logging
 import smtplib
@@ -16,7 +17,9 @@ from .models import TimeEntry
 logger = logging.getLogger("ecc_sheet")
 
 
-def generate_csv_report(start_date: date, end_date: date, resident_id: int = None) -> str:
+def generate_csv_report(
+    start_date: date, end_date: date, resident_id: int = None
+) -> str:
     """
     Generate CSV report for date range
 
@@ -140,7 +143,7 @@ def build_report_email_html(
         <div class="header">
             <h2>ECC Overtime Report</h2>
             <p>{start_date.strftime("%B %d, %Y")} to {end_date.strftime("%B %d, %Y")}</p>
-            {f'<p>Resident: {resident_name}</p>' if resident_name else '<p>All Residents</p>'}
+            {f"<p>Resident: {resident_name}</p>" if resident_name else "<p>All Residents</p>"}
         </div>
     """
 
@@ -152,7 +155,9 @@ def build_report_email_html(
         """
     else:
         # Calculate total overtime across all residents
-        total_overtime_all = sum(data["total_overtime"] for data in resident_data.values())
+        total_overtime_all = sum(
+            data["total_overtime"] for data in resident_data.values()
+        )
 
         html_content += f"""
         <div class="summary">
@@ -167,7 +172,7 @@ def build_report_email_html(
         # Add table for each resident
         for resident_name, data in sorted(resident_data.items()):
             html_content += f"""
-            <h4>{resident_name} - Total: <span class="overtime">{data['total_overtime']:.2f} hours</span></h4>
+            <h4>{resident_name} - Total: <span class="overtime">{data["total_overtime"]:.2f} hours</span></h4>
             <table>
                 <thead>
                     <tr>
@@ -183,10 +188,10 @@ def build_report_email_html(
             for entry in data["entries"]:
                 html_content += f"""
                     <tr>
-                        <td>{entry['date']}</td>
-                        <td>{entry['role']}</td>
-                        <td>{entry['exit_time'] if entry['exit_time'] else '-'}</td>
-                        <td class="overtime">{entry['overtime']:.2f}</td>
+                        <td>{entry["date"]}</td>
+                        <td>{entry["role"]}</td>
+                        <td>{entry["exit_time"] or "-"}</td>
+                        <td class="overtime">{entry["overtime"]:.2f}</td>
                     </tr>
                 """
 
@@ -195,7 +200,7 @@ def build_report_email_html(
             </table>
             """
 
-    html_content += f"""
+    html_content += """
         <div class="footer">
             <p>This is an automated report from the ECC Sheet system.</p>
             <p>A CSV file with detailed data is attached to this email.</p>
@@ -298,7 +303,9 @@ def send_report_email(
             filename += f"_{clean_name.replace(' ', '_')}"
         filename += ".csv"
 
-        csv_attachment.add_header("Content-Disposition", "attachment", filename=filename)
+        csv_attachment.add_header(
+            "Content-Disposition", "attachment", filename=filename
+        )
         msg.attach(csv_attachment)
 
         # Send email

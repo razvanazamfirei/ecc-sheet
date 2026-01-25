@@ -1,5 +1,5 @@
 const config = {
-  extends: 'stylelint-config-standard',
+  extends: "stylelint-config-standard",
 };
 
 // noinspection JSUnusedGlobalSymbols

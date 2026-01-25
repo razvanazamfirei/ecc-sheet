@@ -1,8 +1,10 @@
 # ECC Sheet - Medical Shift Tracking System
 
-A comprehensive Flask-based web application for tracking medical resident shifts, calculating overtime, and generating reports with full audit logging.
+A comprehensive Flask-based web application for tracking medical resident
+shifts, calculating overtime, and generating reports with full audit logging.
 
-**Status:** Production-ready with enhanced UX | Requires external authentication for deployment
+**Status:** Production-ready with enhanced UX | Requires external authentication
+for deployment
 
 ## Features
 
@@ -84,6 +86,7 @@ See `.env.example` for a complete template.
 ## Tech Stack
 
 ### Backend
+
 - **Python 3.11+** with Flask 3.0
 - **SQLite** - File-based database with migration support
 - **SQLAlchemy** - ORM with relationship management
@@ -91,6 +94,7 @@ See `.env.example` for a complete template.
 - **Flask-WTF** - Form validation with CSRF protection
 
 ### Frontend
+
 - **Jinja2** - Server-side templates with 24-hour time format
 - **Vanilla JavaScript** - ES6+ with Luxon for timezone handling
 - **Bootstrap 5.3.8** - UI framework (bundled locally)
@@ -100,6 +104,7 @@ See `.env.example` for a complete template.
 - **Prettier 3.6.2** - Code formatter
 
 ### Build Tools
+
 - **Bun** - JavaScript runtime and package manager
 - **Vite** - Frontend build tool
 - **UV** - Python package manager
@@ -192,11 +197,13 @@ The application uses environment-based authentication:
 - **Admin Access**: Controlled by `ADMIN_USERS` (comma-separated list)
 - **External Auth**: Designed to work with SSO or reverse proxy
 
-Authentication must be handled externally (e.g., institutional SSO, reverse proxy).
+Authentication must be handled externally (e.g., institutional SSO, reverse
+proxy).
 
 ## Security
 
 ### Current Protections
+
 - CSRF protection on all forms
 - SQL injection prevention via SQLAlchemy ORM
 - XSS protection via Jinja2 auto-escaping
@@ -205,6 +212,7 @@ Authentication must be handled externally (e.g., institutional SSO, reverse prox
 - Confirmation dialogs for destructive actions
 
 ### Production Requirements
+
 - External authentication system (SSO recommended)
 - HTTPS/SSL encryption
 - Rate limiting (Flask-Limiter)
@@ -215,10 +223,12 @@ Authentication must be handled externally (e.g., institutional SSO, reverse prox
 ## API Endpoints
 
 ### Data Endpoints (GET)
+
 - `/api/residents/active` - List active residents
 - `/api/roles` - List all roles
 
 ### Form Endpoints (POST)
+
 - `/add_entry` - Add time entry
 - `/update_entry/<id>` - Update time entry
 - `/delete_entry/<id>` - Delete time entry
@@ -235,7 +245,8 @@ All POST endpoints require CSRF token.
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)** - Comprehensive project documentation
-- **[DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md)** - Migration workflow guide
+- **[DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md)** - Migration workflow
+  guide
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
 
 ## Testing
@@ -254,14 +265,18 @@ uv run pytest tests/test_models.py -v
 ## Troubleshooting
 
 ### Database Issues
+
 - **Database locked**: SQLite write locks - usually resolves on retry
-- **Migration conflicts**: Run `uv run flask --app backend.app db history` to view
+- **Migration conflicts**: Run `uv run flask --app backend.app db history` to
+  view
 
 ### Frontend Issues
+
 - **Vite build fails**: Clear `node_modules` and reinstall with `bun install`
 - **Icons not displaying**: Rebuild assets with `bun run build`
 
 ### Import Issues
+
 - **Schedule import fails**: Verify Amion URL accessibility
 - **Missing residents**: Ensure EPIC IDs are populated
 
@@ -270,6 +285,7 @@ See `CLAUDE.md` for detailed troubleshooting.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+
 - Code style and formatting
 - Testing requirements
 - Pull request process
@@ -282,6 +298,7 @@ Apache License 2.0 - See [LICENSE](LICENSE) file for details.
 ## Changelog
 
 ### Version 2.0 (2025-11-25)
+
 - Simplified authentication to environment-based
 - Added comprehensive audit logging
 - Migrated to Vite for frontend bundling
@@ -291,6 +308,7 @@ Apache License 2.0 - See [LICENSE](LICENSE) file for details.
 - Full hour/minute editing for role cutoffs
 
 ### Version 1.0
+
 - Initial release
 - Daily shift tracking
 - Overtime calculations

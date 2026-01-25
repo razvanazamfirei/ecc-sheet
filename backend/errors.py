@@ -1,6 +1,7 @@
 """Error handling for the ECC Sheet application"""
 
 from flask import jsonify
+
 from .utils import setup_logging
 
 logger = setup_logging()
@@ -17,7 +18,11 @@ class APIError(Exception):
 
     def to_dict(self):
         """Convert error to dictionary for JSON response"""
-        response = {"success": False, "error": self.message, "type": self.__class__.__name__}
+        response = {
+            "success": False,
+            "error": self.message,
+            "type": self.__class__.__name__,
+        }
         if self.payload:
             response["details"] = self.payload
         return response
@@ -65,7 +70,10 @@ def register_error_handlers(app):
     def handle_api_error(error):
         """Handle API errors"""
         logger.error(
-            "API Error: %s (status: %d)", error.message, error.status_code, extra={"payload": error.payload}
+            "API Error: %s (status: %d)",
+            error.message,
+            error.status_code,
+            extra={"payload": error.payload},
         )
         response = jsonify(error.to_dict())
         response.status_code = error.status_code
