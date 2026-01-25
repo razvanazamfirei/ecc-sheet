@@ -4,7 +4,8 @@ Database migration management script.
 This script provides commands for managing database migrations.
 """
 
-from flask_migrate import Migrate, init, migrate, upgrade, downgrade, current, history
+from flask_migrate import Migrate, current, downgrade, history, init, migrate, upgrade
+
 from backend.app import app, db
 
 # Initialize Flask-Migrate

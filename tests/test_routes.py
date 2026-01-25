@@ -62,7 +62,9 @@ class TestViewSheet:
 class TestAddEntry:
     """Test adding time entries"""
 
-    def test_add_entry_success(self, client, app, sample_resident, sample_role, clean_database):
+    def test_add_entry_success(
+        self, client, app, sample_resident, sample_role, clean_database
+    ):
         """Test successfully adding a time entry"""
         resident_id = sample_resident.id
         role_id = sample_role.id
@@ -412,7 +414,9 @@ class TestManageRoles:
 class TestWorkflowIntegration:
     """Test complete workflows end-to-end"""
 
-    def test_complete_daily_workflow(self, client, app, clean_database, sample_resident, sample_role):
+    def test_complete_daily_workflow(
+        self, client, app, clean_database, sample_resident, sample_role
+    ):
         """Test complete workflow: add entries, view sheet, lock, generate report"""
         resident_id = sample_resident.id
         role_id = sample_role.id

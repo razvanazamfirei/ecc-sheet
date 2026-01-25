@@ -1,6 +1,7 @@
 # Contributing to ECC Sheet
 
-Thank you for your interest in contributing to the ECC Sheet project! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to the ECC Sheet project! This
+document provides guidelines and instructions for contributing.
 
 ## Table of Contents
 
@@ -35,35 +36,41 @@ This project adheres to professional standards of conduct:
 ### Development Setup
 
 1. Fork and clone the repository:
+
 ```bash
 git clone https://github.com/your-username/ecc-sheet.git
 cd ecc-sheet
 ```
 
 2. Set up the backend:
+
 ```bash
 source .venv/bin/activate
 uv sync
 ```
 
 3. Set up the frontend:
+
 ```bash
 bun install
 bun run build
 ```
 
 4. Create a `.env` file:
+
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
 5. Apply database migrations:
+
 ```bash
 uv run flask --app backend.app db upgrade
 ```
 
 6. Run the application:
+
 ```bash
 uv run python -m backend.app
 ```
@@ -73,6 +80,7 @@ uv run python -m backend.app
 ### Branch Naming
 
 Use descriptive branch names:
+
 - `feature/add-resident-export` - New features
 - `fix/overtime-calculation-bug` - Bug fixes
 - `docs/update-api-documentation` - Documentation updates
@@ -82,6 +90,7 @@ Use descriptive branch names:
 ### Making Changes
 
 1. Create a new branch from `main`:
+
 ```bash
 git checkout -b feature/your-feature-name
 ```
@@ -91,6 +100,7 @@ git checkout -b feature/your-feature-name
 3. Test your changes thoroughly
 
 4. Format your code:
+
 ```bash
 # Backend (Python)
 # Add Python formatter if needed
@@ -99,7 +109,8 @@ git checkout -b feature/your-feature-name
 bun run format
 ```
 
-5. Commit your changes following [Commit Message Guidelines](#commit-message-guidelines)
+5. Commit your changes following
+   [Commit Message Guidelines](#commit-message-guidelines)
 
 6. Push to your fork and create a pull request
 
@@ -114,6 +125,7 @@ bun run format
 - Add docstrings for public functions and classes
 
 Example:
+
 ```python
 def calculate_overtime(exit_time: str, cutoff_hour: int, cutoff_minute: int) -> float:
     """
@@ -140,13 +152,17 @@ def calculate_overtime(exit_time: str, cutoff_hour: int, cutoff_minute: int) -> 
 - Add comments for complex logic
 
 Example:
+
 ```javascript
 const calculateOvertimeHours = (exitTime, cutoffHour, cutoffMinute) => {
-    // Parse exit time and calculate overtime
-    const exit = DateTime.fromFormat(exitTime, "HH:mm");
-    const cutoff = DateTime.fromObject({ hour: cutoffHour, minute: cutoffMinute });
+  // Parse exit time and calculate overtime
+  const exit = DateTime.fromFormat(exitTime, "HH:mm");
+  const cutoff = DateTime.fromObject({
+    hour: cutoffHour,
+    minute: cutoffMinute,
+  });
 
-    return exit > cutoff ? exit.diff(cutoff, "hours").hours : 0;
+  return exit > cutoff ? exit.diff(cutoff, "hours").hours : 0;
 };
 ```
 
@@ -192,6 +208,7 @@ uv run pytest tests/test_models.py::test_overtime_calculation -v
 - Follow AAA pattern (Arrange, Act, Assert)
 
 Example:
+
 ```python
 def test_overtime_calculation_after_cutoff():
     """Test that overtime is calculated correctly when exit time is after cutoff."""
@@ -221,6 +238,7 @@ When you modify database models:
 1. Make changes to `backend/models.py`
 
 2. Generate migration:
+
 ```bash
 uv run flask --app backend.app db migrate -m "Descriptive message"
 ```
@@ -230,6 +248,7 @@ uv run flask --app backend.app db migrate -m "Descriptive message"
 4. Edit if necessary (Alembic may not detect all changes)
 
 5. Test the migration:
+
 ```bash
 # Apply migration
 uv run flask --app backend.app db upgrade
@@ -270,9 +289,11 @@ See `docs/DATABASE_MIGRATIONS.md` for detailed guidelines.
 
 ```markdown
 ## Description
+
 Brief description of changes
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
@@ -281,17 +302,21 @@ Brief description of changes
 - [ ] Performance improvement
 
 ## Testing
+
 Describe testing performed
 
 ## Database Changes
+
 - [ ] No database changes
 - [ ] Migration included
 - [ ] Migration tested (upgrade and downgrade)
 
 ## Screenshots (if applicable)
+
 Add screenshots for UI changes
 
 ## Checklist
+
 - [ ] Tests pass
 - [ ] Code formatted
 - [ ] Documentation updated
@@ -392,6 +417,7 @@ Update Python version requirement to 3.11+.
 Instead, email security concerns to: [your-security-email]
 
 Include:
+
 - Description of vulnerability
 - Steps to reproduce
 - Potential impact
@@ -416,6 +442,7 @@ Include:
 ## Recognition
 
 Contributors will be recognized in:
+
 - GitHub contributors list
 - Release notes for significant contributions
 - Project documentation
