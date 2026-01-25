@@ -44,7 +44,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           source .venv/bin/activate
-          uv run pytest tests/ -v --tb=short --cov=backend --cov-branch --cov-report=xml --cov-report=term
+          uv run pytest tests/ -v --tb=short --cov=backend --cov-branch --cov-report=xml --cov-report=term --junitxml=junit.xml -o junit_family=legacy
         env:
           SECRET_KEY: test-secret-key-for-ci
           DATABASE_URL: sqlite:///test.db
@@ -84,6 +84,11 @@ jobs:
           flags: frontend
           name: frontend-coverage
           fail_ci_if_error: false
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   frontend-build:
     name: Frontend Build & Lint
@@ -105,6 +110,11 @@ jobs:
         run: bun run build
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
       - name: Verify build outputs
         run: |
           test -f frontend/static/dist/vendor.css || exit 1
