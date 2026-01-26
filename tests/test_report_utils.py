@@ -2,9 +2,7 @@
 
 from datetime import date, time
 
-import pytest
-
-from backend.models import Resident, Role, TimeEntry, db
+from backend.models import TimeEntry, db
 from backend.report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
@@ -129,7 +127,7 @@ class TestAggregateEntriesByResident:
 
             assert len(result) == 1
             # Exit time should be empty string
-            assert result[sample_resident.name]["entries"][0]["exit_time"] == ""
+            assert not result[sample_resident.name]["entries"][0]["exit_time"]
 
             db.session.delete(entry)
             db.session.commit()

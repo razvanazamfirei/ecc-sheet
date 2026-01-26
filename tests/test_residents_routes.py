@@ -1,11 +1,5 @@
 """Tests for resident routes."""
 
-from datetime import date
-
-import pytest
-
-from backend.models import Resident, db
-
 
 class TestResidentManagement:
     """Tests for resident management routes."""

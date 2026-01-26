@@ -3,9 +3,7 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from backend.models import DailySheet, Resident, Role, TimeEntry, db
+from backend.models import DailySheet, Role, db
 
 
 class TestScheduleImport:
@@ -124,4 +122,4 @@ ECC 1,Test Resident,Some,Data,Here,More,Data,EPICID:R12345,Extra"""
             follow_redirects=True,
         )
         # Should handle the error
-        assert response.status_code in (200, 400, 404)
+        assert response.status_code in {200, 400, 404}

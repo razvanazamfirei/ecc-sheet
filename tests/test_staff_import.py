@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from backend.models import Resident, db
 from backend.staff_import import fetch_staff_list, parse_staff_list
 
 
