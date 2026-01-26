@@ -332,8 +332,10 @@ class TestDailySheet:
     def test_daily_sheet_submission(self, app):
         """Test submitting a daily sheet"""
         with app.app_context():
+            # Use a date far in the future to avoid conflicts with fixtures
+            test_date = date(2099, 1, 1)
             sheet = DailySheet(
-                date=date.today(),
+                date=test_date,
                 locked=True,
                 submitted=True,
                 submitted_at=datetime.now(),
@@ -343,6 +345,10 @@ class TestDailySheet:
 
             assert sheet.submitted is True
             assert sheet.submitted_at is not None
+
+            # Clean up
+            db.session.delete(sheet)
+            db.session.commit()
 
     def test_daily_sheet_unique_date(self, app, sample_daily_sheet):
         """Test that daily sheets have unique dates"""

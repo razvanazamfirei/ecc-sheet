@@ -9,6 +9,7 @@ from wtforms import (
     SelectField,
     StringField,
     TimeField,
+    ValidationError,
 )
 from wtforms.validators import DataRequired, Length, NumberRange
 
@@ -50,3 +51,9 @@ class ReportForm(FlaskForm):
 
     start_date = DateField("Start Date", validators=[DataRequired()])
     end_date = DateField("End Date", validators=[DataRequired()])
+
+    def validate_end_date(self, field):
+        """Validate that end_date is not before start_date."""
+        if self.start_date.data and field.data:
+            if field.data < self.start_date.data:
+                raise ValidationError("End date must be on or after start date")
