@@ -10,6 +10,8 @@ jobs:
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
+    env:
+      FLASK_APP: "backend.app"
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
