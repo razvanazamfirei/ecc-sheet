@@ -10,6 +10,7 @@ from email.mime.text import MIMEText
 from flask import render_template
 
 from .config import Config
+from .models import TimeEntry
 from .report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
@@ -52,7 +53,7 @@ def send_report_email(
 
         # Get entries and generate content
         query = build_entries_query(start_date, end_date, resident_id)
-        entries = query.order_by("date", "resident_id").all()
+        entries = query.order_by(TimeEntry.date, TimeEntry.resident_id).all()
         csv_content = generate_csv_content(entries)
         resident_data = aggregate_entries_by_resident(entries)
         total_overtime = sum(data["total_overtime"] for data in resident_data.values())
