@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Manage Holidays{% endblock %}
+{% block content %}
+  <div class="mb-4">
+    <h2 class="mb-0">
+      <i class="bi bi-calendar-event me-2"></i>Manage Holidays
+    </h2>
+    <p class="text-muted">
+      Holidays affect overtime calculation for backup roles
+    </p>
+  </div>
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-plus-circle me-2"></i>Add Holiday
+          </h5>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('holidays.add') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+            <div class="mb-3">
+              <label for="date" class="form-label">Date</label>
+              <input
+                type="date"
+                name="date"
+                id="date"
+                class="form-control"
+                required />
+            </div>
+
+            <div class="mb-3">
+              <label for="name" class="form-label">Holiday Name</label>
+              <input
+                type="text"
+                name="name"
+                id="name"
+                class="form-control"
+                placeholder="e.g., Company Holiday"
+                required />
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-plus-circle me-1"></i>Add Holiday
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-arrow-clockwise me-2"></i>Federal Holidays
+          </h5>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small">
+            Federal holidays are automatically calculated. Click below to
+            refresh for the current and next year.
+          </p>
+          <form
+            method="POST"
+            action="{{ url_for('holidays.refresh_federal') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refresh Federal Holidays
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>All Holidays</h5>
+        </div>
+        <div class="card-body p-0">
+          {% if holidays %}
+            <div class="table-responsive">
+              <table class="table table-striped table-hover mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Date</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for holiday in holidays %}
+                    <tr>
+                      <td>
+                        <span class="badge bg-light text-dark">
+                          {{ holiday.date.strftime('%Y-%m-%d') }}
+                        </span>
+                        <small class="text-muted ms-1">
+                          {{ holiday.date.strftime('%A') }}
+                        </small>
+                      </td>
+                      <td>{{ holiday.name }}</td>
+                      <td>
+                        {% if holiday.is_federal %}
+                          <span class="badge bg-primary">Federal</span>
+                        {% else %}
+                          <span class="badge bg-secondary">Custom</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end">
+                        <form
+                          method="POST"
+                          action="{{ url_for('holidays.delete', holiday_id=holiday.id) }}"
+                          class="d-inline">
+                          <input
+                            type="hidden"
+                            name="csrf_token"
+                            value="{{ csrf_token() }}" />
+                          <button
+                            type="submit"
+                            class="btn btn-outline-danger btn-sm"
+                            onclick="return confirm('Delete holiday \'{{ holiday.name }}\'?')">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-4 text-center text-muted">
+              <i class="bi bi-calendar-x display-4 d-block mb-2"></i>
+              <p>No holidays configured.</p>
+              <p class="small">
+                Click "Refresh Federal Holidays" to auto-populate US federal
+                holidays.
+              </p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-info mt-4" role="alert">
+    <h5 class="alert-heading">
+      <i class="bi bi-info-circle me-2"></i>How Holidays Affect Overtime
+    </h5>
+    <p class="mb-2">
+      For roles marked as "Backup" roles, residents working on holidays get
+      overtime calculated differently:
+    </p>
+    <ul class="mb-0">
+      <li>
+        On <strong>weekdays</strong>: Normal cutoff-based overtime calculation
+      </li>
+      <li>
+        On <strong>weekends or holidays</strong>: All time from call-in (start
+        time) to exit counts as overtime
+      </li>
+    </ul>
+  </div>
+{% endblock %}

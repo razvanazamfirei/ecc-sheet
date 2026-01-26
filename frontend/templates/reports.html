@@ -16,7 +16,7 @@
       </h5>
       <form
         method="POST"
-        action="{{ url_for('generate_report') }}"
+        action="{{ url_for('reports.generate') }}"
         id="report-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <div class="row g-3">

@@ -29,9 +29,19 @@ function confirmLockWithMissing(form) {
  * @param {number} entryId - The entry ID to edit
  */
 function editEntry(entryId) {
-  // Store original value
+  // Store original value for exit time
   const input = document.getElementById("input-" + entryId);
-  originalValues[entryId] = input.value;
+  originalValues[entryId] = { exit: input.value };
+
+  // Store original value for start time if it exists (backup roles)
+  const startInput = document.getElementById("start-input-" + entryId);
+  if (startInput) {
+    originalValues[entryId].start = startInput.value;
+    // Show start time input
+    const startDisplay = document.getElementById("start-display-" + entryId);
+    if (startDisplay) startDisplay.style.display = "none";
+    startInput.style.display = "inline";
+  }
 
   // Toggle visibility
   document.getElementById("display-" + entryId).style.display = "none";
@@ -61,10 +71,27 @@ function saveEntry(entryId) {
  * @param {number} entryId - The entry ID to cancel
  */
 function cancelEdit(entryId) {
-  // Restore original value
+  // Restore original values
   if (originalValues[entryId] !== undefined) {
-    document.getElementById("input-" + entryId).value = originalValues[entryId];
+    const exitInput = document.getElementById("input-" + entryId);
+    if (typeof originalValues[entryId] === "object") {
+      exitInput.value = originalValues[entryId].exit || "";
+      // Restore start time if it exists
+      const startInput = document.getElementById("start-input-" + entryId);
+      if (startInput && originalValues[entryId].start !== undefined) {
+        startInput.value = originalValues[entryId].start;
+      }
+    } else {
+      // Legacy: single value for exit time only
+      exitInput.value = originalValues[entryId];
+    }
   }
+
+  // Hide start time input if it exists
+  const startInput = document.getElementById("start-input-" + entryId);
+  const startDisplay = document.getElementById("start-display-" + entryId);
+  if (startInput) startInput.style.display = "none";
+  if (startDisplay) startDisplay.style.display = "inline";
 
   // Toggle visibility
   document.getElementById("display-" + entryId).style.display = "inline";
@@ -199,9 +226,41 @@ window.cancelEdit = cancelEdit;
 window.toggleEditAll = toggleEditAll;
 window.saveAll = saveAll;
 
-// Initialize countdown when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeCountdown);
-} else {
+/**
+ * Toggles start time field visibility based on selected role
+ */
+function toggleStartTimeField() {
+  const roleSelect = document.getElementById("role_id");
+  const startTimeContainer = document.getElementById("start_time_container");
+
+  if (!roleSelect || !startTimeContainer) return;
+
+  const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+  const isBackup = selectedOption?.dataset?.isBackup === "true";
+
+  startTimeContainer.style.display = isBackup ? "block" : "none";
+}
+
+/**
+ * Initialize role select change handler
+ */
+function initializeRoleSelect() {
+  const roleSelect = document.getElementById("role_id");
+  if (roleSelect) {
+    roleSelect.addEventListener("change", toggleStartTimeField);
+    // Check initial state
+    toggleStartTimeField();
+  }
+}
+
+// Initialize when DOM is ready
+function initializePage() {
   initializeCountdown();
+  initializeRoleSelect();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializePage);
+} else {
+  initializePage();
 }

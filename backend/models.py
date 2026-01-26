@@ -2,6 +2,8 @@ from datetime import UTC, datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
+from .holidays import is_weekend_or_holiday
+
 db = SQLAlchemy()
 
 
@@ -166,6 +168,9 @@ class Role(db.Model):
     )  # Default cutoff hour for overtime calculation (17:30)
     cutoff_minute = db.Column(db.Integer, default=30)  # Default cutoff minute (17:30)
     display_order = db.Column(db.Integer, default=0)
+    is_backup = db.Column(
+        db.Boolean, default=False
+    )  # Backup roles get full overtime on weekends/holidays
 
     # Relationship to time entries
     time_entries = db.relationship(
@@ -192,12 +197,7 @@ class TimeEntry(db.Model):
     # Time fields
     stop_time = db.Column(db.Time)
     exit_time = db.Column(db.Time)
-
-    # Additional tracking fields
-    airway_assist = db.Column(db.Boolean, default=False)
-    emergency = db.Column(db.Boolean, default=False)
-    dinner_break = db.Column(db.Boolean, default=False)
-    paper_record = db.Column(db.Boolean, default=False)
+    start_time = db.Column(db.Time, nullable=True)  # Call-in time for backup roles
 
     # Status
     locked = db.Column(db.Boolean, default=False)
@@ -219,13 +219,25 @@ class TimeEntry(db.Model):
         Calculate hours worked after cutoff time.
         AM exit times (before cutoff) are treated as next day (overnight shifts).
 
+        For backup roles on weekends/holidays, all time from start_time to exit_time
+        counts as overtime.
+
         Example:
         - Cutoff: 17:30
         - Exit: 02:30 AM -> Treated as 26:30 (next day) -> 9.0 hours overtime
         - Exit: 20:00 -> Same day -> 2.5 hours overtime
+        - Backup role on Saturday, start: 09:00, exit: 17:00 -> 8.0 hours overtime
         """
         if not self.exit_time or not self.role:
             return 0.0
+
+        # Check if backup role on weekend/holiday - all time from start is overtime
+        if self.role.is_backup and self.start_time and is_weekend_or_holiday(self.date):
+            start_decimal = self.start_time.hour + self.start_time.minute / 60.0
+            exit_decimal = self.exit_time.hour + self.exit_time.minute / 60.0
+            if exit_decimal < start_decimal:
+                exit_decimal += 24  # overnight shift
+            return round(exit_decimal - start_decimal, 2)
 
         # Convert cutoff time to decimal hours
         cutoff_hour = self.role.cutoff_hour
@@ -255,7 +267,7 @@ class TimeEntry(db.Model):
         return self.overtime_hours
 
     def __repr__(self):
-        resident_name = self.resident.name if self.resident else 'Unknown'
+        resident_name = self.resident.name if self.resident else "Unknown"
         return f"<TimeEntry {self.date} - {resident_name}>"
 
 
@@ -305,3 +317,25 @@ class AuditLog(db.Model):
             f"<AuditLog {self.timestamp} - "
             f"{self.user} {self.action} {self.entity_type}>"
         )
+
+
+class Holiday(db.Model):
+    """Holiday dates for overtime calculation"""
+
+    __tablename__ = "holidays"
+
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, unique=True, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    is_federal = db.Column(
+        db.Boolean, default=False
+    )  # True = auto-calculated federal holiday
+    created_at = db.Column(db.DateTime, default=datetime.now(UTC))
+
+    @classmethod
+    def is_holiday(cls, check_date):
+        """Check if a date is a holiday"""
+        return cls.query.filter_by(date=check_date).first() is not None
+
+    def __repr__(self):
+        return f"<Holiday {self.date} - {self.name}>"
