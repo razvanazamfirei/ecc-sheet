@@ -9,18 +9,21 @@ for deployment
 ## Features
 
 - **Daily Shift Management**
+
   - Inline time editing with 24-hour format
   - Automatic overtime calculation based on configurable cutoff times
   - Sheet locking with user tracking
   - Import schedules from Amion API
 
 - **Comprehensive Reporting**
+
   - Quick reports (Last 7/30/90 days)
   - Custom date range reports
   - Resident-specific filtering
   - CSV export functionality
 
 - **Audit Trail**
+
   - Complete change tracking for all operations
   - User and IP address logging
   - Filterable by action type and entity
@@ -229,14 +232,14 @@ proxy).
 
 ### Form Endpoints (POST)
 
-- `/add_entry` - Add time entry
-- `/update_entry/<id>` - Update time entry
-- `/delete_entry/<id>` - Delete time entry
-- `/lock_sheet/<date>` - Toggle sheet lock
-- `/import_schedule/<date>` - Import from Amion
-- `/add_resident` - Add resident
-- `/toggle_resident/<id>` - Toggle resident status
-- `/update_role/<id>` - Update role cutoff
+- `/entries/add` - Add time entry
+- `/entries/<id>/update` - Update time entry
+- `/entries/<id>/delete` - Delete time entry
+- `/sheets/<date>/lock` - Toggle sheet lock
+- `/schedule/<date>/import` - Import from Amion
+- `/residents/add` - Add resident
+- `/residents/<id>/toggle` - Toggle resident status
+- `/roles/<id>/update` - Update role cutoff
 - `/generate_report` - Generate overtime report
 - `/export_report_csv` - Export report as CSV
 

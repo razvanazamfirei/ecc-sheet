@@ -28,7 +28,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not is_admin():
             flash("Admin privileges required to access this page.", "error")
-            return redirect(url_for("roles.index"))
+            return redirect(url_for("sheets.index"))
         return f(*args, **kwargs)
 
     return decorated_function

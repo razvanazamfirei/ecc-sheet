@@ -58,10 +58,11 @@ def include_object(object, name, type_, reflected, compare_to):
     if type_ == "table" and name == "import_transactions":
         return False
     # Exclude foreign keys referencing import_transactions
-    if type_ == "foreign_key_constraint":
-        if hasattr(object, "referred_table") and object.referred_table.name == "import_transactions":
-            return False
-    return True
+    return not (
+        type_ == "foreign_key_constraint"
+        and hasattr(object, "referred_table")
+        and object.referred_table.name == "import_transactions"
+    )
 
 
 def run_migrations_offline():
@@ -117,7 +118,7 @@ def run_migrations_online():
             connection=connection,
             target_metadata=get_metadata(),
             include_object=include_object,
-            **conf_args
+            **conf_args,
         )
 
         with context.begin_transaction():

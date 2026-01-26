@@ -24,7 +24,11 @@
       "Bash(timeout 5 uv run:*)",
       "Bash(uv add:*)",
       "Bash(uv run python:*)",
-      "Bash(uv venv:*)"
+      "Bash(uv venv:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh api:*)",
+      "Bash(gh pr edit:*)"
     ],
     "deny": [],
     "ask": []
