@@ -2,8 +2,6 @@
 
 from datetime import date
 
-import pytest
-
 from backend.holidays import get_federal_holidays, is_weekend_or_holiday
 from backend.models import Holiday, db
 
@@ -39,26 +37,30 @@ class TestGetFederalHolidays:
 class TestIsWeekendOrHoliday:
     """Tests for is_weekend_or_holiday function."""
 
-    def test_saturday_returns_true(self):
+    def test_saturday_returns_true(self, app):
         """Test that Saturday returns True."""
-        saturday = date(2024, 1, 6)
-        assert is_weekend_or_holiday(saturday) is True
+        with app.app_context():
+            saturday = date(2024, 1, 6)
+            assert is_weekend_or_holiday(saturday) is True
 
-    def test_sunday_returns_true(self):
+    def test_sunday_returns_true(self, app):
         """Test that Sunday returns True."""
-        sunday = date(2024, 1, 7)
-        assert is_weekend_or_holiday(sunday) is True
+        with app.app_context():
+            sunday = date(2024, 1, 7)
+            assert is_weekend_or_holiday(sunday) is True
 
-    def test_federal_holiday_returns_true(self):
+    def test_federal_holiday_returns_true(self, app):
         """Test that federal holiday returns True."""
-        christmas = date(2024, 12, 25)
-        assert is_weekend_or_holiday(christmas) is True
+        with app.app_context():
+            christmas = date(2024, 12, 25)
+            assert is_weekend_or_holiday(christmas) is True
 
-    def test_regular_weekday_returns_false(self):
+    def test_regular_weekday_returns_false(self, app):
         """Test that regular weekday returns False."""
-        # March 15, 2024 is a Friday, not a holiday
-        regular = date(2024, 3, 15)
-        assert is_weekend_or_holiday(regular) is False
+        with app.app_context():
+            # March 15, 2024 is a Friday, not a holiday
+            regular = date(2024, 3, 15)
+            assert is_weekend_or_holiday(regular) is False
 
     def test_custom_holiday_returns_true(self, app):
         """Test that custom holiday in database returns True."""
