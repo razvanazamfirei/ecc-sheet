@@ -13,8 +13,8 @@ description = "Initial project setup"
 run = ["uv sync", "bun install", "bun run build", "uv run flask db upgrade"]
 
 [tasks.dev]
-description = "Run development server"
-run = "uv run python -m backend.app"
+description = "Run development server with frontend watcher"
+run = ["bun run build", "bun run dev & uv run python -m backend.app"]
 
 [tasks.test]
 description = "Run tests"
