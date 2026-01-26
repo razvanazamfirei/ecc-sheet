@@ -233,8 +233,8 @@ class TimeEntry(db.Model):
 
         # Check if backup role on weekend/holiday - all time from start is overtime
         if self.role.is_backup and is_weekend_or_holiday(self.date):
-            # Default to midnight (00:00) if no start_time is set
-            start_decimal = 0.0
+            # Default to 08:00 if no start_time is set
+            start_decimal = 8.0
             if self.start_time:
                 start_decimal = self.start_time.hour + self.start_time.minute / 60.0
             exit_decimal = self.exit_time.hour + self.exit_time.minute / 60.0
