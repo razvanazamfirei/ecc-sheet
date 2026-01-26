@@ -2,8 +2,6 @@
 
 from datetime import date, time
 
-import pytest
-
 from backend.models import DailySheet, TimeEntry, db
 
 

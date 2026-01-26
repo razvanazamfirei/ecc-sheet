@@ -3,11 +3,7 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from backend.email_service import generate_csv_content, send_report_email
-from backend.models import Resident, Role, TimeEntry, db
-from backend.report_utils import generate_csv_content
+from backend.email_service import send_report_email
 
 
 class TestEmailService:
@@ -66,7 +62,9 @@ class TestEmailService:
 
     @patch("backend.email_service.smtplib.SMTP")
     @patch("backend.email_service.Config")
-    def test_send_report_email_with_resident_filter(self, mock_config, mock_smtp, app, sample_resident):
+    def test_send_report_email_with_resident_filter(
+        self, mock_config, mock_smtp, app, sample_resident
+    ):
         """Test email with resident filter."""
         with app.app_context():
             mock_config.EMAIL_USERNAME = "test@example.com"
@@ -100,7 +98,9 @@ class TestEmailService:
             app.config["EMAIL_PORT"] = 587
 
             mock_server = MagicMock()
-            mock_server.login.side_effect = smtplib.SMTPAuthenticationError(535, b"Auth failed")
+            mock_server.login.side_effect = smtplib.SMTPAuthenticationError(
+                535, b"Auth failed"
+            )
             mock_smtp.return_value.__enter__ = MagicMock(return_value=mock_server)
             mock_smtp.return_value.__exit__ = MagicMock(return_value=False)
 
