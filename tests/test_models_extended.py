@@ -156,9 +156,9 @@ class TestTimeEntryModel:
             db.session.add(entry)
             db.session.commit()
 
-            # Should calculate from midnight (00:00) to 17:00 = 17 hours
+            # Should calculate from default start (08:00) to 17:00 = 9 hours
             overtime = entry.calculate_overtime_hours()
-            assert overtime == 17.0
+            assert overtime == 9.0
 
             db.session.delete(entry)
             db.session.delete(backup_role)
