@@ -47,7 +47,8 @@ Pytest fixtures and test configuration:
 - `app`: Test application with temporary database
 - `client`: Test client for HTTP requests
 - `db_session`: Database session management
-- `sample_resident`, `sample_role`, `sample_time_entry`, `sample_daily_sheet`: Test data fixtures
+- `sample_resident`, `sample_role`, `sample_time_entry`, `sample_daily_sheet`:
+  Test data fixtures
 - `clean_database`: Database cleanup between tests
 
 ## Running Tests

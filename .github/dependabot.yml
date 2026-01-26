@@ -1,43 +1,43 @@
 version: 2
 updates:
-    # Python dependencies
-    - package-ecosystem: "pip"
-      directory: "/"
-      schedule:
-          interval: "weekly"
-      open-pull-requests-limit: 5
-      labels:
-          - "dependencies"
-          - "python"
-      groups:
-        python-deps:
-          patterns:
-            - "*"
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    groups:
+      python-deps:
+        patterns:
+          - "*"
 
-    # JavaScript dependencies
-    - package-ecosystem: "bun"
-      directory: "/"
-      schedule:
-          interval: "weekly"
-      open-pull-requests-limit: 5
-      labels:
-          - "dependencies"
-          - "javascript"
-      groups:
-        javascript-deps:
-          patterns:
-            - "*"
+  # JavaScript dependencies
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "javascript"
+    groups:
+      javascript-deps:
+        patterns:
+          - "*"
 
-    # GitHub Actions
-    - package-ecosystem: "github-actions"
-      directory: "/"
-      schedule:
-          interval: "weekly"
-      open-pull-requests-limit: 5
-      labels:
-          - "dependencies"
-          - "github-actions"
-      groups:
-        actions-deps:
-          patterns:
-            - "*"
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      actions-deps:
+        patterns:
+          - "*"

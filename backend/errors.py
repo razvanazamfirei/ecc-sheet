@@ -82,7 +82,7 @@ def register_error_handlers(app):
     @app.errorhandler(404)
     def handle_not_found(error):
         """Handle 404 errors"""
-        logger.warning("404 Not Found: %s", str(error))
+        logger.warning("404 Not Found: %s", error)
         return (
             jsonify(
                 {
@@ -97,7 +97,7 @@ def register_error_handlers(app):
     @app.errorhandler(500)
     def handle_internal_error(error):
         """Handle unexpected server errors"""
-        logger.error("Internal Server Error: %s", str(error), exc_info=True)
+        logger.error("Internal Server Error: %s", error)
         return (
             jsonify(
                 {
@@ -112,7 +112,7 @@ def register_error_handlers(app):
     @app.errorhandler(Exception)
     def handle_unexpected_error(error):
         """Catch-all for unexpected exceptions"""
-        logger.error("Unexpected Error: %s", str(error), exc_info=True)
+        logger.error("Unexpected Error: %s", error)
         return (
             jsonify(
                 {
