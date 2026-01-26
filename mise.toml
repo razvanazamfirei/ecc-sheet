@@ -7,7 +7,6 @@ _.python.venv = { path = ".venv", create = true, uv_create_args = [
   "--seed",
 ] }
 FLASK_APP = "backend.app"
-CODECOV_TOKEN = "***REMOVED***"
 
 [tasks.setup]
 description = "Initial project setup"
