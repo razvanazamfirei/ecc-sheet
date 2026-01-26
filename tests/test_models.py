@@ -104,10 +104,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(20, 0),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -123,10 +119,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(2, 30),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -142,10 +134,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(0, 0),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -161,10 +149,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(17, 30),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -180,10 +164,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(15, 0),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -205,10 +185,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(23, 45),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -224,10 +200,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(7, 0),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -253,10 +225,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=role.id,
                 exit_time=time(22, 30),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -277,10 +245,6 @@ class TestOvertimeCalculation:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(18, 15),
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -300,10 +264,6 @@ class TestTimeEntry:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(20, 0),
-                airway_assist=True,
-                emergency=False,
-                dinner_break=True,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -313,10 +273,6 @@ class TestTimeEntry:
             assert entry.resident_id == sample_resident.id
             assert entry.role_id == sample_role.id
             assert entry.exit_time == time(20, 0)
-            assert entry.airway_assist is True
-            assert entry.emergency is False
-            assert entry.dinner_break is True
-            assert entry.paper_record is False
 
     def test_time_entry_relationships(self, sample_time_entry):
         """Test TimeEntry relationships with Resident and Role"""
@@ -333,10 +289,6 @@ class TestTimeEntry:
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=None,  # No exit time yet
-                airway_assist=False,
-                emergency=False,
-                dinner_break=False,
-                paper_record=False,
             )
             db.session.add(entry)
             db.session.commit()
@@ -380,8 +332,10 @@ class TestDailySheet:
     def test_daily_sheet_submission(self, app):
         """Test submitting a daily sheet"""
         with app.app_context():
+            # Use a date far in the future to avoid conflicts with fixtures
+            test_date = date(2099, 1, 1)
             sheet = DailySheet(
-                date=date.today(),
+                date=test_date,
                 locked=True,
                 submitted=True,
                 submitted_at=datetime.now(),
@@ -391,6 +345,10 @@ class TestDailySheet:
 
             assert sheet.submitted is True
             assert sheet.submitted_at is not None
+
+            # Clean up
+            db.session.delete(sheet)
+            db.session.commit()
 
     def test_daily_sheet_unique_date(self, app, sample_daily_sheet):
         """Test that daily sheets have unique dates"""

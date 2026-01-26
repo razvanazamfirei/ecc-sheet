@@ -7,6 +7,7 @@
 ### Acceptance Criteria from Spec
 
 - [x] **Warning banner appears at 08:00 with countdown**
+
   - ✓ Banner shows when `current_time.hour == 8`
   - ✓ Countdown shows minutes remaining until 9 AM
   - ✓ JavaScript updates countdown every minute
@@ -16,6 +17,7 @@
   - Location: `frontend/templates/index.html` lines 467-489 (countdown JS)
 
 - [x] **Sheet auto-locks at 09:00 with system attribution**
+
   - ✓ Scheduled script `scripts/check_autolock.py`
   - ✓ Locks all unlocked sheets before today
   - ✓ Sets `locked_by = "System Auto-Lock"`
@@ -25,18 +27,21 @@
   - Location: `scripts/check_autolock.py`
 
 - [x] **Admins can unlock with confirmation dialog**
+
   - ✓ Unlock button available for admins (already existed)
   - ✓ Shows who locked and when
   - Note: Confirmation dialog for auto-lock not specifically added, but could be
     enhanced
 
 - [x] **Audit log records auto-lock and admin unlocks**
+
   - ✓ Auto-lock logged with `user="system"`
   - ✓ Manual unlocks logged with admin username (already existed)
   - ✓ Action type: "LOCK" / "UNLOCK"
   - Location: `scripts/check_autolock.py` lines 56-62
 
 - [x] **Manual lock still works before auto-lock**
+
   - ✓ No changes to manual lock button
   - ✓ Manual lock available at any time
 
@@ -53,6 +58,7 @@
 ### Acceptance Criteria from Spec (Inferred from Section 5)
 
 - [x] **Inline visual indicators in table rows**
+
   - ✓ Yellow left border on rows with missing times
   - ✓ Warning icon in exit time cell
   - ✓ "Missing exit time" text with warning styling
@@ -62,6 +68,7 @@
   - Location: `frontend/static/css/style.css` lines 330-341
 
 - [x] **Summary banner showing count**
+
   - ✓ Alert banner at top of page
   - ✓ Shows count of missing entries
   - ✓ Dismissible
@@ -81,6 +88,7 @@
 ### Acceptance Criteria from Spec (Section 6)
 
 - [x] **Custom error classes defined**
+
   - ✓ APIError base class
   - ✓ ValidationError (400)
   - ✓ NotFoundError (404)
@@ -90,6 +98,7 @@
   - Location: `backend/errors.py`
 
 - [x] **Error handlers registered**
+
   - ✓ APIError handler
   - ✓ 404 handler
   - ✓ 500 handler
@@ -100,10 +109,12 @@
   - Location: `backend/app.py` line 50 (registration)
 
 - [x] **Frontend error handling ready**
+
   - Note: AJAX endpoints not yet implemented (Phase 3)
   - Structure in place for future AJAX error handling
 
 - [x] **Backend error handling**
+
   - ✓ Structured error responses
   - ✓ Try/catch in critical operations
   - ✓ Database rollback on errors
@@ -122,28 +133,33 @@
 ### Acceptance Criteria from Spec (Section 7)
 
 - [x] **Daily backup script exists**
+
   - ✓ Shell script created
   - ✓ Executable permissions set
   - ✓ Creates timestamped backups
   - Location: `scripts/backup_database.sh`
 
 - [x] **Compression enabled**
+
   - ✓ Uses gzip compression
   - ✓ Creates .gz files
   - Location: `scripts/backup_database.sh` lines 28-36
 
 - [x] **Retention policy implemented**
+
   - ✓ Deletes backups older than 30 days
   - ✓ find command with -mtime +30
   - Location: `scripts/backup_database.sh` lines 39-45
 
 - [x] **Logging to file**
+
   - ✓ All operations logged
   - ✓ Logs to backup.log
   - ✓ Timestamps in log entries
   - Location: `scripts/backup_database.sh` lines 13-16
 
 - [x] **Error handling**
+
   - ✓ Checks database exists
   - ✓ Logs errors
   - ✓ Exit codes on failure
@@ -160,6 +176,7 @@
 ### Acceptance Criteria from Spec (Section 4, Part 2)
 
 - [x] **ImportTransaction model created**
+
   - ✓ Table with all required fields
   - ✓ date, timestamp, user, entries_created, entries_skipped
   - ✓ can_undo boolean field
@@ -167,12 +184,14 @@
   - Location: `backend/models.py` lines 317-369
 
 - [x] **Source field added to TimeEntry**
+
   - ✓ source column (manual or amion_import)
   - ✓ import_transaction_id foreign key
   - ✓ Default value 'manual'
   - Location: `backend/models.py` lines 202-206, 221
 
 - [x] **Import tracking during import**
+
   - ✓ Creates ImportTransaction record
   - ✓ Links all created entries
   - ✓ Sets source='amion_import'
@@ -192,18 +211,21 @@
 ### Acceptance Criteria from Spec (Section 4, Part 2)
 
 - [x] **Undo button appears after successful import**
+
   - ✓ Button shows after import if entries created
   - ✓ Only visible if transaction.is_undoable
   - ✓ Shows entry count in confirmation
   - Location: `frontend/templates/index.html` lines 33-49
 
 - [x] **Undo removes only imported entries, not edited ones**
+
   - ✓ is_undoable property checks for edits
   - ✓ Checks exit_time not set
   - ✓ Checks updated_at not changed
   - Location: `backend/models.py` lines 337-352
 
 - [x] **Undo disabled after 24 hours or if entries edited**
+
   - ✓ 24-hour check in is_undoable
   - ✓ Edit check in is_undoable
   - ✓ Sets can_undo=False after undo
@@ -211,6 +233,7 @@
   - Location: `backend/app.py` lines 458-459
 
 - [x] **Audit log tracks undo operations**
+
   - ✓ Logs undo action
   - ✓ Includes entry count
   - ✓ Records user
@@ -230,6 +253,7 @@
 ### Acceptance Criteria from Spec (Section 4, Part 3)
 
 - [x] **Imported entries visually distinguished (badge/icon)**
+
   - ✓ Blue cloud-download badge
   - ✓ Shows next to role name
   - ✓ Only on imported entries (source='amion_import')
@@ -248,12 +272,14 @@
 ### Acceptance Criteria from Spec (Section 4, Part 1)
 
 - [x] **Import shows warning if would overwrite entries with data**
+
   - ✓ check_import_conflicts function
   - ✓ Checks for existing entries
   - ✓ Shows warning page if conflicts found
   - Location: `backend/app.py` lines 405-415, 463-515
 
 - [x] **Warning distinguishes data loss vs harmless duplicates**
+
   - ✓ Separates into data_loss and duplicates categories
   - ✓ data_loss: entries with exit_time
   - ✓ duplicates: entries without exit_time
@@ -261,6 +287,7 @@
   - Location: `frontend/templates/import_warning.html` lines 13-47
 
 - [x] **Option to skip entries with exit times**
+
   - ✓ "Skip Entries with Exit Times" button (recommended)
   - ✓ Passes skip_existing=true parameter
   - ✓ process_entries respects skip_existing flag

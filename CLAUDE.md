@@ -164,10 +164,6 @@ ecc-sheet/
 - `stop_time` - Stop time
 - `exit_time` - Exit time for overtime calculation (required, rounds UP to next
   15 min)
-- `airway_assist` - Boolean flag
-- `emergency` - Boolean flag
-- `dinner_break` - Boolean flag
-- `paper_record` - Boolean flag
 - `locked` - Entry lock status
 - `submitted` - Submission status
 - `submitted_at` - Submission timestamp
@@ -245,7 +241,7 @@ uv run flask --app backend.app db history
 
 ### 2. Schedule Import from Amion (backend/app.py:346)
 
-**Route:** `POST /import_schedule/<date_str>`
+**Route:** `POST /schedule/<date_str>/import`
 
 **Process:**
 
@@ -472,23 +468,23 @@ bun run format:check
 
 **Daily Sheet Operations:**
 
-- `/add_entry` - Add new time entry (logs CREATE)
-- `/update_entry/<entry_id>` - Update time entry (logs UPDATE with changes)
-- `/delete_entry/<entry_id>` - Delete time entry (logs DELETE, with
+- `/entries/add` - Add new time entry (logs CREATE)
+- `/entries/<entry_id>/update` - Update time entry (logs UPDATE with changes)
+- `/entries/<entry_id>/delete` - Delete time entry (logs DELETE, with
   confirmation)
-- `/lock_sheet/<date_str>` - Toggle sheet lock (logs LOCK/UNLOCK)
-- `/import_schedule/<date_str>` - Import from Amion (logs IMPORT, with
+- `/sheets/<date_str>/lock` - Toggle sheet lock (logs LOCK/UNLOCK)
+- `/schedule/<date_str>/import` - Import from Amion (logs IMPORT, with
   confirmation)
 
 **Resident Management:**
 
-- `/add_resident` - Add new resident (logs CREATE)
-- `/toggle_resident/<resident_id>` - Toggle active status (logs UPDATE, with
+- `/residents/add` - Add new resident (logs CREATE)
+- `/residents/<resident_id>/toggle` - Toggle active status (logs UPDATE, with
   confirmation)
 
 **Role Management:**
 
-- `/update_role/<role_id>` - Update role cutoff time (logs UPDATE)
+- `/roles/<role_id>/update` - Update role cutoff time (logs UPDATE)
 
 **Reporting:**
 

@@ -2,18 +2,16 @@
 WTForms with CSRF protection and validation
 """
 
-import re
-
 from flask_wtf import FlaskForm
 from wtforms import (
-    BooleanField,
     DateField,
     IntegerField,
     SelectField,
     StringField,
     TimeField,
+    ValidationError,
 )
-from wtforms.validators import DataRequired, Length, NumberRange, ValidationError
+from wtforms.validators import DataRequired, Length, NumberRange
 
 
 class TimeEntryForm(FlaskForm):
@@ -22,18 +20,6 @@ class TimeEntryForm(FlaskForm):
     resident_id = SelectField("Resident", coerce=int, validators=[DataRequired()])
     role_id = SelectField("Role", coerce=int, validators=[DataRequired()])
     exit_time = TimeField("Exit Time", validators=[DataRequired()])
-    airway_assist = BooleanField("Airway Assist")
-    emergency = BooleanField("Emergency")
-    dinner_break = BooleanField("Dinner Break")
-    paper_record = BooleanField("Paper Record")
-
-
-def validate_name(field):
-    """Validate resident name - only letters, spaces, hyphens, apostrophes"""
-    if not re.match(r"^[A-Za-z\s\-'.]+$", field.data):
-        raise ValidationError(
-            "Name can only contain letters, spaces, hyphens, and apostrophes"
-        )
 
 
 class ResidentForm(FlaskForm):
@@ -67,6 +53,7 @@ class ReportForm(FlaskForm):
     end_date = DateField("End Date", validators=[DataRequired()])
 
     def validate_end_date(self, field):
-        """Ensure end date is after start date"""
-        if self.start_date.data and field.data < self.start_date.data:
-            raise ValidationError("End date must be after start date")
+        """Validate that end_date is not before start_date."""
+        if self.start_date.data and field.data:
+            if field.data < self.start_date.data:
+                raise ValidationError("End date must be on or after start date")

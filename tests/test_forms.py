@@ -4,9 +4,6 @@ Tests for WTForms validation
 
 from datetime import date, time
 
-import pytest
-from wtforms import ValidationError
-
 from backend.forms import ReportForm, ResidentForm, RoleUpdateForm, TimeEntryForm
 
 
@@ -21,10 +18,6 @@ class TestTimeEntryForm:
                     "resident_id": 1,
                     "role_id": 1,
                     "exit_time": time(18, 0),
-                    "airway_assist": False,
-                    "emergency": False,
-                    "dinner_break": False,
-                    "paper_record": False,
                 }
             )
             # Need to set choices for SelectFields
@@ -80,24 +73,6 @@ class TestTimeEntryForm:
 
             assert not form.validate()
             assert "exit_time" in form.errors
-
-    def test_boolean_fields_default_false(self, app):
-        """Test that boolean fields default to False"""
-        with app.app_context():
-            form = TimeEntryForm(
-                data={
-                    "resident_id": 1,
-                    "role_id": 1,
-                    "exit_time": time(18, 0),
-                }
-            )
-            form.resident_id.choices = [(1, "Test Resident")]
-            form.role_id.choices = [(1, "Test Role")]
-
-            assert form.airway_assist.data is False
-            assert form.emergency.data is False
-            assert form.dinner_break.data is False
-            assert form.paper_record.data is False
 
 
 class TestResidentForm:

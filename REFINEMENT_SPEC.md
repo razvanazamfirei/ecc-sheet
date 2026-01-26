@@ -215,7 +215,7 @@ clear visual feedback.
 **AJAX Save Endpoint:**
 
 ```python
-@app.route("/api/entry/<int:entry_id>/update_time", methods=["POST"])
+@app.route("/api/entries/<int:entry_id>/update_time", methods=["POST"])
 def update_entry_time_ajax(entry_id):
     """Update entry exit time via AJAX"""
     # Verify sheet not locked (unless admin)
@@ -231,7 +231,7 @@ def update_entry_time_ajax(entry_id):
 1. User clicks exit time display → input appears
 2. User types time and presses Enter or clicks away (blur)
 3. JavaScript validates format, rounds to quarter hour
-4. Send AJAX POST to `/api/entry/{id}/update_time`
+4. Send AJAX POST to `/api/entries/{id}/update_time`
 5. Show loading spinner on the cell
 6. On success:
    - Update display value without reload
@@ -593,7 +593,7 @@ Graceful error handling to address main production concern (system reliability).
 ```javascript
 async function saveEntry(entryId, exitTime) {
   try {
-    const response = await fetch(`/api/entry/${entryId}/update_time`, {
+    const response = await fetch(`/api/entries/${entryId}/update_time`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -687,7 +687,7 @@ def handle_internal_error(error):
 ```python
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-@app.route("/api/entry/<int:entry_id>/update_time", methods=["POST"])
+@app.route("/api/entries/<int:entry_id>/update_time", methods=["POST"])
 def update_entry_time(entry_id):
     try:
         entry = TimeEntry.query.get_or_404(entry_id)
@@ -857,6 +857,7 @@ Optimize for desktop (primary) and phone (secondary) usage.
 **Phone Optimizations (<768px):**
 
 1. **Navigation:**
+
    - Collapse to hamburger menu
    - Full-width dropdowns
    - Larger touch targets (min 44px)
@@ -891,12 +892,14 @@ Optimize for desktop (primary) and phone (secondary) usage.
 ```
 
 3. **Add Entry Form:**
+
    - Full-width fields
    - Vertical stacking
    - Native mobile time picker
    - Sticky submit button at bottom
 
 4. **Reports:**
+
    - Responsive table → horizontal scroll with fixed first column
    - Or switch to card layout
    - Export buttons remain accessible
@@ -1348,7 +1351,7 @@ CREATE TABLE system_config (
 **New Endpoints:**
 
 ```
-POST   /api/entry/<id>/update_time       - AJAX time update
+POST   /api/entries/<id>/update_time       - AJAX time update
 GET    /api/sheets/<date>/status         - Sheet status (locked, complete)
 POST   /api/import/<date>/check          - Pre-import conflict check
 POST   /api/import/<date>/undo           - Undo import transaction
@@ -1360,8 +1363,8 @@ GET    /health                           - Health check endpoint
 
 **Modified Endpoints:**
 
-- Update `/import_schedule/<date>` to track transactions
-- Update `/lock_sheet/<date>` to check completeness
+- Update `/schedule/<date>/import` to track transactions
+- Update `/sheet/<date>/lock` to check completeness
 
 ### Scheduled Tasks
 
@@ -1489,6 +1492,7 @@ def test_undo_eligibility():
 **Critical Paths:**
 
 1. **Daily Coordinator Workflow:**
+
    - Navigate to today's sheet
    - Import from Amion
    - Fill in missing exit times
@@ -1496,6 +1500,7 @@ def test_undo_eligibility():
    - Verify email sent
 
 2. **Admin Override:**
+
    - Auto-locked sheet
    - Admin unlocks
    - Edit entry
@@ -1503,6 +1508,7 @@ def test_undo_eligibility():
    - Verify audit log
 
 3. **Error Scenario:**
+
    - Enter invalid time
    - See error message
    - Correct time
@@ -1626,34 +1632,40 @@ def test_undo_eligibility():
 ### Deployment Steps
 
 1. **Backup Production Data:**
+
    - Create full database backup
    - Export current data to CSV
    - Document current state
 
 2. **Deploy Code:**
+
    - Pull latest code to production server
    - Install Python dependencies: `uv sync`
    - Install Node dependencies: `bun install`
    - Build frontend assets: `bun run build`
 
 3. **Database Migration:**
+
    - Backup database again
    - Run migrations: `uv run flask --app backend.app db upgrade`
    - Verify migration success
 
 4. **Configuration:**
+
    - Update environment variables (.env file)
    - Test SMTP configuration
    - Verify admin users list
    - Check timezone settings
 
 5. **Scheduled Tasks:**
+
    - Install cron jobs
    - Test auto-lock script manually
    - Test backup script manually
    - Test email script manually
 
 6. **Testing:**
+
    - Run health check: `curl http://localhost:5000/health`
    - Test authentication
    - Test admin features
@@ -1683,11 +1695,13 @@ def test_undo_eligibility():
 ### Functional Metrics
 
 - **Data Quality:**
+
   - % of sheets with complete data (target: >95%)
   - % of entries with exit times (target: >98%)
   - Overtime calculation accuracy (target: 100%)
 
 - **Workflow Efficiency:**
+
   - Time to complete daily entry (target: <10 min)
   - % of sheets locked by 9 AM (target: >90%)
   - Number of unlocks required (target: <5%)
@@ -1701,11 +1715,13 @@ def test_undo_eligibility():
 ### User Satisfaction
 
 - **Coordinator Feedback:**
+
   - Ease of use rating (target: >4/5)
   - Time savings vs previous method
   - Error reduction vs previous method
 
 - **Admin Feedback:**
+
   - Admin tool usefulness (target: >4/5)
   - Report quality (target: >4/5)
   - Audit trail usefulness when needed
@@ -1718,6 +1734,7 @@ def test_undo_eligibility():
 ### Business Impact
 
 - **Payroll Accuracy:**
+
   - Reduction in transcription errors
   - Time saved in payroll processing
   - Dispute resolution time reduction
@@ -1815,29 +1832,34 @@ def test_undo_eligibility():
 ### Phase 6: Advanced Features (Month 2-3)
 
 1. **Notification System:**
+
    - Slack/Teams integration
    - SMS alerts for missing entries
    - Push notifications (mobile app)
 
 2. **Advanced Reporting:**
+
    - Trend analysis (overtime by role, resident, time period)
    - Predictive analytics (forecast overtime)
    - Comparative reports (year-over-year)
    - Data visualization (charts, graphs)
 
 3. **Mobile App:**
+
    - Native iOS/Android app
    - Offline mode with sync
    - Push notifications
    - Quick entry mode
 
 4. **Payroll Integration:**
+
    - Direct API integration with payroll system
    - Automated data push on sheet lock
    - OAuth authentication
    - Error handling and retry logic
 
 5. **Advanced Admin Tools:**
+
    - Bulk edit mode
    - Data import/export (Excel, JSON)
    - Role assignment templates
@@ -1852,12 +1874,14 @@ def test_undo_eligibility():
 ### Phase 7: Compliance & Analytics (Month 4-6)
 
 1. **Compliance Dashboard:**
+
    - Duty hour tracking
    - ACGME reporting
    - Violation alerts
    - Historical compliance trends
 
 2. **Advanced Analytics:**
+
    - Machine learning for anomaly detection
    - Workload balancing insights
    - Coverage gap identification
@@ -2031,7 +2055,7 @@ _Solutions:_
 
 **Problem: Import creates duplicates**
 
-_Symptoms:_ Same resident appears multiple times for same role/date
+_Symptoms:_ Same resident appears multiple times for same roles/date
 
 _Checks:_
 
@@ -2058,10 +2082,12 @@ _Solutions:_
 **For Daily Coordinators:**
 
 1. **Accessing the System**
+
    - URL and login
    - Navigation overview
 
 2. **Daily Workflow**
+
    - Importing schedule from Amion
    - Filling in exit times
    - Using inline editing
@@ -2069,6 +2095,7 @@ _Solutions:_
    - Locking the sheet
 
 3. **Handling Errors**
+
    - Missing exit times (visual indicators)
    - Incorrect times (how to edit)
    - Undo import if needed
@@ -2083,18 +2110,21 @@ _Solutions:_
 **For Admins:**
 
 1. **Admin Features**
+
    - Managing residents
    - Configuring roles
    - Unlocking sheets
    - Accessing audit trail
 
 2. **Reports**
+
    - Generating overtime reports
    - Filtering by resident/date
    - Exporting to CSV
    - Sending via email
 
 3. **Maintenance**
+
    - Database backups
    - Restoring from backup
    - Reviewing audit logs
@@ -2137,4 +2167,4 @@ _Solutions:_
 - [ ] Project Sponsor
 - [ ] Department Head
 
-**Approved to Proceed:** ********\_******** Date: ****\_****
+**Approved to Proceed:** **\*\*\*\***\_**\*\*\*\*** Date: \***\*\_\*\***

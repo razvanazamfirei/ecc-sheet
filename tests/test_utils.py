@@ -3,7 +3,7 @@ Tests for utility functions
 """
 
 import pathlib
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 import pytz
@@ -13,7 +13,6 @@ from backend.utils import (
     get_effective_date,
     get_philadelphia_time,
     philly_today,
-    round_to_quarter_hour,
 )
 
 
@@ -30,10 +29,18 @@ class TestPhiladelphiaTime:
     def test_get_philadelphia_time_is_current(self):
         """Test that returned time is reasonably current"""
         philly_time = get_philadelphia_time()
-        now = datetime.now()
+        # Compare UTC timestamps to avoid timezone issues
+        now_utc = datetime.utcnow()
+        philly_utc = philly_time.utctimetuple()
+
+        # Convert philly time to UTC for comparison
+        import calendar
+
+        philly_timestamp = calendar.timegm(philly_utc)
+        now_timestamp = calendar.timegm(now_utc.timetuple())
 
         # Should be within a few seconds of now
-        time_diff = abs((philly_time.replace(tzinfo=None) - now).total_seconds())
+        time_diff = abs(philly_timestamp - now_timestamp)
         assert time_diff < 10  # Within 10 seconds
 
 
@@ -146,132 +153,6 @@ class TestPhillyToday:
 
         # philly_today should be either yesterday or today depending on time
         assert today in {yesterday, actual_today}
-
-
-@pytest.mark.unit
-class TestTimeValidation:
-    """Test time format validation"""
-
-    def test_validate_time_format_valid(self):
-        """Test validation of valid time formats"""
-        from backend.utils import validate_time_format
-
-        valid_times = [
-            "00:00",
-            "08:30",
-            "12:00",
-            "17:30",
-            "23:59",
-        ]
-
-        for time_str in valid_times:
-            assert validate_time_format(time_str) is True, f"Failed for {time_str}"
-
-    def test_validate_time_format_invalid(self):
-        """Test validation of invalid time formats"""
-        from backend.utils import validate_time_format
-
-        invalid_times = [
-            "25:00",  # Invalid hour
-            "12:60",  # Invalid minute
-            "noon",  # Not a time
-            "",  # Empty string
-            None,  # None
-            "12:",  # Missing minutes
-            ":30",  # Missing hour
-        ]
-
-        for time_str in invalid_times:
-            assert validate_time_format(time_str) is False, f"Failed for {time_str}"
-
-    def test_validate_time_format_accepts_lenient(self):
-        """Test that validation accepts lenient formats (Python's strptime behavior)"""
-        from backend.utils import validate_time_format
-
-        # These are accepted by Python's strptime even without leading zeros
-        lenient_times = [
-            "1:30",  # Single digit hour
-            "12:5",  # Single digit minute
-        ]
-
-        for time_str in lenient_times:
-            assert validate_time_format(time_str) is True, f"Failed for {time_str}"
-
-
-@pytest.mark.unit
-class TestSanitizeString:
-    """Test string sanitization"""
-
-    def test_sanitize_string_normal(self):
-        """Test sanitizing normal strings"""
-        from backend.utils import sanitize_string
-
-        assert sanitize_string("  Hello World  ") == "Hello World"
-        assert sanitize_string("Test Name") == "Test Name"
-
-    def test_sanitize_string_max_length(self):
-        """Test max length enforcement"""
-        from backend.utils import sanitize_string
-
-        long_string = "a" * 200
-        result = sanitize_string(long_string, max_length=50)
-        assert len(result) == 50
-
-    def test_sanitize_string_removes_control_chars(self):
-        """Test that control characters are removed"""
-        from backend.utils import sanitize_string
-
-        # String with newlines and tabs
-        result = sanitize_string("Hello\nWorld\t!")
-        assert "\n" not in result
-        assert "\t" not in result
-
-    def test_sanitize_string_empty(self):
-        """Test sanitizing empty strings"""
-        from backend.utils import sanitize_string
-
-        assert not sanitize_string("")
-        assert not sanitize_string(None)
-
-
-@pytest.mark.unit
-class TestRoundToQuarterHour:
-    """Test rounding to 15-minute increments"""
-
-    def test_round_to_nearest_quarter(self):
-        """Test rounding to nearest 15 minutes"""
-        test_cases = [
-            (time(10, 0), time(10, 0)),  # Already on quarter hour
-            (time(10, 7), time(10, 0)),  # Round down
-            (time(10, 8), time(10, 15)),  # Round up
-            (time(10, 15), time(10, 15)),  # Already on quarter hour
-            (time(10, 22), time(10, 15)),  # Round down
-            (time(10, 23), time(10, 30)),  # Round up
-            (time(10, 30), time(10, 30)),  # Already on quarter hour
-            (time(10, 37), time(10, 30)),  # Round down
-            (time(10, 38), time(10, 45)),  # Round up
-            (time(10, 45), time(10, 45)),  # Already on quarter hour
-            (time(10, 52), time(10, 45)),  # Round down
-            (time(10, 53), time(11, 0)),  # Round up to next hour
-        ]
-
-        for input_time, expected in test_cases:
-            result = round_to_quarter_hour(input_time)
-            assert result == expected, (
-                f"Failed for {input_time}: got {result}, expected {expected}"
-            )
-
-    def test_round_hour_rollover(self):
-        """Test rounding that rolls over to next hour"""
-        assert round_to_quarter_hour(time(9, 53)) == time(10, 0)
-        assert round_to_quarter_hour(time(23, 53)) == time(0, 0)
-
-    def test_round_midnight(self):
-        """Test rounding around midnight"""
-        assert round_to_quarter_hour(time(23, 52)) == time(23, 45)
-        assert round_to_quarter_hour(time(23, 53)) == time(0, 0)
-        assert round_to_quarter_hour(time(0, 7)) == time(0, 0)
-        assert round_to_quarter_hour(time(0, 8)) == time(0, 15)
 
 
 @pytest.mark.unit

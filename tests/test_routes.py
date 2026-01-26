@@ -46,7 +46,7 @@ class TestViewSheet:
         """Test viewing sheet for a specific date"""
         with app.app_context():
             test_date = date.today() - timedelta(days=1)
-            response = client.get(f"/sheet/{test_date.strftime('%Y-%m-%d')}")
+            response = client.get(f"/sheets/{test_date.strftime('%Y-%m-%d')}")
             assert response.status_code == 200
             assert test_date.strftime("%B %d, %Y").encode() in response.data
 
@@ -70,16 +70,12 @@ class TestAddEntry:
         role_id = sample_role.id
 
         response = client.post(
-            "/add_entry",
+            "/entries/add",
             data={
                 "date": date.today().strftime("%Y-%m-%d"),
                 "resident_id": resident_id,
                 "role_id": role_id,
                 "exit_time": "20:00",
-                "airway_assist": "on",
-                "emergency": "",
-                "dinner_break": "on",
-                "paper_record": "",
             },
             follow_redirects=True,
         )
@@ -93,10 +89,6 @@ class TestAddEntry:
             ).first()
             assert entry is not None
             assert entry.exit_time == time(20, 0)
-            assert entry.airway_assist is True
-            assert entry.emergency is False
-            assert entry.dinner_break is True
-            assert entry.paper_record is False
 
     def test_add_entry_without_exit_time(
         self, client, app, sample_resident, sample_role, clean_database
@@ -106,16 +98,12 @@ class TestAddEntry:
         role_id = sample_role.id
 
         response = client.post(
-            "/add_entry",
+            "/entries/add",
             data={
                 "date": date.today().strftime("%Y-%m-%d"),
                 "resident_id": resident_id,
                 "role_id": role_id,
                 "exit_time": "",  # No exit time
-                "airway_assist": "",
-                "emergency": "",
-                "dinner_break": "",
-                "paper_record": "",
             },
             follow_redirects=True,
         )
@@ -144,7 +132,7 @@ class TestAddEntry:
 
             # Try to add entry
             response = client.post(
-                "/add_entry",
+                "/entries/add",
                 data={
                     "date": date.today().strftime("%Y-%m-%d"),
                     "resident_id": sample_resident.id,
@@ -168,7 +156,7 @@ class TestDeleteEntry:
             entry_id = sample_time_entry.id
 
         # Delete the entry
-        response = client.post(f"/delete_entry/{entry_id}", follow_redirects=True)
+        response = client.post(f"/entries/{entry_id}/delete", follow_redirects=True)
         assert response.status_code == 200
 
         # Check that response indicates success
@@ -190,7 +178,7 @@ class TestDeleteEntry:
             db.session.commit()
 
             entry_id = sample_time_entry.id
-            response = client.post(f"/delete_entry/{entry_id}", follow_redirects=True)
+            response = client.post(f"/entries/{entry_id}/delete", follow_redirects=True)
 
             # Should be prevented
             assert b"locked" in response.data.lower() or response.status_code == 403
@@ -209,7 +197,7 @@ class TestLockSheet:
         date_str = date.today().strftime("%Y-%m-%d")
 
         # Lock the sheet
-        response = client.post(f"/lock_sheet/{date_str}", follow_redirects=True)
+        response = client.post(f"/sheets/{date_str}/lock", follow_redirects=True)
         assert response.status_code == 200
 
         # Check that response indicates locked state
@@ -228,7 +216,7 @@ class TestLockSheet:
             db.session.commit()
 
             date_str = date.today().strftime("%Y-%m-%d")
-            response = client.post(f"/lock_sheet/{date_str}", follow_redirects=True)
+            response = client.post(f"/sheets/{date_str}/lock", follow_redirects=True)
 
             assert response.status_code == 200
 
@@ -333,7 +321,7 @@ class TestManageResidents:
 
     def test_manage_residents_page_loads(self, client):
         """Test that manage residents page loads"""
-        response = client.get("/residents")
+        response = client.get("/residents/")
         assert response.status_code == 200
         assert b"Residents" in response.data
 
@@ -341,7 +329,7 @@ class TestManageResidents:
         """Test adding a new resident"""
         with app.app_context():
             response = client.post(
-                "/add_resident",
+                "/residents/add",
                 data={"name": "New Resident", "active": "on"},
                 follow_redirects=True,
             )
@@ -360,7 +348,7 @@ class TestManageResidents:
             original_status = sample_resident.active
 
             response = client.post(
-                f"/toggle_resident/{resident_id}", follow_redirects=True
+                f"/residents/{resident_id}/toggle", follow_redirects=True
             )
 
             assert response.status_code == 200
@@ -376,7 +364,7 @@ class TestManageRoles:
 
     def test_manage_roles_page_loads(self, client):
         """Test that manage roles page loads"""
-        response = client.get("/roles")
+        response = client.get("/roles/")
         assert response.status_code == 200
         assert b"Roles" in response.data
 
@@ -392,7 +380,7 @@ class TestManageRoles:
             role_id = sample_role.id
 
             response = client.post(
-                f"/update_role/{role_id}",
+                f"/roles/{role_id}/update",
                 data={
                     "name": "Test Role",
                     "cutoff_hour": "20",
@@ -421,15 +409,18 @@ class TestWorkflowIntegration:
         resident_id = sample_resident.id
         role_id = sample_role.id
 
+        # Use philly_today for consistency with application behavior
+        today = philly_today()
+        date_str = today.strftime("%Y-%m-%d")
+
         # 1. Add entry
         client.post(
-            "/add_entry",
+            "/entries/add",
             data={
-                "date": date.today().strftime("%Y-%m-%d"),
+                "date": date_str,
                 "resident_id": resident_id,
                 "role_id": role_id,
                 "exit_time": "22:30",
-                "airway_assist": "on",
             },
             follow_redirects=True,
         )
@@ -440,20 +431,19 @@ class TestWorkflowIntegration:
         assert b"22:30" in response.data
 
         # 3. Lock sheet
-        date_str = date.today().strftime("%Y-%m-%d")
-        client.post(f"/lock_sheet/{date_str}", follow_redirects=True)
+        client.post(f"/sheets/{date_str}/lock", follow_redirects=True)
 
         # 4. Verify locked
         with app.app_context():
-            sheet = DailySheet.query.filter_by(date=date.today()).first()
+            sheet = DailySheet.query.filter_by(date=today).first()
             assert sheet.locked is True
 
         # 5. Generate report
         response = client.post(
             "/api/report",
             data={
-                "start_date": date.today().strftime("%Y-%m-%d"),
-                "end_date": date.today().strftime("%Y-%m-%d"),
+                "start_date": date_str,
+                "end_date": date_str,
             },
             follow_redirects=True,
         )
