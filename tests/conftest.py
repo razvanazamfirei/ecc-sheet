@@ -112,10 +112,6 @@ def sample_time_entry(app, sample_resident, sample_role):
             resident_id=sample_resident.id,
             role_id=sample_role.id,
             exit_time=time(20, 0),  # 20:00
-            airway_assist=False,
-            emergency=False,
-            dinner_break=False,
-            paper_record=False,
         )
         db.session.add(entry)
         db.session.commit()

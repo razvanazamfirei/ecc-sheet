@@ -122,7 +122,6 @@ def build_email_content(date_obj, daily_sheet, entries):
                     <th>Exit Time</th>
                     <th>Overtime Hours</th>
                     <th>Airway Assist</th>
-                    <th>Emergency</th>
                     <th>Dinner Break</th>
                     <th>Paper Record</th>
                 </tr>
@@ -143,10 +142,6 @@ def build_email_content(date_obj, daily_sheet, entries):
                     <td>{entry.resident.name}</td>
                     <td>{exit_time_str}</td>
                     <td class="overtime">{overtime:.2f}</td>
-                    <td>{"✓" if entry.airway_assist else ""}</td>
-                    <td>{"✓" if entry.emergency else ""}</td>
-                    <td>{"✓" if entry.dinner_break else ""}</td>
-                    <td>{"✓" if entry.paper_record else ""}</td>
                 </tr>
         """
 

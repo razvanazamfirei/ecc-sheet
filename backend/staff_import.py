@@ -6,7 +6,6 @@ resident information including class year, email, phone, and other details.
 """
 
 import csv
-from collections import defaultdict
 
 import requests
 
@@ -257,61 +256,3 @@ def import_staff_list(
             "skipped": 0,
             "total_records": 0,
         }
-
-
-def get_class_year_display_name(class_year: str) -> str:
-    """
-    Get human-readable display name for class year.
-
-    Args:
-        class_year: Class year code (CA1, CA2, CA3, Fellow, OMFS)
-
-    Returns:
-        Display name for the class year
-    """
-    mappings = {
-        "CA1": "CA-1 (First Year)",
-        "CA2": "CA-2 (Second Year)",
-        "CA3": "CA-3 (Third Year)",
-        "Fellow": "Fellow",
-        "OMFS": "Oral & Maxillofacial Surgery",
-    }
-
-    return mappings.get(class_year, class_year)
-
-
-def get_residents_by_class_year(class_year: str | None = None) -> list[Resident]:
-    """
-    Get residents filtered by class year.
-
-    Args:
-        class_year: Class year to filter by (None for all)
-
-    Returns:
-        List of Resident objects
-    """
-    query = Resident.query
-
-    if class_year:
-        query = query.filter_by(class_year=class_year)
-
-    return query.order_by(Resident.class_year, Resident.name).all()
-
-
-def get_class_year_statistics() -> dict[str, int]:
-    """
-    Get statistics about residents by class year.
-
-    Returns:
-        Dictionary mapping class year to count
-    """
-    stats = defaultdict(int)
-
-    residents = Resident.query.all()
-    for resident in residents:
-        if resident.class_year:
-            stats[resident.class_year] += 1
-        else:
-            stats["Unknown"] += 1
-
-    return dict(stats)

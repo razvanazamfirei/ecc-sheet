@@ -5,7 +5,6 @@ Utility functions for logging, validation, and error handling
 import logging
 import shutil
 from datetime import datetime, timedelta
-from datetime import time as dt_time
 from functools import wraps
 from pathlib import Path
 
@@ -68,27 +67,6 @@ def backup_database(db_path: Path = "ecc_sheet.db", backup_dir: Path = "backups"
         return False
 
 
-def validate_time_format(time_str):
-    """Validate time string format"""
-    try:
-        datetime.strptime(time_str, "%H:%M")  # noqa: DTZ007
-        return True
-    except (ValueError, TypeError):
-        return False
-
-
-def sanitize_string(input_str, max_length=100):
-    """Sanitize string input"""
-    if not input_str:
-        return ""
-
-    # Remove any potentially dangerous characters
-    sanitized = input_str.strip()[:max_length]
-
-    # Remove control characters
-    return "".join(char for char in sanitized if ord(char) >= 32)
-
-
 def handle_db_error(func):
     """Decorator for handling database errors gracefully"""
 
@@ -103,20 +81,6 @@ def handle_db_error(func):
             return redirect(url_for("index"))
 
     return wrapper
-
-
-def round_to_quarter_hour(time_obj):
-    """Round time to nearest 15 minutes"""
-    minutes = time_obj.minute
-    rounded_minutes = round(minutes / 15) * 15
-
-    if rounded_minutes == 60:
-        hour = (time_obj.hour + 1) % 24
-        rounded_minutes = 0
-    else:
-        hour = time_obj.hour
-
-    return dt_time(hour, rounded_minutes)
 
 
 def get_philadelphia_time():
