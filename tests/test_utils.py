@@ -29,10 +29,18 @@ class TestPhiladelphiaTime:
     def test_get_philadelphia_time_is_current(self):
         """Test that returned time is reasonably current"""
         philly_time = get_philadelphia_time()
-        now = datetime.now()
+        # Compare UTC timestamps to avoid timezone issues
+        now_utc = datetime.utcnow()
+        philly_utc = philly_time.utctimetuple()
+
+        # Convert philly time to UTC for comparison
+        import calendar
+
+        philly_timestamp = calendar.timegm(philly_utc)
+        now_timestamp = calendar.timegm(now_utc.timetuple())
 
         # Should be within a few seconds of now
-        time_diff = abs((philly_time.replace(tzinfo=None) - now).total_seconds())
+        time_diff = abs(philly_timestamp - now_timestamp)
         assert time_diff < 10  # Within 10 seconds
 
 
