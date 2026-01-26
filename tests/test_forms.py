@@ -4,9 +4,6 @@ Tests for WTForms validation
 
 from datetime import date, time
 
-import pytest
-from wtforms import ValidationError
-
 from backend.forms import ReportForm, ResidentForm, RoleUpdateForm, TimeEntryForm
 
 
@@ -21,10 +18,6 @@ class TestTimeEntryForm:
                     "resident_id": 1,
                     "role_id": 1,
                     "exit_time": time(18, 0),
-                    "airway_assist": False,
-                    "emergency": False,
-                    "dinner_break": False,
-                    "paper_record": False,
                 }
             )
             # Need to set choices for SelectFields
