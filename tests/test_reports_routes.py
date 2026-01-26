@@ -1,10 +1,6 @@
 """Tests for report routes."""
 
-from datetime import date, time
-
-import pytest
-
-from backend.models import Resident, Role, TimeEntry, db
+from backend.models import TimeEntry
 
 
 class TestReportGeneration:

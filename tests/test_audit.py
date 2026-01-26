@@ -1,9 +1,5 @@
 """Tests for audit functionality."""
 
-from datetime import date
-
-import pytest
-
 from backend.audit import log_create, log_delete, log_import, log_lock, log_update
 from backend.models import AuditLog, db
 
@@ -56,9 +52,11 @@ class TestAuditLogging:
         with app.app_context():
             log_lock("2024-01-15", locked=True)
 
-            log = AuditLog.query.filter_by(action="LOCK").order_by(
-                AuditLog.id.desc()
-            ).first()
+            log = (
+                AuditLog.query.filter_by(action="LOCK")
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
             assert log is not None
             assert "2024-01-15" in log.details
 
@@ -70,9 +68,11 @@ class TestAuditLogging:
         with app.app_context():
             log_lock("2024-01-15", locked=False)
 
-            log = AuditLog.query.filter_by(action="UNLOCK").order_by(
-                AuditLog.id.desc()
-            ).first()
+            log = (
+                AuditLog.query.filter_by(action="UNLOCK")
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
             assert log is not None
 
             db.session.delete(log)
@@ -83,9 +83,11 @@ class TestAuditLogging:
         with app.app_context():
             log_import("Schedule", "Imported 5 entries for 2024-01-15")
 
-            log = AuditLog.query.filter_by(action="IMPORT").order_by(
-                AuditLog.id.desc()
-            ).first()
+            log = (
+                AuditLog.query.filter_by(action="IMPORT")
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
             assert log is not None
             assert "5" in log.details
 
