@@ -5,13 +5,14 @@ Pytest fixtures and configuration for test suite
 import os
 import pathlib
 import tempfile
-from datetime import date, time
+from datetime import time
 
 import pytest
 
 from backend.app import app as flask_app
 from backend.app import init_db
 from backend.models import DailySheet, Resident, Role, TimeEntry, db
+from backend.utils import philly_today
 
 
 @pytest.fixture(scope="session")
@@ -19,6 +20,9 @@ def app():
     """Create application for testing"""
     # Create a temporary database
     db_fd, db_path = tempfile.mkstemp()
+
+    # Set environment variables for admin access in tests
+    os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
 
     flask_app.config.update(
         {
@@ -107,8 +111,9 @@ def sample_role(app):
 def sample_time_entry(app, sample_resident, sample_role):
     """Create a sample time entry for testing"""
     with app.app_context():
+        # Use philly_today() for timezone consistency with the app
         entry = TimeEntry(
-            date=date.today(),
+            date=philly_today(),
             resident_id=sample_resident.id,
             role_id=sample_role.id,
             exit_time=time(20, 0),  # 20:00
@@ -130,10 +135,11 @@ def sample_time_entry(app, sample_resident, sample_role):
 def sample_daily_sheet(app):
     """Create a sample daily sheet for testing"""
     with app.app_context():
-        # Check if sheet already exists for today
-        sheet = DailySheet.query.filter_by(date=date.today()).first()
+        # Use philly_today() for timezone consistency with the app
+        today = philly_today()
+        sheet = DailySheet.query.filter_by(date=today).first()
         if not sheet:
-            sheet = DailySheet(date=date.today(), locked=False, submitted=False)
+            sheet = DailySheet(date=today, locked=False, submitted=False)
             db.session.add(sheet)
             db.session.commit()
 
@@ -151,16 +157,19 @@ def sample_daily_sheet(app):
 def clean_database(app):
     """Clean database before and after test"""
     with app.app_context():
+        # Use philly_today() for timezone consistency with the app
+        today = philly_today()
+
         # Clean before test
         TimeEntry.query.delete()
         DailySheet.query.filter(
             DailySheet.id.notin_(
-                db.session.query(DailySheet.id).filter_by(date=date.today())
+                db.session.query(DailySheet.id).filter_by(date=today)
             )
         ).delete(synchronize_session=False)
 
         # Unlock today's sheet if it exists
-        today_sheet = DailySheet.query.filter_by(date=date.today()).first()
+        today_sheet = DailySheet.query.filter_by(date=today).first()
         if today_sheet:
             today_sheet.locked = False
 
