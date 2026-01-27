@@ -38,7 +38,11 @@ def app():
 
     yield flask_app
 
-    # Cleanup
+    # Cleanup - properly dispose database connections
+    with flask_app.app_context():
+        db.session.remove()
+        db.engine.dispose()
+
     os.close(db_fd)
     pathlib.Path(db_path).unlink()
 
@@ -80,7 +84,7 @@ def sample_resident(app):
         try:
             db.session.delete(resident)
             db.session.commit()
-        except:
+        except Exception:
             db.session.rollback()
 
 
@@ -103,7 +107,7 @@ def sample_role(app):
         try:
             db.session.delete(role)
             db.session.commit()
-        except:
+        except Exception:
             db.session.rollback()
 
 
@@ -127,7 +131,7 @@ def sample_time_entry(app, sample_resident, sample_role):
         try:
             db.session.delete(entry)
             db.session.commit()
-        except:
+        except Exception:
             db.session.rollback()
 
 
@@ -149,7 +153,7 @@ def sample_daily_sheet(app):
         try:
             db.session.delete(sheet)
             db.session.commit()
-        except:
+        except Exception:
             db.session.rollback()
 
 
@@ -161,12 +165,12 @@ def clean_database(app):
         today = philly_today()
 
         # Clean before test
-        TimeEntry.query.delete()
+        TimeEntry.query.delete(synchronize_session="fetch")
         DailySheet.query.filter(
             DailySheet.id.notin_(
                 db.session.query(DailySheet.id).filter_by(date=today)
             )
-        ).delete(synchronize_session=False)
+        ).delete(synchronize_session="fetch")
 
         # Unlock today's sheet if it exists
         today_sheet = DailySheet.query.filter_by(date=today).first()
@@ -178,5 +182,5 @@ def clean_database(app):
         yield
 
         # Clean after test
-        TimeEntry.query.delete()
+        TimeEntry.query.delete(synchronize_session="fetch")
         db.session.commit()

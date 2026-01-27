@@ -2,7 +2,7 @@
 Tests for Flask routes and API endpoints
 """
 
-from datetime import date, time, timedelta
+from datetime import time, timedelta
 
 import pytest
 
@@ -45,7 +45,7 @@ class TestViewSheet:
     def test_view_sheet_specific_date(self, client, app):
         """Test viewing sheet for a specific date"""
         with app.app_context():
-            test_date = date.today() - timedelta(days=1)
+            test_date = philly_today() - timedelta(days=1)
             response = client.get(f"/sheets/{test_date.strftime('%Y-%m-%d')}")
             assert response.status_code == 200
             assert test_date.strftime("%B %d, %Y").encode() in response.data
@@ -72,7 +72,7 @@ class TestAddEntry:
         response = client.post(
             "/entries/add",
             data={
-                "date": date.today().strftime("%Y-%m-%d"),
+                "date": philly_today().strftime("%Y-%m-%d"),
                 "resident_id": resident_id,
                 "role_id": role_id,
                 "exit_time": "20:00",
@@ -85,7 +85,7 @@ class TestAddEntry:
         # Verify entry was created - use fresh app context
         with app.app_context():
             entry = TimeEntry.query.filter_by(
-                resident_id=resident_id, date=date.today()
+                resident_id=resident_id, date=philly_today()
             ).first()
             assert entry is not None
             assert entry.exit_time == time(20, 0)
@@ -100,7 +100,7 @@ class TestAddEntry:
         response = client.post(
             "/entries/add",
             data={
-                "date": date.today().strftime("%Y-%m-%d"),
+                "date": philly_today().strftime("%Y-%m-%d"),
                 "resident_id": resident_id,
                 "role_id": role_id,
                 "exit_time": "",  # No exit time
@@ -113,7 +113,7 @@ class TestAddEntry:
         # Verify entry was created with null exit_time - use fresh app context
         with app.app_context():
             entry = TimeEntry.query.filter_by(
-                resident_id=resident_id, date=date.today()
+                resident_id=resident_id, date=philly_today()
             ).first()
             assert entry is not None
             assert entry.exit_time is None
@@ -122,9 +122,9 @@ class TestAddEntry:
         """Test that entries cannot be added to locked sheets"""
         with app.app_context():
             # Lock today's sheet
-            sheet = DailySheet.query.filter_by(date=date.today()).first()
+            sheet = DailySheet.query.filter_by(date=philly_today()).first()
             if not sheet:
-                sheet = DailySheet(date=date.today(), locked=True, submitted=False)
+                sheet = DailySheet(date=philly_today(), locked=True, submitted=False)
                 db.session.add(sheet)
             else:
                 sheet.locked = True
@@ -134,7 +134,7 @@ class TestAddEntry:
             response = client.post(
                 "/entries/add",
                 data={
-                    "date": date.today().strftime("%Y-%m-%d"),
+                    "date": philly_today().strftime("%Y-%m-%d"),
                     "resident_id": sample_resident.id,
                     "role_id": sample_role.id,
                     "exit_time": "20:00",
@@ -184,7 +184,7 @@ class TestDeleteEntry:
             assert b"locked" in response.data.lower() or response.status_code == 403
 
             # Verify entry still exists
-            entry = TimeEntry.query.get(entry_id)
+            entry = db.session.get(TimeEntry, entry_id)
             assert entry is not None
 
 
@@ -194,7 +194,7 @@ class TestLockSheet:
 
     def test_lock_sheet(self, client, app):
         """Test locking a sheet"""
-        date_str = date.today().strftime("%Y-%m-%d")
+        date_str = philly_today().strftime("%Y-%m-%d")
 
         # Lock the sheet
         response = client.post(f"/sheets/{date_str}/lock", follow_redirects=True)
@@ -207,21 +207,21 @@ class TestLockSheet:
         """Test unlocking a sheet"""
         with app.app_context():
             # Create locked sheet
-            sheet = DailySheet.query.filter_by(date=date.today()).first()
+            sheet = DailySheet.query.filter_by(date=philly_today()).first()
             if not sheet:
-                sheet = DailySheet(date=date.today(), locked=True, submitted=False)
+                sheet = DailySheet(date=philly_today(), locked=True, submitted=False)
                 db.session.add(sheet)
             else:
                 sheet.locked = True
             db.session.commit()
 
-            date_str = date.today().strftime("%Y-%m-%d")
+            date_str = philly_today().strftime("%Y-%m-%d")
             response = client.post(f"/sheets/{date_str}/lock", follow_redirects=True)
 
             assert response.status_code == 200
 
             # Verify sheet is unlocked
-            sheet = DailySheet.query.filter_by(date=date.today()).first()
+            sheet = DailySheet.query.filter_by(date=philly_today()).first()
             assert sheet.locked is False
 
 
@@ -286,8 +286,8 @@ class TestReportsPage:
 
     def test_generate_report(self, client, app, clean_database, sample_time_entry):
         """Test generating a report"""
-        start_date = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
-        end_date = date.today().strftime("%Y-%m-%d")
+        start_date = (philly_today() - timedelta(days=7)).strftime("%Y-%m-%d")
+        end_date = philly_today().strftime("%Y-%m-%d")
 
         response = client.post(
             "/api/report",
@@ -302,8 +302,8 @@ class TestReportsPage:
 
     def test_generate_empty_report(self, client, clean_database):
         """Test generating report with no data"""
-        future_date = (date.today() + timedelta(days=30)).strftime("%Y-%m-%d")
-        far_future = (date.today() + timedelta(days=60)).strftime("%Y-%m-%d")
+        future_date = (philly_today() + timedelta(days=30)).strftime("%Y-%m-%d")
+        far_future = (philly_today() + timedelta(days=60)).strftime("%Y-%m-%d")
 
         response = client.post(
             "/api/report",
@@ -354,7 +354,7 @@ class TestManageResidents:
             assert response.status_code == 200
 
             # Verify status was toggled
-            resident = Resident.query.get(resident_id)
+            resident = db.session.get(Resident, resident_id)
             assert resident.active != original_status
 
 
@@ -367,12 +367,6 @@ class TestManageRoles:
         response = client.get("/roles/")
         assert response.status_code == 200
         assert b"Roles" in response.data
-
-    def test_add_role(self, client, app):
-        """Test adding a new role - skipped as route not implemented"""
-        # This test is skipped because /add_role route doesn't exist
-        # Only /update_role exists for existing roles
-        pytest.skip("Add role route not implemented")
 
     def test_update_role_cutoff(self, client, app, sample_role):
         """Test updating role cutoff time"""
@@ -393,7 +387,7 @@ class TestManageRoles:
             assert response.status_code == 200
 
             # Verify role was updated
-            role = Role.query.get(role_id)
+            role = db.session.get(Role, role_id)
             assert role.cutoff_hour == 20
             assert role.cutoff_minute == 30
 
@@ -451,8 +445,39 @@ class TestWorkflowIntegration:
         assert b"Test Role" in response.data
         assert b"5.00" in response.data  # 22:30 - 17:30 = 5 hours
 
-    def test_overnight_shift_workflow(self, client, app, sample_resident, sample_role):
-        """Test overnight shift entry and calculation - skipped due to test design issues"""
-        # This test has issues with database session handling in tests
-        # The functionality works in production but the test needs redesign
-        pytest.skip("Test needs redesign for proper database session handling")
+    def test_overnight_shift_workflow(
+        self, client, app, clean_database, sample_resident, sample_role
+    ):
+        """Test overnight shift entry and calculation"""
+        resident_id = sample_resident.id
+        role_id = sample_role.id
+
+        # Use philly_today for consistency with application behavior
+        today = philly_today()
+        date_str = today.strftime("%Y-%m-%d")
+
+        # Add entry with overnight exit time (2:30 AM = next day)
+        client.post(
+            "/entries/add",
+            data={
+                "date": date_str,
+                "resident_id": resident_id,
+                "role_id": role_id,
+                "exit_time": "02:30",  # Overnight shift - 2:30 AM next day
+            },
+            follow_redirects=True,
+        )
+
+        # Generate report
+        response = client.post(
+            "/api/report",
+            data={
+                "start_date": date_str,
+                "end_date": date_str,
+            },
+            follow_redirects=True,
+        )
+
+        # Overnight shift: 17:30 to 02:30 = 9 hours overtime
+        assert b"Test Role" in response.data
+        assert b"9.00" in response.data

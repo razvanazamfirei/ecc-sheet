@@ -4,7 +4,7 @@ import csv
 from datetime import date
 from io import StringIO
 
-from .models import Resident, TimeEntry
+from .models import Resident, TimeEntry, db
 
 
 def build_entries_query(
@@ -23,7 +23,7 @@ def get_resident_name(resident_id: str | int | None) -> str | None:
     """Look up resident name by ID."""
     if not resident_id:
         return None
-    resident = Resident.query.get(resident_id)
+    resident = db.session.get(Resident, resident_id)
     return resident.name if resident else None
 
 

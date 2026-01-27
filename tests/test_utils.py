@@ -3,7 +3,7 @@ Tests for utility functions
 """
 
 import pathlib
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 import pytz
@@ -30,17 +30,13 @@ class TestPhiladelphiaTime:
         """Test that returned time is reasonably current"""
         philly_time = get_philadelphia_time()
         # Compare UTC timestamps to avoid timezone issues
-        now_utc = datetime.utcnow()
-        philly_utc = philly_time.utctimetuple()
+        now_utc = datetime.now(UTC)
 
         # Convert philly time to UTC for comparison
-        import calendar
-
-        philly_timestamp = calendar.timegm(philly_utc)
-        now_timestamp = calendar.timegm(now_utc.timetuple())
+        philly_utc = philly_time.astimezone(UTC)
 
         # Should be within a few seconds of now
-        time_diff = abs(philly_timestamp - now_timestamp)
+        time_diff = abs((philly_utc - now_utc).total_seconds())
         assert time_diff < 10  # Within 10 seconds
 
 
@@ -52,8 +48,10 @@ class TestEffectiveDate:
         """Test that times after 8 AM belong to current calendar day"""
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
-        # 10:00 AM today
-        test_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        # 10:00 AM today - create naive datetime intentionally for localization
+        test_time = datetime.now().replace(  # noqa: DTZ005
+            hour=10, minute=0, second=0, microsecond=0
+        )
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -63,8 +61,10 @@ class TestEffectiveDate:
         """Test that times before 8 AM belong to previous calendar day"""
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
-        # 6:00 AM today
-        test_time = datetime.now().replace(hour=6, minute=0, second=0, microsecond=0)
+        # 6:00 AM today - create naive datetime intentionally for localization
+        test_time = datetime.now().replace(  # noqa: DTZ005
+            hour=6, minute=0, second=0, microsecond=0
+        )
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -75,8 +75,10 @@ class TestEffectiveDate:
         """Test that exactly 8:00 AM belongs to current day"""
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
-        # Exactly 8:00 AM today
-        test_time = datetime.now().replace(hour=8, minute=0, second=0, microsecond=0)
+        # Exactly 8:00 AM today - create naive datetime intentionally for localization
+        test_time = datetime.now().replace(  # noqa: DTZ005
+            hour=8, minute=0, second=0, microsecond=0
+        )
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -86,8 +88,10 @@ class TestEffectiveDate:
         """Test that 7:59 AM belongs to previous day"""
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
-        # 7:59 AM today
-        test_time = datetime.now().replace(hour=7, minute=59, second=0, microsecond=0)
+        # 7:59 AM today - create naive datetime intentionally for localization
+        test_time = datetime.now().replace(  # noqa: DTZ005
+            hour=7, minute=59, second=0, microsecond=0
+        )
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -98,8 +102,10 @@ class TestEffectiveDate:
         """Test that midnight belongs to previous day"""
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
-        # Midnight today
-        test_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        # Midnight today - create naive datetime intentionally for localization
+        test_time = datetime.now().replace(  # noqa: DTZ005
+            hour=0, minute=0, second=0, microsecond=0
+        )
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -110,8 +116,10 @@ class TestEffectiveDate:
         """Test that late night (11 PM) belongs to current day"""
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
-        # 11:00 PM today
-        test_time = datetime.now().replace(hour=23, minute=0, second=0, microsecond=0)
+        # 11:00 PM today - create naive datetime intentionally for localization
+        test_time = datetime.now().replace(  # noqa: DTZ005
+            hour=23, minute=0, second=0, microsecond=0
+        )
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -124,8 +132,10 @@ class TestEffectiveDate:
 
     def test_effective_date_handles_naive_datetime(self):
         """Test that naive datetimes are properly localized"""
-        # Create naive datetime
-        naive_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        # Create naive datetime intentionally to test localization behavior
+        naive_time = datetime.now().replace(  # noqa: DTZ005
+            hour=10, minute=0, second=0, microsecond=0
+        )
 
         effective = get_effective_date(naive_time)
         assert isinstance(effective, date)
@@ -148,7 +158,7 @@ class TestPhillyToday:
         assert isinstance(today, date)
 
         # Should be within a reasonable range
-        actual_today = date.today()
+        actual_today = philly_today()
         yesterday = actual_today - timedelta(days=1)
 
         # philly_today should be either yesterday or today depending on time
