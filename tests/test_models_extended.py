@@ -102,12 +102,9 @@ class TestResidentModel:
 
             assert resident.total_entries == 3
 
-            # Cleanup
-            TimeEntry.query.filter_by(resident_id=resident.id).delete(
-                synchronize_session=False
-            )
-            db.session.delete(role)
+            # Cleanup - delete resident first (cascade handles time_entries)
             db.session.delete(resident)
+            db.session.delete(role)
             db.session.commit()
 
     def test_active_entries(self, app):
@@ -150,12 +147,9 @@ class TestResidentModel:
             assert len(active) == 2
             assert all(not e.submitted for e in active)
 
-            # Cleanup
-            TimeEntry.query.filter_by(resident_id=resident.id).delete(
-                synchronize_session=False
-            )
-            db.session.delete(role)
+            # Cleanup - delete resident first (cascade handles time_entries)
             db.session.delete(resident)
+            db.session.delete(role)
             db.session.commit()
 
     def test_to_dict_basic(self, app):
@@ -218,12 +212,9 @@ class TestResidentModel:
             assert data["time_entries"][0]["date"] == "2024-06-15"
             assert data["time_entries"][0]["role"] == "Dict Entries Role"
 
-            # Cleanup
-            TimeEntry.query.filter_by(resident_id=resident.id).delete(
-                synchronize_session=False
-            )
-            db.session.delete(role)
+            # Cleanup - delete resident first (cascade handles time_entries)
             db.session.delete(resident)
+            db.session.delete(role)
             db.session.commit()
 
     def test_to_dict_without_created_at(self, app):
@@ -415,12 +406,9 @@ class TestResidentModel:
             assert len(entries) == 1
             assert entries[0].date == date(2024, 1, 15)
 
-            # Cleanup
-            TimeEntry.query.filter_by(resident_id=resident.id).delete(
-                synchronize_session=False
-            )
-            db.session.delete(role)
+            # Cleanup - delete resident first (cascade handles time_entries)
             db.session.delete(resident)
+            db.session.delete(role)
             db.session.commit()
 
     def test_get_total_overtime_all(self, app):
@@ -455,12 +443,9 @@ class TestResidentModel:
             total = resident.get_total_overtime()
             assert total == 4.5
 
-            # Cleanup
-            TimeEntry.query.filter_by(resident_id=resident.id).delete(
-                synchronize_session=False
-            )
-            db.session.delete(role)
+            # Cleanup - delete resident first (cascade handles time_entries)
             db.session.delete(resident)
+            db.session.delete(role)
             db.session.commit()
 
     def test_get_total_overtime_with_date_filter(self, app):
@@ -505,12 +490,9 @@ class TestResidentModel:
             total = resident.get_total_overtime(date(2024, 3, 10), date(2024, 3, 20))
             assert total == 2.5
 
-            # Cleanup
-            TimeEntry.query.filter_by(resident_id=resident.id).delete(
-                synchronize_session=False
-            )
-            db.session.delete(role)
+            # Cleanup - delete resident first (cascade handles time_entries)
             db.session.delete(resident)
+            db.session.delete(role)
             db.session.commit()
 
     def test_resident_repr(self, app):
