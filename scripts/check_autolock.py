@@ -78,7 +78,7 @@ def main():
     """Main function"""
     try:
         if should_auto_lock():
-            print(f"Running auto-lock check at {datetime.now()}")
+            print(f"Running auto-lock check at {datetime.now(UTC)}")
             auto_lock_sheets()
             sys.exit(0)
         else:

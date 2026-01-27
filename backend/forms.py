@@ -54,6 +54,5 @@ class ReportForm(FlaskForm):
 
     def validate_end_date(self, field):
         """Validate that end_date is not before start_date."""
-        if self.start_date.data and field.data:
-            if field.data < self.start_date.data:
-                raise ValidationError("End date must be on or after start date")
+        if self.start_date.data and field.data and field.data < self.start_date.data:
+            raise ValidationError("End date must be on or after start date")

@@ -1,6 +1,6 @@
 """Resident management routes."""
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from ..auth import admin_required, get_current_user
 from ..models import Resident, db
@@ -47,7 +47,9 @@ def add():
 @handle_db_error
 def toggle(resident_id):
     """Toggle resident active status."""
-    resident = Resident.query.get_or_404(resident_id)
+    resident = db.session.get(Resident, resident_id)
+    if resident is None:
+        abort(404)
 
     try:
         resident.active = not resident.active

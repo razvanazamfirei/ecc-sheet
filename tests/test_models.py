@@ -2,12 +2,13 @@
 Tests for database models
 """
 
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 
 import pytest
 
 from backend.app import db
 from backend.models import DailySheet, Resident, Role, TimeEntry
+from backend.utils import philly_today
 
 
 @pytest.mark.unit
@@ -100,7 +101,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 20:00, cutoff at 17:30 → 2.5 hours overtime
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(20, 0),
@@ -115,7 +116,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 02:30 AM, cutoff at 17:30 → 9 hours overnight
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(2, 30),
@@ -130,7 +131,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 00:00, cutoff at 17:30 → 6.5 hours
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(0, 0),
@@ -145,7 +146,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 17:30, cutoff at 17:30 → 0 hours
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(17, 30),
@@ -160,7 +161,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 15:00, cutoff at 17:30 → 0 hours (not overnight)
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(15, 0),
@@ -181,7 +182,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 23:45, cutoff at 17:30 → 6.25 hours
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(23, 45),
@@ -196,7 +197,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 07:00 AM, cutoff at 17:30 → 13.5 hours overnight
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(7, 0),
@@ -221,7 +222,7 @@ class TestOvertimeCalculation:
 
             # Exit at 22:30, cutoff at 20:00 → 2.5 hours
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=role.id,
                 exit_time=time(22, 30),
@@ -241,7 +242,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 18:15, cutoff at 17:30 → 0.75 hours (45 minutes)
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(18, 15),
@@ -259,8 +260,9 @@ class TestTimeEntry:
     def test_time_entry_creation(self, app, sample_resident, sample_role):
         """Test creating a time entry"""
         with app.app_context():
+            today = philly_today()
             entry = TimeEntry(
-                date=date.today(),
+                date=today,
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(20, 0),
@@ -269,7 +271,7 @@ class TestTimeEntry:
             db.session.commit()
 
             assert entry.id is not None
-            assert entry.date == date.today()
+            assert entry.date == today
             assert entry.resident_id == sample_resident.id
             assert entry.role_id == sample_role.id
             assert entry.exit_time == time(20, 0)
@@ -285,7 +287,7 @@ class TestTimeEntry:
         """Test that exit_time can be null"""
         with app.app_context():
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=None,  # No exit time yet
@@ -307,7 +309,7 @@ class TestDailySheet:
 
         with app.app_context():
             # Use a future date to avoid conflicts
-            test_date = date.today() + timedelta(days=10)
+            test_date = philly_today() + timedelta(days=10)
             sheet = DailySheet(date=test_date, locked=False, submitted=False)
             db.session.add(sheet)
             db.session.commit()
@@ -338,7 +340,7 @@ class TestDailySheet:
                 date=test_date,
                 locked=True,
                 submitted=True,
-                submitted_at=datetime.now(),
+                submitted_at=datetime.now(UTC),
             )
             db.session.add(sheet)
             db.session.commit()
@@ -352,6 +354,8 @@ class TestDailySheet:
 
     def test_daily_sheet_unique_date(self, app, sample_daily_sheet):
         """Test that daily sheets have unique dates"""
+        from sqlalchemy.exc import IntegrityError
+
         with app.app_context():
             # Try to create another sheet for the same date
             duplicate = DailySheet(
@@ -360,5 +364,5 @@ class TestDailySheet:
             db.session.add(duplicate)
 
             # This should raise an IntegrityError due to unique constraint
-            with pytest.raises(Exception):
+            with pytest.raises(IntegrityError):
                 db.session.commit()
