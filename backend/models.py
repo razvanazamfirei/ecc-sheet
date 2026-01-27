@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from typing import ClassVar
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -189,7 +188,6 @@ class Role(db.Model):
 
 class TimeEntry(db.Model):
     __tablename__ = "time_entries"
-    __mapper_args__: ClassVar[dict] = {"confirm_deleted_rows": False}
 
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, index=True)

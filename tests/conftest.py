@@ -165,12 +165,12 @@ def clean_database(app):
         today = philly_today()
 
         # Clean before test
-        TimeEntry.query.delete()
+        TimeEntry.query.delete(synchronize_session="fetch")
         DailySheet.query.filter(
             DailySheet.id.notin_(
                 db.session.query(DailySheet.id).filter_by(date=today)
             )
-        ).delete(synchronize_session=False)
+        ).delete(synchronize_session="fetch")
 
         # Unlock today's sheet if it exists
         today_sheet = DailySheet.query.filter_by(date=today).first()
@@ -182,5 +182,5 @@ def clean_database(app):
         yield
 
         # Clean after test
-        TimeEntry.query.delete()
+        TimeEntry.query.delete(synchronize_session="fetch")
         db.session.commit()

@@ -1,0 +1,133 @@
+# Codecov configuration for ECC Sheet
+# https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        if_ci_failed: error
+      backend:
+        target: 90%
+        threshold: 2%
+        flags:
+          - backend
+      frontend:
+        target: 70%
+        threshold: 5%
+        flags:
+          - frontend
+
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+        if_ci_failed: error
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: true
+      loop: true
+      macro: false
+      method: false
+
+comment:
+  layout: "header, diff, flags, components, tree, footer"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+flags:
+  backend:
+    paths:
+      - backend/
+    carryforward: true
+    after_n_builds: 1
+
+  frontend:
+    paths:
+      - frontend/static/js/
+    carryforward: true
+    after_n_builds: 1
+
+ignore:
+  # Test files
+  - "tests/**/*"
+  - "**/__tests__/**/*"
+  - "**/*.test.js"
+  - "**/*.test.ts"
+  - "**/*.spec.js"
+  - "**/*.spec.ts"
+
+  # Configuration files
+  - "backend/config.py"
+  - "vite.config.js"
+  - "jest.config.js"
+  - "prettier.config.js"
+  - "stylelint.config.js"
+
+  # Database migrations
+  - "migrations/**/*"
+
+  # Build outputs
+  - "frontend/static/dist/**/*"
+  - "node_modules/**/*"
+  - "coverage/**/*"
+
+  # Scripts (operational, not core application)
+  - "scripts/**/*"
+
+  # Documentation and metadata
+  - "docs/**/*"
+  - "*.md"
+
+  # Init files with minimal logic
+  - "backend/__init__.py"
+  - "backend/routes/__init__.py"
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        threshold: 2%
+
+  individual_components:
+    - component_id: backend_core
+      name: Backend Core
+      paths:
+        - backend/app.py
+        - backend/models.py
+        - backend/utils.py
+        - backend/auth.py
+
+    - component_id: backend_routes
+      name: Backend Routes
+      paths:
+        - backend/routes/**
+
+    - component_id: backend_services
+      name: Backend Services
+      paths:
+        - backend/audit.py
+        - backend/email_service.py
+        - backend/report_utils.py
+        - backend/staff_import.py
+        - backend/holidays.py
+
+    - component_id: frontend_js
+      name: Frontend JavaScript
+      paths:
+        - frontend/static/js/*.js
