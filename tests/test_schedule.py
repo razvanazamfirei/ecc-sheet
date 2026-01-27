@@ -55,8 +55,10 @@ class TestScheduleImport:
             # Mock the Amion response with valid CSV data
             mock_response = MagicMock()
             mock_response.status_code = 200
-            mock_response.text = """Field1,Field2,Field3,Field4,Field5,Field6,Field7,EPICID,Field9
-ECC 1,Test Resident,Some,Data,Here,More,Data,EPICID:R12345,Extra"""
+            mock_response.text = (
+                "Field1,Field2,Field3,Field4,Field5,Field6,Field7,EPICID,Field9\n"
+                "ECC 1,Test Resident,Some,Data,Here,More,Data,EPICID:R12345,Extra"
+            )
             mock_response.raise_for_status = MagicMock()
             mock_get.return_value = mock_response
 

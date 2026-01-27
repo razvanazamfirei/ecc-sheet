@@ -38,7 +38,11 @@ def app():
 
     yield flask_app
 
-    # Cleanup
+    # Cleanup - properly dispose database connections
+    with flask_app.app_context():
+        db.session.remove()
+        db.engine.dispose()
+
     os.close(db_fd)
     pathlib.Path(db_path).unlink()
 
@@ -80,7 +84,7 @@ def sample_resident(app):
         try:
             db.session.delete(resident)
             db.session.commit()
-        except:
+        except Exception:
             db.session.rollback()
 
 
@@ -103,7 +107,7 @@ def sample_role(app):
         try:
             db.session.delete(role)
             db.session.commit()
-        except:
+        except Exception:
             db.session.rollback()
 
 
@@ -127,7 +131,7 @@ def sample_time_entry(app, sample_resident, sample_role):
         try:
             db.session.delete(entry)
             db.session.commit()
-        except:
+        except Exception:
             db.session.rollback()
 
 
@@ -149,7 +153,7 @@ def sample_daily_sheet(app):
         try:
             db.session.delete(sheet)
             db.session.commit()
-        except:
+        except Exception:
             db.session.rollback()
 
 

@@ -26,7 +26,7 @@ class TestEmailService:
         """Test that email fails without recipient."""
         with app.app_context():
             app.config["EMAIL_USERNAME"] = "test@example.com"
-            app.config["EMAIL_PASSWORD"] = "password"
+            app.config["EMAIL_PASSWORD"] = "password"  # noqa: S105
             app.config["EMAIL_RECIPIENT"] = ""
 
             result = send_report_email(
@@ -43,7 +43,7 @@ class TestEmailService:
         with app.app_context():
             # Configure mock
             mock_config.EMAIL_USERNAME = "test@example.com"
-            mock_config.EMAIL_PASSWORD = "password"
+            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
             mock_config.EMAIL_HOST = "smtp.example.com"
             mock_config.EMAIL_PORT = 587
             mock_config.EMAIL_RECIPIENT = "default@example.com"
@@ -68,7 +68,7 @@ class TestEmailService:
         """Test email with resident filter."""
         with app.app_context():
             mock_config.EMAIL_USERNAME = "test@example.com"
-            mock_config.EMAIL_PASSWORD = "password"
+            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
             mock_config.EMAIL_HOST = "smtp.example.com"
             mock_config.EMAIL_PORT = 587
             mock_config.EMAIL_RECIPIENT = "default@example.com"
@@ -93,7 +93,7 @@ class TestEmailService:
 
         with app.app_context():
             app.config["EMAIL_USERNAME"] = "test@example.com"
-            app.config["EMAIL_PASSWORD"] = "wrong_password"
+            app.config["EMAIL_PASSWORD"] = "wrong_password"  # noqa: S105
             app.config["EMAIL_HOST"] = "smtp.example.com"
             app.config["EMAIL_PORT"] = 587
 
@@ -118,7 +118,7 @@ class TestEmailService:
 
         with app.app_context():
             app.config["EMAIL_USERNAME"] = "test@example.com"
-            app.config["EMAIL_PASSWORD"] = "password"
+            app.config["EMAIL_PASSWORD"] = "password"  # noqa: S105
             app.config["EMAIL_HOST"] = "smtp.example.com"
             app.config["EMAIL_PORT"] = 587
 
