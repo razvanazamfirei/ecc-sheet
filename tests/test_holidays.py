@@ -165,9 +165,18 @@ class TestHolidayRoutes:
     def test_delete_holiday(self, client, app):
         """Test deleting a holiday."""
         with app.app_context():
+            # Use a unique date to avoid conflicts
+            test_date = date(2099, 10, 15)
+
+            # Clean up any existing holiday with this date
+            existing = Holiday.query.filter_by(date=test_date).first()
+            if existing:
+                db.session.delete(existing)
+                db.session.commit()
+
             # Create a holiday first
             holiday = Holiday(
-                date=date(2024, 10, 15),
+                date=test_date,
                 name="To Delete",
                 is_federal=False,
             )
@@ -183,7 +192,7 @@ class TestHolidayRoutes:
             assert response.status_code == 200
 
             # Verify deleted
-            assert Holiday.query.get(holiday_id) is None
+            assert db.session.get(Holiday, holiday_id) is None
 
     def test_refresh_federal_holidays(self, client, app):
         """Test refreshing federal holidays."""

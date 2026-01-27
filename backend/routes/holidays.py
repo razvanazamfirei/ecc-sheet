@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from ..audit import log_create, log_delete
 from ..auth import admin_required
@@ -62,7 +62,9 @@ def add():
 @admin_required
 def delete(holiday_id):
     """Delete a holiday."""
-    holiday = Holiday.query.get_or_404(holiday_id)
+    holiday = db.session.get(Holiday, holiday_id)
+    if holiday is None:
+        abort(404)
 
     try:
         log_delete(

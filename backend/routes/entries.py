@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from flask import Blueprint, flash, redirect, request, url_for
+from flask import Blueprint, abort, flash, redirect, request, url_for
 
 from ..audit import log_create, log_delete, log_update
 from ..models import DailySheet, TimeEntry, db
@@ -76,7 +76,9 @@ def add():
 @handle_db_error
 def update(entry_id):
     """Update an existing time entry."""
-    entry = TimeEntry.query.get_or_404(entry_id)
+    entry = db.session.get(TimeEntry, entry_id)
+    if entry is None:
+        abort(404)
 
     # Check if sheet is locked
     daily_sheet = DailySheet.query.filter_by(date=entry.date).first()
@@ -124,7 +126,9 @@ def update(entry_id):
 @handle_db_error
 def delete(entry_id):
     """Delete a time entry."""
-    entry = TimeEntry.query.get_or_404(entry_id)
+    entry = db.session.get(TimeEntry, entry_id)
+    if entry is None:
+        abort(404)
     sheet_date = entry.date
 
     # Check if sheet is locked

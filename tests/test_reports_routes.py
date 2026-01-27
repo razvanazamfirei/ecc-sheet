@@ -1,6 +1,6 @@
 """Tests for report routes."""
 
-from backend.models import TimeEntry
+from backend.models import TimeEntry, db
 
 
 class TestReportGeneration:
@@ -14,7 +14,7 @@ class TestReportGeneration:
     def test_generate_report_with_entries(self, client, app, sample_time_entry):
         """Test generating a report with entries."""
         with app.app_context():
-            entry = TimeEntry.query.get(sample_time_entry.id)
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
             entry_date = entry.date
 
             response = client.post(
@@ -33,7 +33,7 @@ class TestReportGeneration:
     ):
         """Test generating a report filtered by resident."""
         with app.app_context():
-            entry = TimeEntry.query.get(sample_time_entry.id)
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
             entry_date = entry.date
 
             response = client.post(
@@ -80,7 +80,7 @@ class TestReportExport:
     def test_export_csv_with_entries(self, client, app, sample_time_entry):
         """Test exporting report with entries as CSV."""
         with app.app_context():
-            entry = TimeEntry.query.get(sample_time_entry.id)
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
             entry_date = entry.date
 
             response = client.post(
@@ -100,7 +100,7 @@ class TestReportExport:
     ):
         """Test exporting filtered report as CSV."""
         with app.app_context():
-            entry = TimeEntry.query.get(sample_time_entry.id)
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
             entry_date = entry.date
 
             response = client.post(

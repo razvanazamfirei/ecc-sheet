@@ -35,7 +35,7 @@ def is_weekend_or_holiday(check_date: date) -> bool:
         True if the date is a weekend, federal holiday, or custom holiday
     """
     # Import here to avoid circular import (Holiday model imports this module)
-    from .models import Holiday
+    from .models import Holiday  # noqa: PLC0415
 
     # Check US federal holidays and weekends
     us_holidays = holidays.US(years=[check_date.year])

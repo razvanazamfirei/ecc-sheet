@@ -1,6 +1,6 @@
 """Role management routes."""
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from ..auth import admin_required
 from ..models import Role, db
@@ -22,7 +22,9 @@ def index():
 @handle_db_error
 def update(role_id):
     """Update role cutoff time and backup status."""
-    role = Role.query.get_or_404(role_id)
+    role = db.session.get(Role, role_id)
+    if role is None:
+        abort(404)
 
     try:
         cutoff_hour = int(request.form.get("cutoff_hour", 17))

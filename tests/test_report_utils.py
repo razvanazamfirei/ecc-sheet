@@ -70,7 +70,7 @@ class TestAggregateEntriesByResident:
         """Test aggregation with single entry."""
         with app.app_context():
             # Reload entry in current session
-            entry = TimeEntry.query.get(sample_time_entry.id)
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
             result = aggregate_entries_by_resident([entry])
 
             assert len(result) == 1
@@ -122,7 +122,7 @@ class TestAggregateEntriesByResident:
             db.session.add(entry)
             db.session.commit()
 
-            entries = [TimeEntry.query.get(entry.id)]
+            entries = [db.session.get(TimeEntry, entry.id)]
             result = aggregate_entries_by_resident(entries)
 
             assert len(result) == 1
@@ -148,7 +148,7 @@ class TestGenerateCsvContent:
     def test_single_entry(self, app, sample_time_entry):
         """Test CSV generation with single entry."""
         with app.app_context():
-            entry = TimeEntry.query.get(sample_time_entry.id)
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
             csv_content = generate_csv_content([entry])
 
             lines = csv_content.strip().split("\n")
@@ -168,7 +168,7 @@ class TestGenerateCsvContent:
             db.session.add(entry)
             db.session.commit()
 
-            entries = [TimeEntry.query.get(entry.id)]
+            entries = [db.session.get(TimeEntry, entry.id)]
             csv_content = generate_csv_content(entries)
 
             # Should not raise error

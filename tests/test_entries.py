@@ -1,8 +1,9 @@
 """Tests for entry routes."""
 
-from datetime import date, time
+from datetime import time
 
 from backend.models import DailySheet, TimeEntry, db
+from backend.utils import philly_today
 
 
 class TestEntryUpdate:
@@ -28,7 +29,7 @@ class TestEntryUpdate:
             assert response.status_code == 200
 
             # Verify update
-            entry = TimeEntry.query.get(entry_id)
+            entry = db.session.get(TimeEntry, entry_id)
             assert entry.exit_time == time(21, 30)
 
     def test_update_clears_exit_time(self, client, app, sample_time_entry):
@@ -50,7 +51,7 @@ class TestEntryUpdate:
             )
             assert response.status_code == 200
 
-            entry = TimeEntry.query.get(entry_id)
+            entry = db.session.get(TimeEntry, entry_id)
             assert entry.exit_time is None
 
     def test_update_locked_sheet_fails(self, client, app, sample_time_entry):
@@ -100,7 +101,7 @@ class TestEntryUpdate:
 
             # Create entry with backup role
             entry = TimeEntry(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=backup_role.id,
                 exit_time=time(20, 0),
@@ -110,7 +111,7 @@ class TestEntryUpdate:
             entry_id = entry.id
 
             # Ensure sheet is unlocked
-            sheet = DailySheet.query.filter_by(date=date.today()).first()
+            sheet = DailySheet.query.filter_by(date=philly_today()).first()
             if sheet:
                 sheet.locked = False
                 db.session.commit()
@@ -124,7 +125,7 @@ class TestEntryUpdate:
             assert response.status_code == 200
 
             # Verify
-            entry = TimeEntry.query.get(entry_id)
+            entry = db.session.get(TimeEntry, entry_id)
             assert entry.start_time == time(9, 0)
 
             # Cleanup
@@ -143,7 +144,7 @@ class TestEntryAdd:
             role = Role.query.first()
 
             # Ensure sheet is unlocked
-            sheet = DailySheet.query.filter_by(date=date.today()).first()
+            sheet = DailySheet.query.filter_by(date=philly_today()).first()
             if sheet:
                 sheet.locked = False
                 db.session.commit()
@@ -151,7 +152,7 @@ class TestEntryAdd:
             response = client.post(
                 "/entries/add",
                 data={
-                    "date": date.today().strftime("%Y-%m-%d"),
+                    "date": philly_today().strftime("%Y-%m-%d"),
                     "resident_id": sample_resident.id,
                     "role_id": role.id,
                     "exit_time": "19:00",
@@ -163,7 +164,7 @@ class TestEntryAdd:
 
             # Verify entry was created
             entry = TimeEntry.query.filter_by(
-                date=date.today(),
+                date=philly_today(),
                 resident_id=sample_resident.id,
                 role_id=role.id,
             ).first()
