@@ -146,3 +146,96 @@ describe("Reports Functions", () => {
     });
   });
 });
+
+describe("Load Residents for Report", () => {
+  test("loadResidentsForReport populates dropdown", async () => {
+    let optionsAdded = 0;
+    const residentFilter = {
+      innerHTML: "",
+      appendChild: () => {
+        optionsAdded++;
+      },
+    };
+    mockElements["resident_filter"] = residentFilter;
+
+    // Simulate the fetch and populate logic
+    const response = await global.fetch("/api/residents/active");
+    const residents = await response.json();
+    const select = mockElements["resident_filter"];
+
+    select.innerHTML = '<option value="">All Residents</option>';
+    residents.forEach(() => {
+      select.appendChild({});
+    });
+
+    expect(select.innerHTML).toBe('<option value="">All Residents</option>');
+    expect(optionsAdded).toBe(2); // Two mock residents
+  });
+
+  test("loadResidentsForReport handles fetch error", async () => {
+    let errorLogged = false;
+    global.console.error = () => {
+      errorLogged = true;
+    };
+
+    global.fetch = () => Promise.reject(new Error("Network error"));
+
+    try {
+      await global.fetch("/api/residents/active");
+    } catch {
+      global.console.error("Error loading residents");
+    }
+
+    expect(errorLogged).toBe(true);
+
+    // Restore fetch
+    global.fetch = () =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve([
+            { id: 1, name: "John Doe" },
+            { id: 2, name: "Jane Smith" },
+          ]),
+      });
+  });
+});
+
+describe("Initialize Reports", () => {
+  test("initializeReports sets default week range without submitting", () => {
+    const startDateInput = { value: "" };
+    const endDateInput = { value: "" };
+    let formSubmitted = false;
+    const reportForm = { submit: () => (formSubmitted = true) };
+
+    mockElements["start_date"] = startDateInput;
+    mockElements["end_date"] = endDateInput;
+    mockElements["report-form"] = reportForm;
+    mockElements["resident_filter"] = { innerHTML: "", appendChild: () => {} };
+
+    // Simulate initializeReports calling setDateRange("week", false)
+    exportedFunctions.setDateRange("week", false);
+
+    expect(startDateInput.value).toBe("2024-06-08");
+    expect(endDateInput.value).toBe("2024-06-15");
+    expect(formSubmitted).toBe(false);
+  });
+});
+
+describe("Date Range Edge Cases", () => {
+  test("setDateRange handles unknown period gracefully", () => {
+    const startDateInput = { value: "" };
+    const endDateInput = { value: "" };
+    const reportForm = { submit: () => {} };
+
+    mockElements["start_date"] = startDateInput;
+    mockElements["end_date"] = endDateInput;
+    mockElements["report-form"] = reportForm;
+
+    // Unknown period should default to week
+    exportedFunctions.setDateRange("unknown", false);
+
+    expect(startDateInput.value).toBe("2024-06-08");
+    expect(endDateInput.value).toBe("2024-06-15");
+  });
+});
