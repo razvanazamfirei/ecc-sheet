@@ -125,7 +125,8 @@ class TestReportExport:
             follow_redirects=True,
         )
         assert response.status_code == 200
-        # Should redirect with error
+        # Should show error message
+        assert b"invalid" in response.data.lower() or b"error" in response.data.lower()
 
 
 class TestReportEmail:

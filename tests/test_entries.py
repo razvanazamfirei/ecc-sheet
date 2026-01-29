@@ -291,6 +291,11 @@ class TestEntryEdgeCases:
     def test_add_entry_with_no_resident(self, client, app, sample_role):
         """Test adding entry without resident fails gracefully."""
         with app.app_context():
+            from backend.models import TimeEntry
+
+            # Get initial entry count
+            initial_count = TimeEntry.query.count()
+
             response = client.post(
                 "/entries/add",
                 data={
@@ -302,7 +307,12 @@ class TestEntryEdgeCases:
                 follow_redirects=True,
             )
             assert response.status_code == 200
-            # Should show error or handle gracefully
+
+            # Verify no new entry was created
+            final_count = TimeEntry.query.count()
+            assert final_count == initial_count
+            # Should show error message
+            assert b"required" in response.data.lower() or b"error" in response.data.lower()
 
 
 class TestEntryExceptionHandling:

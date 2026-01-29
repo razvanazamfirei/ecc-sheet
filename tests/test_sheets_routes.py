@@ -269,7 +269,9 @@ class TestWeekendHolidayDisplay:
 
             response = client.get(f"/sheets/{date_str}")
             assert response.status_code == 200
-            # Should indicate it's a weekend
+            # Should indicate it's a weekend (check for weekend-related text)
+            data_lower = response.data.decode().lower()
+            assert "weekend" in data_lower or "saturday" in data_lower
 
 
 class TestSheetsExceptionHandling:

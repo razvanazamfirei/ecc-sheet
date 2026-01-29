@@ -182,6 +182,9 @@ class TestAuditRoute:
             # Second entry should appear before first (descending order)
             pos_first = data.find("first") if "first" in data else -1
             pos_second = data.find("second") if "second" in data else -1
+            assert pos_first != -1
+            assert pos_second != -1
+            assert pos_second < pos_first
 
             # Cleanup
             entries = AuditLog.query.filter_by(entity_type="OrderTest").all()
@@ -281,8 +284,9 @@ class TestGetClientIP:
             assert ip is None or ip == "127.0.0.1"
 
     def test_get_client_ip_outside_request_context(self):
-        """Test get_client_ip returns None outside request context."""
-        # This test runs outside Flask request context
+        """Test get_client_ip returns None when request access fails."""
+        # Flask's `request` object raises RuntimeError outside a request context.
+        # The function catches this and returns None.
         ip = get_client_ip()
         assert ip is None
 
