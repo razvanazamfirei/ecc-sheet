@@ -297,12 +297,15 @@ class TestHandleDbError:
             # or a redirect. In test context this is fine.
             try:
                 result = successful_function()
+                assert result == "success"
             except Exception:
                 # If url_for fails due to missing endpoint, that's expected
                 pass
 
     def test_decorator_catches_exception(self, app, client):
         """Test that decorator catches database exceptions"""
+        from unittest.mock import patch
+
         from backend.utils import handle_db_error
 
         @handle_db_error
@@ -312,16 +315,21 @@ class TestHandleDbError:
         # Use test_request_context to provide proper request context
         with app.test_request_context():
             with app.app_context():
-                # The decorator should catch the exception and try to redirect
-                # This may raise BuildError if 'index' endpoint doesn't exist
-                import werkzeug.routing.exceptions
+                # Mock db.session.rollback and flash to verify they're called
+                with patch("backend.utils.db.session.rollback") as mock_rollback:
+                    with patch("backend.utils.flash") as mock_flash:
+                        # The decorator should catch the exception and try to redirect
+                        # This may raise BuildError if 'index' endpoint doesn't exist
+                        import werkzeug.routing.exceptions
 
-                try:
-                    result = failing_function()
-                except werkzeug.routing.exceptions.BuildError:
-                    # Expected - the decorator tried to redirect to 'index'
-                    # which may not exist. This proves the exception was caught.
-                    pass
+                        try:
+                            failing_function()
+                        except werkzeug.routing.exceptions.BuildError:
+                            # Expected - the decorator tried to redirect to 'index'
+                            # which may not exist. Verify error handling occurred.
+                            mock_rollback.assert_called_once()
+                            mock_flash.assert_called_once()
+                            pass
 
 
 @pytest.mark.unit
@@ -408,8 +416,6 @@ class TestBackupDatabaseExceptionHandling:
 
     def test_backup_database_handles_mkdir_error(self, app, tmp_path, monkeypatch):
         """Test backup handles directory creation errors gracefully"""
-        import pathlib
-
         from backend.utils import backup_database
 
         with app.app_context():

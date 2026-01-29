@@ -4,8 +4,6 @@ import os
 from datetime import date, timedelta
 from unittest.mock import patch
 
-import pytest
-
 from backend.models import Holiday, db
 from backend.utils import philly_today
 
@@ -197,6 +195,8 @@ class TestDeleteHoliday:
             response = client.post("/holidays/99999/delete")
             assert response.status_code == 404
         except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
+            # Some configurations may raise these exceptions instead of returning
+            # a 404 response object; treat them as equivalent to a 404 for this test.
             pass
 
     def test_delete_holiday_requires_admin(self, client, app):
@@ -233,11 +233,6 @@ class TestDeleteHoliday:
             if holiday:
                 db.session.delete(holiday)
                 db.session.commit()
-
-    def test_delete_holiday_exception_handling(self, client, app):
-        """Test that exceptions during delete are handled."""
-        # This is harder to trigger directly, but the abort(404) path is covered
-        pass
 
 
 class TestRefreshFederalHolidays:
