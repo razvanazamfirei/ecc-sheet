@@ -244,6 +244,10 @@ describe("Time Input Rounding", () => {
 });
 
 describe("Notification System", () => {
+  // Note: These are behavioral tests that simulate notification system behavior
+  // rather than unit tests of the actual showNotification function.
+  // They verify the expected structure and behavior patterns.
+
   test("showNotification creates alert element", () => {
     let createdElement = null;
     global.document.createElement = (tag) => {
@@ -312,6 +316,10 @@ describe("Notification System", () => {
 });
 
 describe("Form Validation", () => {
+  // Note: These are behavioral tests that simulate form validation behavior
+  // rather than unit tests of an actual validateForm function.
+  // They verify the expected validation logic patterns.
+
   test("validateForm returns true when all required fields filled", () => {
     const form = {
       querySelectorAll: () => [

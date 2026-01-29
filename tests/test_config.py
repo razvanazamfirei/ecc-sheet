@@ -1,7 +1,10 @@
 """Tests for configuration module."""
 
 import os
+from importlib import reload
 from unittest.mock import patch
+
+import backend.config
 
 
 class TestConfig:
@@ -10,11 +13,6 @@ class TestConfig:
     def test_secret_key_from_env(self):
         """Test SECRET_KEY is read from environment."""
         with patch.dict(os.environ, {"SECRET_KEY": "test-secret-123"}):
-            # Need to reimport to pick up new env var
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.SECRET_KEY == "test-secret-123"  # noqa: S105
 
@@ -22,19 +20,13 @@ class TestConfig:
         """Test SECRET_KEY has a default value when not in environment."""
         # This test verifies the default in the code, not runtime behavior
         # since .env file may override the default during load_dotenv()
-        from backend.config import Config
-
         # The Config class should have SECRET_KEY defined
-        assert Config.SECRET_KEY is not None
-        assert len(Config.SECRET_KEY) > 0
+        assert backend.config.Config.SECRET_KEY is not None
+        assert len(backend.config.Config.SECRET_KEY) > 0
 
     def test_database_uri_from_env(self):
         """Test DATABASE_URL is read from environment."""
         with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test.db"}):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.SQLALCHEMY_DATABASE_URI == "sqlite:///test.db"
 
@@ -44,20 +36,12 @@ class TestConfig:
         env.pop("DATABASE_URL", None)
 
         with patch.dict(os.environ, env, clear=True):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert "sqlite" in backend.config.Config.SQLALCHEMY_DATABASE_URI
 
     def test_user_name_from_env(self):
         """Test USER_NAME is read from environment."""
         with patch.dict(os.environ, {"USER_NAME": "Test User"}):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.USER_NAME == "Test User"
 
@@ -67,26 +51,16 @@ class TestConfig:
         env.pop("USER_NAME", None)
 
         with patch.dict(os.environ, env, clear=True):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.USER_NAME == "Admin"
 
     def test_email_host_default(self):
         """Test EMAIL_HOST has default value."""
-        from backend.config import Config
-
-        assert Config.EMAIL_HOST == "smtp.gmail.com"
+        assert backend.config.Config.EMAIL_HOST == "smtp.gmail.com"
 
     def test_email_port_from_env(self):
         """Test EMAIL_PORT is read from environment."""
         with patch.dict(os.environ, {"EMAIL_PORT": "465"}):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.EMAIL_PORT == 465
 
@@ -96,10 +70,6 @@ class TestConfig:
         env.pop("EMAIL_PORT", None)
 
         with patch.dict(os.environ, env, clear=True):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.EMAIL_PORT == 587
 
@@ -109,10 +79,6 @@ class TestConfig:
         env.pop("TIMEZONE", None)
 
         with patch.dict(os.environ, env, clear=True):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.TIMEZONE == "America/New_York"
 
@@ -122,51 +88,33 @@ class TestConfig:
         env.pop("DAY_RESET_HOUR", None)
 
         with patch.dict(os.environ, env, clear=True):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.DAY_RESET_HOUR == 8
 
     def test_default_cutoff_hour(self):
         """Test DEFAULT_CUTOFF_HOUR from environment."""
         with patch.dict(os.environ, {"DEFAULT_CUTOFF_HOUR": "18"}):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.DEFAULT_CUTOFF_HOUR == 18
 
     def test_default_cutoff_minute(self):
         """Test DEFAULT_CUTOFF_MINUTE from environment."""
         with patch.dict(os.environ, {"DEFAULT_CUTOFF_MINUTE": "45"}):
-            from importlib import reload
-
-            import backend.config
-
             reload(backend.config)
             assert backend.config.Config.DEFAULT_CUTOFF_MINUTE == 45
 
     def test_role_cutoff_hours_contains_common_roles(self):
         """Test ROLE_CUTOFF_HOURS contains expected roles."""
-        from backend.config import Config
-
-        assert "ECC 1" in Config.ROLE_CUTOFF_HOURS
-        assert "ECA 1" in Config.ROLE_CUTOFF_HOURS
-        assert "PPMC" in Config.ROLE_CUTOFF_HOURS
+        assert "ECC 1" in backend.config.Config.ROLE_CUTOFF_HOURS
+        assert "ECA 1" in backend.config.Config.ROLE_CUTOFF_HOURS
+        assert "PPMC" in backend.config.Config.ROLE_CUTOFF_HOURS
 
     def test_role_cutoff_minutes_contains_common_roles(self):
         """Test ROLE_CUTOFF_MINUTES contains expected roles."""
-        from backend.config import Config
-
-        assert "ECC 1" in Config.ROLE_CUTOFF_MINUTES
-        assert "ECA 1" in Config.ROLE_CUTOFF_MINUTES
-        assert "PPMC" in Config.ROLE_CUTOFF_MINUTES
+        assert "ECC 1" in backend.config.Config.ROLE_CUTOFF_MINUTES
+        assert "ECA 1" in backend.config.Config.ROLE_CUTOFF_MINUTES
+        assert "PPMC" in backend.config.Config.ROLE_CUTOFF_MINUTES
 
     def test_sqlalchemy_track_modifications_disabled(self):
         """Test SQLALCHEMY_TRACK_MODIFICATIONS is disabled."""
-        from backend.config import Config
-
-        assert Config.SQLALCHEMY_TRACK_MODIFICATIONS is False
+        assert backend.config.Config.SQLALCHEMY_TRACK_MODIFICATIONS is False
