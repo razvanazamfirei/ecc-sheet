@@ -86,15 +86,26 @@ class TestAddResident:
         assert response.status_code == 200
         assert b"required" in response.data.lower() or b"error" in response.data.lower()
 
-    def test_add_resident_whitespace_name(self, client):
+    def test_add_resident_whitespace_name(self, client, app):
         """Test adding resident with whitespace-only name fails."""
-        response = client.post(
-            "/residents/add",
-            data={"name": "   "},
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
-        # Should be rejected - name.strip() will be empty
+        with app.app_context():
+            from backend.models import Resident
+
+            # Get initial resident count
+            initial_count = Resident.query.count()
+
+            response = client.post(
+                "/residents/add",
+                data={"name": "   "},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            # Verify no new resident was created
+            final_count = Resident.query.count()
+            assert final_count == initial_count
+            # Should show error message
+            assert b"required" in response.data.lower() or b"error" in response.data.lower()
 
     def test_add_resident_trims_whitespace(self, client, app):
         """Test that resident name is trimmed of leading/trailing whitespace."""

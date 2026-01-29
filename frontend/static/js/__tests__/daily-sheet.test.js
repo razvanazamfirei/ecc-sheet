@@ -438,8 +438,6 @@ describe("Daily Sheet Functions", () => {
 
       // Toggle twice - should end up back in original state
       // (Note: Module state may persist from previous tests)
-      const initialInnerHTML = editAllBtn.innerHTML;
-      const initialDisplay = saveAllBtn.style.display;
 
       // Two toggles should return to original state
       exportedFunctions.toggleEditAll();
