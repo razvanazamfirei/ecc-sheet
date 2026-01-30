@@ -198,7 +198,9 @@ class TestReportEmail:
                 assert response.status_code == 200
                 assert b"Error sending email" in response.data
 
-    def test_send_email_with_resident_filter(self, client, app, sample_time_entry, sample_resident):
+    def test_send_email_with_resident_filter(
+        self, client, app, sample_time_entry, sample_resident
+    ):
         """Test sending email with resident filter."""
         from unittest.mock import patch
 

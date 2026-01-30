@@ -244,10 +244,7 @@ class TestRefreshFederalHolidays:
             response = client.post("/holidays/refresh", follow_redirects=True)
             assert response.status_code == 200
             # Should show success message about adding or already present
-            assert (
-                b"Added" in response.data
-                or b"already present" in response.data
-            )
+            assert b"Added" in response.data or b"already present" in response.data
 
     def test_refresh_federal_holidays_no_new(self, client, app):
         """Test refreshing when all holidays already exist."""

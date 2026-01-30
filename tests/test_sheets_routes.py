@@ -3,7 +3,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 
-from backend.models import DailySheet, Role, TimeEntry, db
+from backend.models import DailySheet, TimeEntry, db
 from backend.utils import philly_today
 
 
@@ -96,7 +96,9 @@ class TestSheetsView:
             db.session.delete(sheet)
             db.session.commit()
 
-    def test_view_shows_entries_for_date(self, client, app, sample_resident, sample_role):
+    def test_view_shows_entries_for_date(
+        self, client, app, sample_resident, sample_role
+    ):
         """Test that view shows entries for the specific date."""
         with app.app_context():
             test_date = philly_today() - timedelta(days=5)

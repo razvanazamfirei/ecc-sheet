@@ -36,7 +36,7 @@ class TestGetCurrentUser:
         original = os.environ.get("USER_NAME")
         try:
             os.environ["USER_NAME"] = ""
-            assert get_current_user() == ""
+            assert not get_current_user()
         finally:
             if original:
                 os.environ["USER_NAME"] = original
@@ -199,7 +199,7 @@ class TestAdminRequiredDecorator:
             response = client.get("/roles/")
             assert response.status_code == 302
             # Should redirect to index (root)
-            assert response.location in ("/", "http://localhost/")
+            assert response.location in {"/", "http://localhost/"}
         finally:
             if original_user:
                 os.environ["USER_NAME"] = original_user
