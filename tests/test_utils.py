@@ -2,7 +2,6 @@
 Tests for utility functions
 """
 
-import pathlib
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -395,8 +394,6 @@ class TestBackupDatabaseExceptionHandling:
 
     def test_backup_database_handles_copy_error(self, app, tmp_path, monkeypatch):
         """Test backup handles shutil.copy2 errors gracefully"""
-        import shutil
-
         from backend.utils import backup_database
 
         with app.app_context():
@@ -404,18 +401,18 @@ class TestBackupDatabaseExceptionHandling:
             backup_dir.mkdir()
             db_path = app.config["SQLALCHEMY_DATABASE_URI"].replace("sqlite:///", "")
 
-            # Mock shutil.copy2 to raise an exception
+            # Mock shutil.copy2 to raise an exception where it's used
             def mock_copy2(*args, **kwargs):
                 raise OSError("Permission denied")
 
-            monkeypatch.setattr(shutil, "copy2", mock_copy2)
+            monkeypatch.setattr("backend.utils.shutil.copy2", mock_copy2)
 
             result = backup_database(db_path, backup_dir)
             assert result is False
 
-    def test_backup_database_handles_mkdir_error(self, app, tmp_path, monkeypatch):
+    def test_backup_database_handles_mkdir_error(self, app, tmp_path):
         """Test backup handles directory creation errors gracefully"""
-        import pathlib
+        from unittest.mock import patch
 
         from backend.utils import backup_database
 
@@ -423,15 +420,7 @@ class TestBackupDatabaseExceptionHandling:
             db_path = app.config["SQLALCHEMY_DATABASE_URI"].replace("sqlite:///", "")
             backup_dir = tmp_path / "readonly_dir"
 
-            # Create a read-only scenario by mocking mkdir
-            original_mkdir = pathlib.Path.mkdir
-
-            def mock_mkdir(self, *args, **kwargs):
-                if "readonly_dir" in str(self):
-                    raise OSError("Permission denied")
-                return original_mkdir(self, *args, **kwargs)
-
-            monkeypatch.setattr(pathlib.Path, "mkdir", mock_mkdir)
-
-            result = backup_database(db_path, backup_dir)
-            assert result is False
+            # Mock Path.mkdir to raise an exception
+            with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
+                result = backup_database(db_path, backup_dir)
+                assert result is False
