@@ -2,6 +2,7 @@
 Tests for utility functions
 """
 
+import pathlib
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
