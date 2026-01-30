@@ -329,7 +329,6 @@ class TestResidentExceptionHandling:
     def test_add_resident_db_error(self, client, app):
         """Test add handles database errors gracefully."""
         with app.app_context():
-            # Mock commit to raise an exception
             with patch.object(db.session, "commit") as mock_commit:
                 mock_commit.side_effect = Exception("Database error")
 

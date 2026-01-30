@@ -4,6 +4,7 @@ Tests for utility functions
 
 import pathlib
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 import pytest
 import pytz
@@ -176,7 +177,7 @@ class TestBackupDatabase:
 
         with app.app_context():
             # Use temp directory for backups
-            backup_dir = str(tmp_path / "backups")
+            backup_dir = Path(tmp_path / "backups")
             db_path = app.config["SQLALCHEMY_DATABASE_URI"].replace("sqlite:///", "")
 
             # Create backup
@@ -193,7 +194,7 @@ class TestBackupDatabase:
         """Test backup of non-existent database"""
         from backend.utils import backup_database
 
-        result = backup_database("nonexistent.db", str(tmp_path))
+        result = backup_database(Path("nonexistent.db"), tmp_path)
         assert result is False
 
 
@@ -313,23 +314,21 @@ class TestHandleDbError:
             raise Exception("Database error")
 
         # Use test_request_context to provide proper request context
-        with app.test_request_context():
-            with app.app_context():
-                # Mock db.session.rollback and flash to verify they're called
-                with patch("backend.utils.db.session.rollback") as mock_rollback:
-                    with patch("backend.utils.flash") as mock_flash:
-                        # The decorator should catch the exception and try to redirect
-                        # This may raise BuildError if 'index' endpoint doesn't exist
-                        import werkzeug.routing.exceptions
+        with app.test_request_context(), app.app_context():
+            # Mock db.session.rollback and flash to verify they're called
+            with patch("backend.utils.db.session.rollback") as mock_rollback:
+                with patch("backend.utils.flash") as mock_flash:
+                    # The decorator should catch the exception and try to redirect
+                    # This may raise BuildError if 'index' endpoint doesn't exist
+                    import werkzeug.routing.exceptions
 
-                        try:
-                            failing_function()
-                        except werkzeug.routing.exceptions.BuildError:
-                            # Expected - the decorator tried to redirect to 'index'
-                            # which may not exist. Verify error handling occurred.
-                            mock_rollback.assert_called_once()
-                            mock_flash.assert_called_once()
-                            pass
+                    try:
+                        failing_function()
+                    except werkzeug.routing.exceptions.BuildError:
+                        # Expected - the decorator tried to redirect to 'index'
+                        # which may not exist. Verify error handling occurred.
+                        mock_rollback.assert_called_once()
+                        mock_flash.assert_called_once()
 
 
 @pytest.mark.unit
@@ -344,7 +343,7 @@ class TestBackupDatabaseEdgeCases:
             backup_dir = tmp_path / "new_backup_dir"
             db_path = app.config["SQLALCHEMY_DATABASE_URI"].replace("sqlite:///", "")
 
-            result = backup_database(db_path, str(backup_dir))
+            result = backup_database(db_path, backup_dir)
             assert result is True
             assert backup_dir.exists()
 
@@ -362,7 +361,7 @@ class TestBackupDatabaseEdgeCases:
 
             db_path = app.config["SQLALCHEMY_DATABASE_URI"].replace("sqlite:///", "")
 
-            result = backup_database(db_path, str(backup_dir))
+            result = backup_database(db_path, backup_dir)
             assert result is True
 
             # Should have at most 31 files (30 old + 1 new)
@@ -411,11 +410,13 @@ class TestBackupDatabaseExceptionHandling:
 
             monkeypatch.setattr(shutil, "copy2", mock_copy2)
 
-            result = backup_database(db_path, str(backup_dir))
+            result = backup_database(db_path, backup_dir)
             assert result is False
 
     def test_backup_database_handles_mkdir_error(self, app, tmp_path, monkeypatch):
         """Test backup handles directory creation errors gracefully"""
+        import pathlib
+
         from backend.utils import backup_database
 
         with app.app_context():
@@ -432,5 +433,5 @@ class TestBackupDatabaseExceptionHandling:
 
             monkeypatch.setattr(pathlib.Path, "mkdir", mock_mkdir)
 
-            result = backup_database(db_path, str(backup_dir))
+            result = backup_database(db_path, backup_dir)
             assert result is False

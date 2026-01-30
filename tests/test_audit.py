@@ -1,6 +1,6 @@
 """Tests for audit functionality."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from backend.audit import (
     get_audit_trail,

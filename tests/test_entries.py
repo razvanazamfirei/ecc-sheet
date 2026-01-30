@@ -3,7 +3,7 @@
 from datetime import time
 from unittest.mock import patch
 
-from backend.models import DailySheet, Role, TimeEntry, db
+from backend.models import DailySheet, TimeEntry, db
 from backend.utils import philly_today
 
 

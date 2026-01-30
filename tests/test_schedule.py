@@ -246,7 +246,9 @@ class TestScheduleImport:
             )
             assert response.status_code == 200
             # Should show "no new entries"
-            assert b"No new entries" in response.data or b"info" in response.data.lower()
+            assert (
+                b"No new entries" in response.data or b"info" in response.data.lower()
+            )
 
     @patch("backend.routes.schedule.requests.get")
     def test_import_skips_duplicate_entries(self, mock_get, client, app):
@@ -280,7 +282,6 @@ class TestScheduleImport:
             )
             db.session.add(entry)
             db.session.commit()
-            entry_id = entry.id
 
             # Mock Amion response with same resident/role
             mock_response = MagicMock()
@@ -365,7 +366,9 @@ class TestScheduleImport:
             # Mock empty CSV response
             mock_response = MagicMock()
             mock_response.status_code = 200
-            mock_response.text = "Field1,Field2,Field3,Field4,Field5,Field6,Field7,Field8,Field9\n"
+            mock_response.text = (
+                "Field1,Field2,Field3,Field4,Field5,Field6,Field7,Field8,Field9\n"
+            )
             mock_response.raise_for_status = MagicMock()
             mock_get.return_value = mock_response
 
@@ -399,7 +402,7 @@ class TestScheduleImport:
 
     @patch("backend.routes.schedule.requests.get")
     def test_import_role_in_mapping_but_not_in_db(self, mock_get, client, app):
-        """Test import logs warning when role is in mapping but missing from database."""
+        """Test import warning when role is in mapping but missing from database."""
         with app.app_context():
             from backend.models import TimeEntry
 
@@ -436,7 +439,9 @@ class TestScheduleImport:
 
             # Restore the ECA 2 role for other tests
             if not Role.query.filter_by(name="ECA 2").first():
-                role = Role(name="ECA 2", cutoff_hour=17, cutoff_minute=30, display_order=2)
+                role = Role(
+                    name="ECA 2", cutoff_hour=17, cutoff_minute=30, display_order=2
+                )
                 db.session.add(role)
                 db.session.commit()
 
@@ -471,9 +476,7 @@ class TestScheduleImport:
             # Mock Amion response with new resident without proper EPIC ID format
             mock_response = MagicMock()
             mock_response.status_code = 200
-            mock_response.text = (
-                '"Brand New Person","","","ECC 1","","","","",""\n'
-            )
+            mock_response.text = '"Brand New Person","","","ECC 1","","","","",""\n'
             mock_response.raise_for_status = MagicMock()
             mock_get.return_value = mock_response
 

@@ -1,7 +1,5 @@
 """Tests for app initialization and init_db function."""
 
-from unittest.mock import patch
-
 from backend.models import Holiday, Role, db
 
 
