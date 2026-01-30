@@ -10,20 +10,20 @@
 
 - Simplified authentication using environment variables only (USER_NAME,
   ADMIN_USERS)
-- Removed login system - authentication handled externally
-- Admin features gated by ADMIN_USERS environment variable
+- Removed login system — authentication handled externally
+- Admin features gated by `ADMIN_USERS` environment variable
 
 ### Frontend Improvements
 
 - Migrated to Vite for asset bundling (Bootstrap, Bootstrap Icons, Luxon)
 - Local package management - no CDN dependencies
 - 24-hour time format enforced (lang="en-GB")
-- Time always rounds UP to next 15-minute increment (not to nearest)
+- Time always rounds UP to the next 15-minute increment (not to nearest)
 - Prettier integration for code formatting
 
 ### User Experience Enhancements
 
-- Reorganized navigation - "Admin" submenu includes Residents, Roles, and Audit
+- Reorganized navigation — “Admin” submenu includes Residents, Roles, and Audit
   Log
 - Clickable resident names in reports to expand details
 - Quick report buttons auto-submit forms
@@ -61,28 +61,28 @@ environment)
 ### Backend
 
 - **Python 3.11+** with Flask 3.0
-- **SQLite** - File-based database with migration support
+- **SQLite** — File-based database with migration support
 - **SQLAlchemy** - ORM with relationship management
-- **Flask-Migrate (Alembic)** - Database version control
-- **Flask-WTF** - Form validation with CSRF protection
+- **Flask-Migrate (Alembic)** — Database version control
+- **Flask-WTF** — Form validation with CSRF protection
 - **Requests** - HTTP client for Amion API integration
 
 ### Frontend
 
-- **Jinja2** - Server-side templates with 24-hour time format (lang="en-GB")
-- **Vanilla JavaScript** - ES6+ with Luxon for timezone handling
-- **Bootstrap 5.3.8** - UI framework (bundled locally via Vite)
-- **Bootstrap Icons 1.13.1** - Icon library (bundled locally)
-- **Luxon 3.7.2** - DateTime library with timezone support (America/New_York)
+- **Jinja2** — Server-side templates with 24-hour time format (lang="en-GB")
+- **Vanilla JavaScript** — ES6+ with Luxon for timezone handling
+- **Bootstrap 5.3.8** — UI framework (bundled locally via Vite)
+- **Bootstrap Icons 1.13.1** — Icon library (bundled locally)
+- **Luxon 3.7.2** — DateTime library with timezone support (America/New_York)
 - **Vite 7.2.4** - Build tool for asset bundling
 - **Prettier 3.6.2** - Code formatter for JS, CSS, and HTML
 
 ### Build Tools
 
-- **Bun** - JavaScript runtime and package manager
-- **Vite** - Frontend build tool and bundler
+- **Bun** — JavaScript runtime and package manager
+- **Vite** — Frontend build tool and bundler
 - **Prettier** - Code formatting
-- **Stylelint** - CSS linting
+- **Stylelint** — CSS linting
 
 ## Project Structure
 
@@ -141,7 +141,7 @@ ecc-sheet/
 
 **residents**
 
-- `id` (PK) - Auto-incrementing ID
+- `id` (PK) — Auto-incrementing ID
 - `name` - Resident name
 - `epic_id` - Unique EPIC identifier (auto-populated from Amion imports)
 - `active` - Boolean for active status
@@ -149,7 +149,7 @@ ecc-sheet/
 
 **roles**
 
-- `id` (PK) - Auto-incrementing ID
+- `id` (PK) — Auto-incrementing ID
 - `name` - Role name (ECC 1, ECA 1, etc.)
 - `cutoff_hour` - Overtime cutoff hour (0-23, default 17)
 - `cutoff_minute` - Overtime cutoff minute (0-59, default 30)
@@ -157,7 +157,7 @@ ecc-sheet/
 
 **time_entries**
 
-- `id` (PK) - Auto-incrementing ID
+- `id` (PK) — Auto-incrementing ID
 - `date` - Entry date (indexed)
 - `resident_id` (FK) - References residents.id
 - `role_id` (FK) - References roles.id
@@ -171,7 +171,7 @@ ecc-sheet/
 
 **daily_sheets**
 
-- `id` (PK) - Auto-incrementing ID
+- `id` (PK) — Auto-incrementing ID
 - `date` - Sheet date (unique, indexed)
 - `locked` - Lock status
 - `locked_by` - User who locked the sheet (from USER_NAME env)
@@ -183,8 +183,8 @@ ecc-sheet/
 
 **audit_logs**
 
-- `id` (PK) - Auto-incrementing ID
-- `timestamp` (indexed) - When the action occurred
+- `id` (PK) — Auto-incrementing ID
+- `timestamp` (indexed) — When the action occurred
 - `user` - User who performed the action (from USER_NAME env)
 - `action` - Action type (CREATE, UPDATE, DELETE, LOCK, UNLOCK, IMPORT)
 - `entity_type` - Entity type (TimeEntry, DailySheet, Resident, Schedule)
@@ -219,11 +219,11 @@ uv run flask --app backend.app db history
 **Inline Time Editing:**
 
 - Click exit time to edit (tooltip: "Click to edit time")
-- Time inputs display in 24-hour format (enforced with lang="en-GB")
-- Time values always round UP to next 15-minute increment
+- Time inputs display in the 24-hour format (enforced with lang="en-GB")
+- Time values always round UP to the next 15-minute increment
 - Save/Cancel buttons per entry
 - "Edit All" mode enables all entries simultaneously
-- "Save All" submits all changes asynchronously with loading spinner
+- “Save All” submits all changes asynchronously with the loading spinner
 
 **Sheet Operations:**
 
@@ -236,7 +236,7 @@ uv run flask --app backend.app db history
 **Overtime Calculation:**
 
 - Automatic calculation based on role cutoff times (hour and minute)
-- Overnight shift support (exit times before cutoff treated as next day)
+- Overnight shift support (exit times before the cutoff treated as next day)
 - Configurable cutoff per role (default 17:30)
 
 ### 2. Schedule Import from Amion (backend/app.py:346)
@@ -248,7 +248,7 @@ uv run flask --app backend.app db history
 1. Fetches CSV from Amion API:
    `http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`
 2. Parses CSV data for resident assignments
-3. Extracts EPIC IDs (format: "EPICID:R103348" → "R103348")
+3. Extracts EPIC IDs (format: `EPICID:R103348` → `R103348`)
 4. Finds or creates residents by EPIC ID
 5. Creates time entries for relevant roles only
 6. Logs import action with entry count to audit trail
@@ -259,14 +259,12 @@ uv run flask --app backend.app db history
 - ECA 1, 2
 - Late Late 1, 2
 - PPMC
-- Huld
-- EP/HUP roles (13, 12, H13, H14)
 
 ### 3. Resident Management (frontend/templates/residents.html)
 
 **Features:**
 
-- Add residents (EPIC ID auto-populated from imports)
+- Add residents (EPIC ID autopopulated from imports)
 - Activate/deactivate residents with confirmation
 - EPIC ID tooltip explains auto-population
 - View creation timestamps
@@ -275,7 +273,7 @@ uv run flask --app backend.app db history
 
 **Features:**
 
-- Configure overtime cutoff times per role (hour AND minute)
+- Configure overtime cutoff times per each role (hour AND minute)
 - View current settings
 - Set display order for role listing
 - Default cutoff: 17:30 (5:30 PM)
@@ -286,16 +284,14 @@ uv run flask --app backend.app db history
 - ECC 1-5
 - PPMC
 - Late Late 1, Late Late 2
-- Huld
-- EP/HUP variants
 
 ### 5. Reporting (frontend/templates/reports.html, report_results.html)
 
 **Quick Reports (Auto-submit):**
 
-- Last 7 Days - One click to generate report
-- Last 30 Days - One click to generate report
-- Last 90 Days - One click to generate report
+- Last 7 Days — One click to generate a report
+- Last 30 Days — One click to generate a report
+- Last 90 Days — One click to generate a report
 
 **Custom Reports:**
 
@@ -306,7 +302,7 @@ uv run flask --app backend.app db history
 **Report Display:**
 
 - Click resident name to expand/collapse details
-- Clean two-column layout (no "View Details" button)
+- Clean two-column layout (no “View Details” button)
 - Export to CSV
 - Print-friendly formatting
 
@@ -320,17 +316,17 @@ uv run flask --app backend.app db history
 
 **Tracked Actions:**
 
-- CREATE - New time entries, residents, roles
-- UPDATE - Modifications to entries with change details
+- CREATE — New time entries, residents, roles
+- UPDATE — Modifications to entries with change details
 - DELETE - Entry deletions (logged before deletion)
-- LOCK/UNLOCK - Sheet lock status changes
-- IMPORT - Schedule imports with entry counts
+- LOCK/UNLOCK — Sheet lock status changes
+- IMPORT — Schedule imports with entry counts
 
 **Audit Information:**
 
 - Timestamp (indexed for performance)
 - User performing action (from USER_NAME env var)
-- IP address of client
+- IP address of the client
 - Entity type and ID
 - JSON details with specific changes
 
@@ -446,7 +442,7 @@ bun run format:check
 
 - All time inputs use `type="time"` with `step="900"` (15 minutes)
 - HTML lang="en-GB" enforces 24-hour time picker display
-- Time values always round UP to next 15-minute increment
+- Time values always round UP to the next 15-minute increment
 - Display format: HH:MM (24-hour)
 
 ## API Endpoints
@@ -460,7 +456,7 @@ bun run format:check
 
 **`/api/roles`**
 
-- Returns list of all roles
+- Returns a list of all roles
 - Format:
   `[{"id": 1, "name": "ECC 1", "cutoff_hour": 17, "cutoff_minute": 30}, ...]`
 
@@ -489,7 +485,7 @@ bun run format:check
 **Reporting:**
 
 - `/reports` - Report generation form (GET)
-- `/generate_report` - Generate report (POST)
+- `/generate_report` - Generate a report (POST)
 - `/export_report_csv` - Export report as CSV (POST)
 
 **Audit:**
@@ -533,7 +529,7 @@ log_import("2025-11-25", entries_count=15)
 **Automatic Data Capture:**
 
 - User from `USER_NAME` config or parameter
-- IP address from request headers (X-Forwarded-For, X-Real-IP, or remote_addr)
+- IP address from request headers (X-Forwarded-For, X-Real-IP, or `remote_addr`)
 - Timestamp (UTC)
 - Details serialized to JSON
 
@@ -541,14 +537,14 @@ log_import("2025-11-25", entries_count=15)
 
 ### Current Protections
 
-- **CSRF Protection** - Flask-WTF active on all forms
-- **SQL Injection** - SQLAlchemy ORM with parameterized queries
-- **XSS Protection** - Jinja2 auto-escaping
-- **Input Validation** - WTForms validation with required fields
-- **Audit Trail** - Complete change tracking with IP addresses
-- **Data Backups** - Database file can be backed up via file copy
-- **Confirmation Dialogs** - For all destructive actions
-- **Time Validation** - Always rounds up (favors resident)
+- **CSRF Protection** — Flask-WTF active on all forms
+- **SQL Injection** — SQLAlchemy ORM with parameterized queries
+- **XSS Protection** — Jinja2 auto-escaping
+- **Input Validation** — WTForms validation with required fields
+- **Audit Trail** — Complete change tracking with IP addresses
+- **Data Backups** — Database files can be backed up via file copy.
+- **Confirmation Dialogs** — For all destructive actions
+- **Time Validation** — Always rounds up (favors resident)
 
 ### Production Recommendations
 
@@ -557,10 +553,10 @@ Before internet deployment:
 - Implement proper authentication (external SSO recommended)
 - Add rate limiting (Flask-Limiter)
 - Enable HTTPS/SSL
-- Use production WSGI server (gunicorn, uwsgi)
+- Use a production WSGI server (gunicorn, uwsgi)
 - Conduct security audit
 - Implement session management
-- Review ADMIN_USERS configuration
+- Review `ADMIN_USERS` configuration
 - Set up automated database backups
 - Configure proper logging and monitoring
 
@@ -680,9 +676,9 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 
 **Problem:** Database locked
 
-- SQLite locks on writes - usually resolves on retry
+- SQLite locks on writes — usually resolves on retry
 - Check for long-running transactions
-- Restart application if persistent
+- Restart the application if persistent
 
 **Problem:** Missing audit logs
 
@@ -695,7 +691,7 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 **Problem:** Schedule import fails
 
 - Verify Amion URL is accessible
-- Check CSV format hasn't changed
+- Check CSV format has not changed
 - Review import logs in audit trail
 - Ensure residents have EPIC IDs
 
@@ -703,83 +699,83 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 
 ### Core Application Files
 
-**backend/app.py** - Main application
+**`backend/app.py`** - Main application
 
 - Authentication removed, uses env vars
 - All routes with audit logging
 - Admin-protected routes use @admin_required decorator
 
-**backend/auth.py** - Authorization utilities
+**`backend/auth.py`** - Authorization utilities
 
 - `get_current_user()` - Returns USER_NAME from env
 - `is_admin()` - Checks ADMIN_USERS list
 - `@admin_required` - Route decorator for admin features
 
-**backend/models.py** - Database models
+**`backend/models.py`** - Database models
 
 - Resident model with epic_id
-- Role model with cutoff_hour and cutoff_minute
+- Role model with `cutoff_hour` and `cutoff_minute`
 - TimeEntry model with overtime calculation
 - DailySheet model with lock tracking
 - AuditLog model
 
-**backend/audit.py** - Audit utilities
+**`backend/audit.py`** - Audit utilities
 
 - Main log_action function
 - Helper functions for each action type
 - Automatic IP address and user capture
 
-**frontend/templates/base.html** - Base template
+**`frontend/templates/base.html`** - Base template
 
 - lang="en-GB" for 24-hour time format
 - Admin submenu structure
 - Bundled vendor CSS/JS from Vite
 
-**frontend/templates/index.html** - Daily sheet UI
+**`frontend/templates/index.html`** — Daily sheet UI
 
 - Inline editing with tooltips
 - Edit All / Save All with loading states
 - Required exit time field
 - Time rounding message
 
-**frontend/templates/residents.html** - Resident management
+**`frontend/templates/residents.html`** - Resident management
 
 - EPIC ID tooltip
 - Confirmation dialogs
 
-**frontend/templates/roles.html** - Role configuration
+**`frontend/templates/roles.html`** - Role configuration
 
 - Hour and minute cutoff editing
 - Current setting display
 
-**frontend/templates/reports.html** - Report generation
+**`frontend/templates/reports.html`** - Report generation
 
 - Quick report buttons (auto-submit)
 - Custom date range selection
 
-**frontend/templates/report_results.html** - Report display
+**`frontend/templates/report_results.html`** — Report display
 
 - Clickable resident names for details
 - CSV export functionality
 
-**frontend/templates/audit.html** - Audit viewer
+**`frontend/templates/audit.html`** - Audit viewer
 
 - Filtering interface
 - Audit trail table
 
-**frontend/static/js/vendor.js** - Vite entry point
+**`frontend/static/js/vendor.js`** - Vite entry point
 
 - Imports Bootstrap CSS/JS
 - Imports Bootstrap Icons
 - Imports Luxon and makes it global
 
-**frontend/static/js/luxon-utils.js** - DateTime utilities
+**`frontend/static/js/luxon-utils.js`** - DateTime utilities
 
-- roundToQuarterHour - Always rounds UP
+- `roundToQuarterHour` - Always rounds UP
 - Timezone-aware date operations
 - Philadelphia timezone (America/New_York)
 
-**vite.config.js** - Vite configuration
+**`vite.config.js`** - Vite configuration
 
 - Bundles to frontend/static/dist
 - Relative paths for assets (base: './')
@@ -787,9 +783,9 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 **.prettierrc.json** - Prettier configuration
 
 - 4-space indentation
-- 120 character line width
+- 120-character line width
 - HTML/CSS/JS formatting rules
 
 ## License
 
-MIT - Free to use and modify
+MIT — Free to use and modify

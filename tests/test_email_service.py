@@ -1,5 +1,6 @@
 """Tests for email service."""
 
+import smtplib
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -9,12 +10,13 @@ from backend.email_service import send_report_email
 class TestEmailService:
     """Tests for email service functions."""
 
-    def test_send_report_email_no_credentials(self, app):
+    @patch("backend.email_service.Config")
+    def test_send_report_email_no_credentials(self, mock_config, app):
         """Test that email fails without credentials."""
-        with app.app_context():
-            app.config["EMAIL_USERNAME"] = ""
-            app.config["EMAIL_PASSWORD"] = ""
+        mock_config.EMAIL_USERNAME = ""
+        mock_config.EMAIL_PASSWORD = ""
 
+        with app.app_context():
             result = send_report_email(
                 start_date=date(2024, 1, 1),
                 end_date=date(2024, 1, 31),
@@ -22,13 +24,14 @@ class TestEmailService:
             )
             assert result is False
 
-    def test_send_report_email_no_recipient(self, app):
+    @patch("backend.email_service.Config")
+    def test_send_report_email_no_recipient(self, mock_config, app):
         """Test that email fails without recipient."""
-        with app.app_context():
-            app.config["EMAIL_USERNAME"] = "test@example.com"
-            app.config["EMAIL_PASSWORD"] = "password"  # noqa: S105
-            app.config["EMAIL_RECIPIENT"] = ""
+        mock_config.EMAIL_USERNAME = "test@example.com"
+        mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+        mock_config.EMAIL_RECIPIENT = None
 
+        with app.app_context():
             result = send_report_email(
                 start_date=date(2024, 1, 1),
                 end_date=date(2024, 1, 31),
@@ -87,15 +90,15 @@ class TestEmailService:
             assert result is True
 
     @patch("backend.email_service.smtplib.SMTP")
-    def test_send_report_email_smtp_auth_error(self, mock_smtp, app):
+    @patch("backend.email_service.Config")
+    def test_send_report_email_smtp_auth_error(self, mock_config, mock_smtp, app):
         """Test email with SMTP authentication error."""
-        import smtplib
-
         with app.app_context():
-            app.config["EMAIL_USERNAME"] = "test@example.com"
-            app.config["EMAIL_PASSWORD"] = "wrong_password"  # noqa: S105
-            app.config["EMAIL_HOST"] = "smtp.example.com"
-            app.config["EMAIL_PORT"] = 587
+            mock_config.EMAIL_USERNAME = "test@example.com"
+            mock_config.EMAIL_PASSWORD = "wrong_password"  # noqa: S105
+            mock_config.EMAIL_HOST = "smtp.example.com"
+            mock_config.EMAIL_PORT = 587
+            mock_config.EMAIL_RECIPIENT = "default@example.com"
 
             mock_server = MagicMock()
             mock_server.login.side_effect = smtplib.SMTPAuthenticationError(
@@ -112,15 +115,15 @@ class TestEmailService:
             assert result is False
 
     @patch("backend.email_service.smtplib.SMTP")
-    def test_send_report_email_smtp_error(self, mock_smtp, app):
+    @patch("backend.email_service.Config")
+    def test_send_report_email_smtp_error(self, mock_config, mock_smtp, app):
         """Test email with general SMTP error."""
-        import smtplib
-
         with app.app_context():
-            app.config["EMAIL_USERNAME"] = "test@example.com"
-            app.config["EMAIL_PASSWORD"] = "password"  # noqa: S105
-            app.config["EMAIL_HOST"] = "smtp.example.com"
-            app.config["EMAIL_PORT"] = 587
+            mock_config.EMAIL_USERNAME = "test@example.com"
+            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+            mock_config.EMAIL_HOST = "smtp.example.com"
+            mock_config.EMAIL_PORT = 587
+            mock_config.EMAIL_RECIPIENT = "default@example.com"
 
             mock_smtp.side_effect = smtplib.SMTPException("Connection failed")
 
@@ -130,3 +133,61 @@ class TestEmailService:
                 recipient_email="recipient@example.com",
             )
             assert result is False
+
+    @patch("backend.email_service.smtplib.SMTP")
+    @patch("backend.email_service.Config")
+    def test_send_report_email_general_exception(self, mock_config, mock_smtp, app):
+        """Test email with general exception."""
+        with app.app_context():
+            mock_config.EMAIL_USERNAME = "test@example.com"
+            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+            mock_config.EMAIL_HOST = "smtp.example.com"
+            mock_config.EMAIL_PORT = 587
+            mock_config.EMAIL_RECIPIENT = "default@example.com"
+
+            # Simulate a general exception during email building
+            mock_smtp.side_effect = Exception("Unexpected error")
+
+            result = send_report_email(
+                start_date=date(2024, 1, 1),
+                end_date=date(2024, 1, 31),
+                recipient_email="recipient@example.com",
+            )
+            assert result is False
+
+    @patch("backend.email_service.Config")
+    def test_send_report_email_no_recipient_and_no_config(self, mock_config, app):
+        """Test email fails when no recipient provided and no config default."""
+        mock_config.EMAIL_USERNAME = "test@example.com"
+        mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+        mock_config.EMAIL_RECIPIENT = ""
+
+        with app.app_context():
+            result = send_report_email(
+                start_date=date(2024, 1, 1),
+                end_date=date(2024, 1, 31),
+                recipient_email=None,
+            )
+            assert result is False
+
+    @patch("backend.email_service.smtplib.SMTP")
+    @patch("backend.email_service.Config")
+    def test_send_report_email_uses_config_recipient(self, mock_config, mock_smtp, app):
+        """Test email uses config recipient when none provided."""
+        with app.app_context():
+            mock_config.EMAIL_USERNAME = "test@example.com"
+            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+            mock_config.EMAIL_HOST = "smtp.example.com"
+            mock_config.EMAIL_PORT = 587
+            mock_config.EMAIL_RECIPIENT = "config-default@example.com"
+
+            mock_server = MagicMock()
+            mock_smtp.return_value.__enter__ = MagicMock(return_value=mock_server)
+            mock_smtp.return_value.__exit__ = MagicMock(return_value=False)
+
+            result = send_report_email(
+                start_date=date(2024, 1, 1),
+                end_date=date(2024, 1, 31),
+                recipient_email=None,  # No recipient - should use config default
+            )
+            assert result is True

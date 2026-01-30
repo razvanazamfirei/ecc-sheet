@@ -134,6 +134,12 @@ describe("LuxonUtils", () => {
       expect(result).toBe("June 15, 2024");
     });
 
+    test("formats JavaScript Date object correctly", () => {
+      const jsDate = new Date(2024, 5, 15, 12, 0, 0); // June 15, 2024
+      const result = LuxonUtils.formatDate(jsDate);
+      expect(result).toBe("June 15, 2024");
+    });
+
     test("accepts custom format", () => {
       const result = LuxonUtils.formatDate("2024-06-15", "yyyy-MM-dd");
       expect(result).toBe("2024-06-15");
@@ -202,6 +208,16 @@ describe("LuxonUtils", () => {
     test("accepts custom range parameters", () => {
       expect(LuxonUtils.isValidDateRange("2020-06-15", 5, 1)).toBe(true);
       expect(LuxonUtils.isValidDateRange("2028-06-15", 1, 5)).toBe(true);
+    });
+
+    test("accepts DateTime object instead of string", () => {
+      const dt = DateTime.fromISO("2024-06-01", { zone: "America/New_York" });
+      expect(LuxonUtils.isValidDateRange(dt)).toBe(true);
+    });
+
+    test("returns false for DateTime object outside range", () => {
+      const dt = DateTime.fromISO("2020-01-01", { zone: "America/New_York" });
+      expect(LuxonUtils.isValidDateRange(dt)).toBe(false);
     });
   });
 
