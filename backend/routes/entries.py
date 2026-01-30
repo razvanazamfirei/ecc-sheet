@@ -31,6 +31,11 @@ def add():
         exit_time_str = request.form.get("exit_time")
         start_time_str = request.form.get("start_time")
 
+        # Validate required fields
+        if not resident_id:
+            flash("Resident is required", "error")
+            return redirect(url_for("sheets.view", date_str=sheet_date_str))
+
         # Parse exit time
         exit_time = None
         if exit_time_str:

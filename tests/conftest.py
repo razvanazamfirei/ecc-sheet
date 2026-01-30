@@ -167,9 +167,7 @@ def clean_database(app):
         # Clean before test
         TimeEntry.query.delete(synchronize_session="fetch")
         DailySheet.query.filter(
-            DailySheet.id.notin_(
-                db.session.query(DailySheet.id).filter_by(date=today)
-            )
+            DailySheet.id.notin_(db.session.query(DailySheet.id).filter_by(date=today))
         ).delete(synchronize_session="fetch")
 
         # Unlock today's sheet if it exists

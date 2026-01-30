@@ -28,7 +28,9 @@
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh api:*)",
-      "Bash(gh pr edit:*)"
+      "Bash(gh pr edit:*)",
+      "Bash(wc:*)",
+      "Bash(/Users/razvanazamfirei/.local/share/mise/installs/uv/0.8.2/bin/uv run pytest --tb=short)"
     ],
     "deny": [],
     "ask": []

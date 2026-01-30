@@ -44,7 +44,7 @@ Tests for utility functions:
 
 Pytest fixtures and test configuration:
 
-- `app`: Test application with temporary database
+- `app`: Test application with a temporary database
 - `client`: Test client for HTTP requests
 - `db_session`: Database session management
 - `sample_resident`, `sample_role`, `sample_time_entry`, `sample_daily_sheet`:
@@ -59,7 +59,7 @@ Pytest fixtures and test configuration:
 pytest
 ```
 
-### Run specific test file
+### Run a specific test file
 
 ```bash
 pytest tests/test_models.py
@@ -67,7 +67,7 @@ pytest tests/test_routes.py
 pytest tests/test_utils.py
 ```
 
-### Run specific test class
+### Run a specific test class
 
 ```bash
 pytest tests/test_models.py::TestOvertimeCalculation
@@ -75,7 +75,7 @@ pytest tests/test_routes.py::TestAPIEndpoints
 pytest tests/test_utils.py::TestPhiladelphiaTime
 ```
 
-### Run specific test method
+### Run a specific test method
 
 ```bash
 pytest tests/test_models.py::TestOvertimeCalculation::test_overnight_overtime
@@ -103,13 +103,13 @@ pytest -m timezone
 pytest -v
 ```
 
-### Run with coverage report
+### Run with a coverage report
 
 ```bash
 pytest --cov=. --cov-report=html
 ```
 
-### Run tests and stop on first failure
+### Run tests and stop the first failure
 
 ```bash
 pytest -x
@@ -128,7 +128,7 @@ pytest -k "timezone"
 Tests are organized with pytest markers for selective execution:
 
 - `@pytest.mark.unit`: Unit tests (fast, isolated)
-- `@pytest.mark.integration`: Integration tests (database required)
+- `@pytest.mark.integration`: Integration tests (a database required)
 - `@pytest.mark.overtime`: Overtime calculation tests
 - `@pytest.mark.timezone`: Timezone-related tests
 - `@pytest.mark.slow`: Slow-running tests
@@ -139,8 +139,8 @@ Tests are organized with pytest markers for selective execution:
 
 The most critical feature. Tests cover:
 
-- **Same-day overtime**: Exit after cutoff on same calendar day
-- **Overnight shifts**: Exit before cutoff (treated as next day)
+- **Same-day overtime**: Exit after the cutoff on the same calendar day.
+- **Overnight shifts**: Exit before the cutoff (treated as next day)
 - **Edge cases**: Midnight, 8 AM, exactly at cutoff
 - **Different cutoffs**: Various role cutoff times
 - **15-minute increments**: Proper time rounding
@@ -149,13 +149,13 @@ Example:
 
 - Cutoff: 17:30 (5:30 PM)
 - Exit: 02:30 AM → 9.0 hours overtime (overnight)
-- Exit: 20:00 (8:00 PM) → 2.5 hours overtime (same day)
+- Exit: 20:00 (8:00 PM) → 2.5-hour overtime (same day)
 
 ### Timezone Handling
 
 Philadelphia timezone (America/New_York) with 8 AM day reset:
 
-- Times before 8 AM belong to previous calendar day
+- Times before 8 AM belong to the previous calendar day
 - Proper DST handling
 - Timezone-aware datetime objects
 
@@ -163,8 +163,8 @@ Philadelphia timezone (America/New_York) with 8 AM day reset:
 
 Tests verify that locked sheets:
 
-- Cannot have entries added
-- Cannot have entries deleted
+- Can’t have entries added
+- Can’t have entries deleted
 - Can be unlocked
 
 ### Complete Workflows
@@ -173,18 +173,18 @@ End-to-end integration tests covering:
 
 1. Add resident and role
 2. Create time entry
-3. View on daily sheet
+3. View on the daily sheet
 4. Lock sheet
-5. Generate report
+5. Generate the report
 
 ## Writing New Tests
 
 ### Adding a new test
 
-1. Choose the appropriate test file based on what you're testing
-2. Add the test to an existing class or create a new class
-3. Use appropriate pytest markers
-4. Use fixtures for test data (`sample_resident`, `sample_role`, etc.)
+1. Choose the appropriate test file based on what you’re testing.
+2. Add the test to an existing class or create a new class.
+3. Use appropriate pytest markers.
+4. Use fixtures for test data (`sample_resident`, `sample_role`, etc.).
 
 Example:
 
@@ -193,7 +193,7 @@ Example:
 class TestNewFeature:
     """Test description"""
 
-    def test_feature_works(self, client, app, sample_resident):
+    def test_feature_works(self, client, app):
         """Test that new feature works correctly"""
         with app.app_context():
             # Test code here
@@ -206,7 +206,7 @@ class TestNewFeature:
 Fixtures are defined in `conftest.py` and automatically available:
 
 ```python
-def test_with_fixtures(self, app, client, sample_resident, sample_role):
+def test_with_fixtures(app, sample_resident, sample_role):
     """Fixtures are injected automatically"""
     with app.app_context():
         # sample_resident and sample_role are already created
@@ -219,8 +219,8 @@ def test_with_fixtures(self, app, client, sample_resident, sample_role):
 Each test uses a temporary SQLite database:
 
 - Created in `conftest.py` with `tempfile.mkstemp()`
-- Automatically cleaned up after test session
-- Isolated from production database
+- Automatically cleaned up after a test session
+- Isolated from the production database
 
 ## Coverage Goals
 
@@ -244,7 +244,7 @@ Tests should be run:
 
 ### Tests fail with database errors
 
-- Ensure you're in the UV virtual environment: `source .venv/bin/activate`
+- Ensure you’re in the UV virtual environment: `source .venv/bin/activate`
 - Check that all dependencies are installed: `uv pip install -e .`
 - Verify pytest is installed: `pytest --version`
 
@@ -256,8 +256,8 @@ Tests should be run:
 
 ### Import errors
 
-- Ensure you're running from the project root directory
-- Check PYTHONPATH includes current directory
+- Ensure you’re running from the project root directory
+- Check PYTHONPATH includes the current directory
 
 ### Fixtures not working
 
