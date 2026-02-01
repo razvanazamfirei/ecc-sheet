@@ -30,7 +30,8 @@
       "Bash(gh api:*)",
       "Bash(gh pr edit:*)",
       "Bash(wc:*)",
-      "Bash(/Users/razvanazamfirei/.local/share/mise/installs/uv/0.8.2/bin/uv run pytest --tb=short)"
+      "Bash(/Users/razvanazamfirei/.local/share/mise/installs/uv/0.8.2/bin/uv run pytest --tb=short)",
+      "Bash(git -C /Users/razvanazamfirei/Academic/penn/ecc-sheet log --oneline)"
     ],
     "deny": [],
     "ask": []

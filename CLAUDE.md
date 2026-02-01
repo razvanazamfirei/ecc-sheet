@@ -2,36 +2,33 @@
 
 **Medical shift tracking and reporting system with comprehensive audit logging**
 
-**Last Updated:** 2025-11-25 | **Status:** Production-ready with enhanced UX
+**Last Updated:** 2026-01-31 | **Status:** Production-ready with 99% test
+coverage
 
-## Recent Major Updates (2025-11-25)
+## Recent Major Updates (2026–01)
 
-### Authentication & Security
+### Enhanced Features
 
-- Simplified authentication using environment variables only (USER_NAME,
-  ADMIN_USERS)
-- Removed login system — authentication handled externally
-- Admin features gated by `ADMIN_USERS` environment variable
+- Holiday management system with US federal holidays and custom holiday support
+- Staff import from Amion API (Report 706) with class year, email, phone
+- Email reporting service with CSV attachments
+- Backup role support with start/exit times
+- Route blueprint architecture for modular code organization
+- Extended test coverage: 99% backend, 78% frontend
 
-### Frontend Improvements
+### Test Infrastructure
 
-- Migrated to Vite for asset bundling (Bootstrap, Bootstrap Icons, Luxon)
-- Local package management - no CDN dependencies
-- 24-hour time format enforced (lang="en-GB")
-- Time always rounds UP to the next 15-minute increment (not to nearest)
-- Prettier integration for code formatting
+- Comprehensive pytest suite with 26 test modules
+- Jest frontend testing with 4 test suites
+- GitHub Actions CI/CD with automated testing
+- Codecov integration for coverage tracking
 
-### User Experience Enhancements
+### Code Quality
 
-- Reorganized navigation — “Admin” submenu includes Residents, Roles, and Audit
-  Log
-- Clickable resident names in reports to expand details
-- Quick report buttons auto-submit forms
-- Loading states for async operations
-- Confirmation dialogs for destructive actions
-- Tooltips for clickable elements and help text
-- Full hour and minute editing for role cutoff times
-- Required exit time validation on entry forms
+- Route blueprints for better organization
+- Database query optimization using `db.session.get()`
+- Improved error handling with custom exception classes
+- Code formatting with Prettier and Stylelint
 
 ## Quick Start
 
@@ -60,41 +57,72 @@ environment)
 
 ### Backend
 
-- **Python 3.11+** with Flask 3.0
-- **SQLite** — File-based database with migration support
+- **Python 3.13** with Flask 3.1.2
+- **SQLite** - File-based database with migration support
 - **SQLAlchemy** - ORM with relationship management
-- **Flask-Migrate (Alembic)** — Database version control
-- **Flask-WTF** — Form validation with CSRF protection
-- **Requests** - HTTP client for Amion API integration
+- **Flask-Migrate 4.1.0 (Alembic)** - Database version control
+- **Flask-WTF 1.2.2** - Form validation with CSRF protection
+- **Requests 2.32.5** - HTTP client for Amion API integration
+- **pytz 2025.2** - Timezone handling
+- **holidays 0.89** - US federal holiday tracking
+- **email-validator 2.3.0** - Email validation
 
 ### Frontend
 
-- **Jinja2** — Server-side templates with 24-hour time format (lang="en-GB")
-- **Vanilla JavaScript** — ES6+ with Luxon for timezone handling
-- **Bootstrap 5.3.8** — UI framework (bundled locally via Vite)
-- **Bootstrap Icons 1.13.1** — Icon library (bundled locally)
-- **Luxon 3.7.2** — DateTime library with timezone support (America/New_York)
-- **Vite 7.2.4** - Build tool for asset bundling
-- **Prettier 3.6.2** - Code formatter for JS, CSS, and HTML
+- **Jinja2** - Server-side templates with 24-hour time format (lang="en-GB")
+- **Vanilla JavaScript** - ES6+ with Luxon for timezone handling
+- **Bootstrap 5.3.8** - UI framework (bundled locally via Vite)
+- **Bootstrap Icons 1.13.1** - Icon library (bundled locally)
+- **Luxon 3.7.2** - DateTime library with timezone support (America/New_York)
+- **Vite 7.3.1** - Build tool for asset bundling
+- **Prettier 3.8.1** - Code formatter for JS, CSS, HTML, and Jinja templates
+
+### Testing
+
+- **pytest 9.0.2** - Python testing framework
+- **pytest-cov 7.0.0** - Coverage plugin
+- **Jest 30.2.0** - JavaScript testing framework
+- **jest-junit 16.0.0** - JUnit reporter for CI/CD
 
 ### Build Tools
 
-- **Bun** — JavaScript runtime and package manager
-- **Vite** — Frontend build tool and bundler
+- **UV** - Python package manager
+- **Bun** - JavaScript runtime and package manager
+- **Vite** - Frontend build tool and bundler
 - **Prettier** - Code formatting
-- **Stylelint** — CSS linting
+- **Stylelint 17.0.0** - CSS linting
+- **Ruff** - Python linting
 
 ## Project Structure
 
 ```
 ecc-sheet/
 ├── backend/                 # Backend Python code
-│   ├── app.py              # Main Flask application & routes
+│   ├── app.py              # Main Flask application initialization
 │   ├── models.py           # SQLAlchemy database models
 │   ├── audit.py            # Audit logging utilities
 │   ├── auth.py             # Environment-based authorization
 │   ├── config.py           # Configuration from environment
-│   └── __init__.py
+│   ├── forms.py            # WTForms validation
+│   ├── errors.py           # Custom exception classes
+│   ├── utils.py            # Logging, backups, error handling
+│   ├── email_service.py    # Email report functionality
+│   ├── holidays.py         # Holiday utilities
+│   ├── report_utils.py     # Report generation and CSV export
+│   ├── staff_import.py     # Amion staff list parsing
+│   ├── __init__.py
+│   └── routes/             # Route blueprints (modular organization)
+│       ├── __init__.py
+│       ├── _registry.py    # Blueprint registration
+│       ├── api.py          # API endpoints
+│       ├── entries.py      # Time entry CRUD
+│       ├── sheets.py       # Daily sheet operations
+│       ├── schedule.py     # Amion schedule import
+│       ├── residents.py    # Resident management
+│       ├── roles.py        # Role configuration
+│       ├── reports.py      # Report generation
+│       ├── holidays.py     # Holiday management
+│       └── audit.py        # Audit log viewer
 │
 ├── frontend/                # Frontend templates and static files
 │   ├── templates/          # Jinja2 HTML templates
@@ -104,13 +132,23 @@ ecc-sheet/
 │   │   ├── roles.html      # Role configuration
 │   │   ├── reports.html    # Report generation
 │   │   ├── report_results.html  # Report display with CSV export
-│   │   └── audit.html      # Audit log viewer
+│   │   ├── audit.html      # Audit log viewer
+│   │   ├── holidays.html   # Holiday management
+│   │   ├── email_report.html    # Email report template
+│   │   └── import_warning.html  # Schedule import confirmation
 │   └── static/
 │       ├── dist/           # Vite build output (vendor bundles)
 │       ├── js/             # Source JavaScript files
 │       │   ├── vendor.js   # Vendor bundle entry point
-│       │   ├── script.js   # Application JavaScript
-│       │   └── luxon-utils.js  # Luxon timezone utilities
+│       │   ├── script.js   # Main application logic
+│       │   ├── daily-sheet.js   # Daily sheet UI interactions
+│       │   ├── reports.js  # Report page logic
+│       │   ├── luxon-utils.js   # Luxon timezone utilities
+│       │   └── __tests__/  # Jest test suites
+│       │       ├── script.test.js
+│       │       ├── daily-sheet.test.js
+│       │       ├── luxon-utils.test.js
+│       │       └── reports.test.js
 │       └── css/
 │           └── style.css   # Custom CSS overrides
 │
@@ -122,16 +160,58 @@ ecc-sheet/
 ├── instance/                # Instance-specific files
 │   └── ecc_sheet.db        # SQLite database (git-ignored)
 │
+├── tests/                   # Python test suite (26 modules, 99% coverage)
+│   ├── conftest.py         # Pytest fixtures
+│   ├── test_models.py
+│   ├── test_models_extended.py
+│   ├── test_audit.py
+│   ├── test_auth.py
+│   ├── test_forms.py
+│   ├── test_entries.py
+│   ├── test_schedule.py
+│   ├── test_residents_routes.py
+│   ├── test_roles_routes.py
+│   ├── test_reports_routes.py
+│   ├── test_email_service.py
+│   ├── test_holidays_routes.py
+│   ├── test_api_routes.py
+│   └── ... (additional test modules)
+│
 ├── docs/                    # Documentation
 │   ├── DATABASE_MIGRATIONS.md  # Migration workflow guide
+│   ├── ARCHITECTURE.md     # System architecture reference
+│   ├── PRODUCTION.md       # Production deployment guide
+│   ├── README.md           # Documentation overview
+│   ├── RESIDENT_MODEL_GUIDE.md
+│   ├── RESIDENT_EXTENSION_EXAMPLE.py
+│   ├── TODO.md             # Development roadmap
 │   └── archive/            # Archived documentation
 │
+├── scripts/                 # Utility scripts
+│   └── logs/
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # GitHub Actions CI/CD pipeline
+│
 ├── node_modules/            # Node.js dependencies (git-ignored)
+├── .venv/                   # Python virtual environment (git-ignored)
+├── logs/                    # Application logs (git-ignored)
+├── coverage/                # Test coverage reports (git-ignored)
+│
 ├── package.json            # Node.js dependencies and scripts
+├── bun.lock                # Bun lock file
 ├── vite.config.js          # Vite bundler configuration
-├── .prettierrc.json        # Prettier configuration
-├── .prettierignore         # Prettier ignore patterns
+├── jest.config.js          # Jest testing configuration
 ├── pyproject.toml          # Python dependencies and configuration
+├── uv.lock                 # Python dependency lock file
+├── pytest.ini              # Pytest configuration
+├── prettier.config.js      # Prettier configuration
+├── .prettierignore         # Prettier ignore patterns
+├── stylelint.config.js     # Stylelint configuration
+├── ruff.toml               # Ruff linter configuration
+├── mise.toml               # Tool version management
+├── codecov.yml             # Codecov configuration
 └── CLAUDE.md               # This file
 ```
 
@@ -141,26 +221,33 @@ ecc-sheet/
 
 **residents**
 
-- `id` (PK) — Auto-incrementing ID
+- `id` (PK) - Auto-incrementing ID
 - `name` - Resident name
 - `epic_id` - Unique EPIC identifier (auto-populated from Amion imports)
+- `class_year` - Graduation year (from staff import)
+- `email` - Email address (from staff import)
+- `phone` - Phone number (from staff import)
+- `abbreviation` - Name abbreviation (from staff import)
+- `backup_id` - Reference to backup resident (for backup roles)
 - `active` - Boolean for active status
 - `created_at` - Timestamp
 
 **roles**
 
-- `id` (PK) — Auto-incrementing ID
+- `id` (PK) - Auto-incrementing ID
 - `name` - Role name (ECC 1, ECA 1, etc.)
 - `cutoff_hour` - Overtime cutoff hour (0-23, default 17)
 - `cutoff_minute` - Overtime cutoff minute (0-59, default 30)
 - `display_order` - Display ordering
+- `is_backup` - Boolean indicating if this is a backup role
 
 **time_entries**
 
-- `id` (PK) — Auto-incrementing ID
+- `id` (PK) - Auto-incrementing ID
 - `date` - Entry date (indexed)
 - `resident_id` (FK) - References residents.id
 - `role_id` (FK) - References roles.id
+- `start_time` - Start time (for backup roles)
 - `stop_time` - Stop time
 - `exit_time` - Exit time for overtime calculation (required, rounds UP to next
   15 min)
@@ -171,7 +258,7 @@ ecc-sheet/
 
 **daily_sheets**
 
-- `id` (PK) — Auto-incrementing ID
+- `id` (PK) - Auto-incrementing ID
 - `date` - Sheet date (unique, indexed)
 - `locked` - Lock status
 - `locked_by` - User who locked the sheet (from USER_NAME env)
@@ -183,14 +270,22 @@ ecc-sheet/
 
 **audit_logs**
 
-- `id` (PK) — Auto-incrementing ID
-- `timestamp` (indexed) — When the action occurred
+- `id` (PK) - Auto-incrementing ID
+- `timestamp` (indexed) - When the action occurred
 - `user` - User who performed the action (from USER_NAME env)
 - `action` - Action type (CREATE, UPDATE, DELETE, LOCK, UNLOCK, IMPORT)
 - `entity_type` - Entity type (TimeEntry, DailySheet, Resident, Schedule)
 - `entity_id` - ID of affected entity
 - `details` - JSON string with change details
 - `ip_address` - Client IP address
+
+**holidays**
+
+- `id` (PK) - Auto-incrementing ID
+- `date` - Holiday date
+- `name` - Holiday name
+- `is_recurring` - Boolean for yearly recurrence
+- Includes US federal holidays by default
 
 ### Database Migrations
 
@@ -219,11 +314,11 @@ uv run flask --app backend.app db history
 **Inline Time Editing:**
 
 - Click exit time to edit (tooltip: "Click to edit time")
-- Time inputs display in the 24-hour format (enforced with lang="en-GB")
+- Time inputs display in 24-hour format (enforced with lang="en-GB")
 - Time values always round UP to the next 15-minute increment
 - Save/Cancel buttons per entry
 - "Edit All" mode enables all entries simultaneously
-- “Save All” submits all changes asynchronously with the loading spinner
+- "Save All" submits all changes asynchronously with loading spinner
 
 **Sheet Operations:**
 
@@ -233,13 +328,20 @@ uv run flask --app backend.app db history
 - Import schedule from Amion
 - View lock status with user and timestamp
 
+**Backup Role Support:**
+
+- Special roles with start and exit times
+- Backup resident assignment
+- Separate overtime calculation logic
+
 **Overtime Calculation:**
 
 - Automatic calculation based on role cutoff times (hour and minute)
-- Overnight shift support (exit times before the cutoff treated as next day)
+- Overnight shift support (exit times before cutoff treated as next day)
 - Configurable cutoff per role (default 17:30)
+- Holiday awareness for overtime exceptions
 
-### 2. Schedule Import from Amion (backend/app.py:346)
+### 2. Schedule Import from Amion (backend/routes/schedule.py)
 
 **Route:** `POST /schedule/<date_str>/import`
 
@@ -248,7 +350,7 @@ uv run flask --app backend.app db history
 1. Fetches CSV from Amion API:
    `http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`
 2. Parses CSV data for resident assignments
-3. Extracts EPIC IDs (format: `EPICID:R103348` → `R103348`)
+3. Extracts EPIC IDs (format: `EPICID:R103348` -> `R103348`)
 4. Finds or creates residents by EPIC ID
 5. Creates time entries for relevant roles only
 6. Logs import action with entry count to audit trail
@@ -259,21 +361,67 @@ uv run flask --app backend.app db history
 - ECA 1, 2
 - Late Late 1, 2
 - PPMC
+- Backup roles (with special handling)
 
-### 3. Resident Management (frontend/templates/residents.html)
+**Conflict Detection:**
+
+- Pre-import warning for existing entries
+- Distinguishes data loss vs harmless duplicates
+- Option to skip entries with exit times
+- Confirmation dialog for overwrites
+
+### 3. Staff Import from Amion (backend/staff_import.py)
+
+**Route:** `POST /residents/import_staff`
+
+**Process:**
+
+1. Fetches staff list from Amion API (Report 706)
+2. Parses resident information: name, EPIC ID, class year, email, phone
+3. Creates or updates resident records
+4. Maintains data consistency with existing records
+
+**Data Captured:**
+
+- Full name and abbreviation
+- EPIC ID for matching
+- Class year for organization
+- Email for communications
+- Phone number for contact
+
+### 4. Holiday Management (frontend/templates/holidays.html)
 
 **Features:**
 
-- Add residents (EPIC ID autopopulated from imports)
+- View US federal holidays (automatic)
+- Add custom holidays
+- Mark holidays as recurring (yearly)
+- Delete custom holidays
+- Holiday-aware overtime calculations
+
+**Federal Holidays Included:**
+
+- New Year's Day, MLK Day, Presidents Day, Memorial Day
+- Independence Day, Labor Day, Columbus Day
+- Veterans Day, Thanksgiving, Christmas Day
+
+### 5. Resident Management (frontend/templates/residents.html)
+
+**Features:**
+
+- Add residents (EPIC ID auto-populated from imports)
+- Import staff from Amion
 - Activate/deactivate residents with confirmation
+- View class year, email, phone information
 - EPIC ID tooltip explains auto-population
 - View creation timestamps
 
-### 4. Role Configuration (frontend/templates/roles.html)
+### 6. Role Configuration (frontend/templates/roles.html)
 
 **Features:**
 
-- Configure overtime cutoff times per each role (hour AND minute)
+- Configure overtime cutoff times per role (hour AND minute)
+- Mark roles as backup roles
 - View current settings
 - Set display order for role listing
 - Default cutoff: 17:30 (5:30 PM)
@@ -284,27 +432,30 @@ uv run flask --app backend.app db history
 - ECC 1-5
 - PPMC
 - Late Late 1, Late Late 2
+- Backup roles
 
-### 5. Reporting (frontend/templates/reports.html, report_results.html)
+### 7. Reporting (frontend/templates/reports.html, report_results.html)
 
 **Quick Reports (Auto-submit):**
 
-- Last 7 Days — One click to generate a report
-- Last 30 Days — One click to generate a report
-- Last 90 Days — One click to generate a report
+- Last 7 Days - One click to generate report
+- Last 30 Days - One click to generate report
+- Last 90 Days - One click to generate report
 
 **Custom Reports:**
 
 - Select date range manually
 - Filter by specific resident or all residents
 - View total overtime hours per resident
+- Holiday-aware calculations
 
 **Report Display:**
 
 - Click resident name to expand/collapse details
-- Clean two-column layout (no “View Details” button)
+- Clean two-column layout
 - Export to CSV
 - Print-friendly formatting
+- Email reports with CSV attachments
 
 **CSV Export:**
 
@@ -312,21 +463,38 @@ uv run flask --app backend.app db history
 - Filename includes date range: `overtime_report_YYYY-MM-DD_to_YYYY-MM-DD.csv`
 - Preserves filter selections
 
-### 6. Audit Trail (frontend/templates/audit.html, backend/audit.py)
+### 8. Email Reporting (backend/email_service.py)
+
+**Features:**
+
+- Send overtime reports via email
+- HTML email with summary statistics
+- CSV attachment with detailed data
+- Configurable recipient list
+- SMTP configuration via environment variables
+
+**Email Contents:**
+
+- Date range summary
+- Total overtime hours
+- Breakdown by resident
+- Attached CSV for detailed analysis
+
+### 9. Audit Trail (frontend/templates/audit.html, backend/audit.py)
 
 **Tracked Actions:**
 
-- CREATE — New time entries, residents, roles
-- UPDATE — Modifications to entries with change details
+- CREATE - New time entries, residents, roles
+- UPDATE - Modifications to entries with change details
 - DELETE - Entry deletions (logged before deletion)
-- LOCK/UNLOCK — Sheet lock status changes
-- IMPORT — Schedule imports with entry counts
+- LOCK/UNLOCK - Sheet lock status changes
+- IMPORT - Schedule imports with entry counts
 
 **Audit Information:**
 
 - Timestamp (indexed for performance)
 - User performing action (from USER_NAME env var)
-- IP address of the client
+- IP address of client
 - Entity type and ID
 - JSON details with specific changes
 
@@ -336,7 +504,7 @@ uv run flask --app backend.app db history
 - By action type (CREATE, UPDATE, DELETE, LOCK, UNLOCK, IMPORT)
 - By result limit (50, 100, 500, 1000)
 
-**Access:** Admin menu → Audit Log
+**Access:** Admin menu -> Audit Log
 
 ## Authentication & Authorization
 
@@ -358,6 +526,8 @@ uv run flask --app backend.app db history
 - Residents management (admin only)
 - Roles configuration (admin only)
 - Audit log (admin only)
+- Holiday management (admin only)
+- Email reporting (admin only)
 
 ### Configuration
 
@@ -372,8 +542,16 @@ USER_NAME=Admin
 # Admin access (comma-separated)
 ADMIN_USERS=Admin,John Doe
 
+# Email Configuration (for reports)
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_USERNAME=user@example.com
+EMAIL_PASSWORD=password
+EMAIL_RECIPIENT=recipient@example.com
+
 # Optional
 TIMEZONE=America/New_York
+PORT=5000
 ```
 
 ## Navigation Structure
@@ -383,6 +561,7 @@ TIMEZONE=America/New_York
 - Admin ▼ (admin only)
   ├── Residents
   ├── Roles
+  ├── Holidays
   └── Audit Log (separated by divider)
 - Reports
 - [Current User Name]
@@ -418,6 +597,16 @@ bun run format:html    # HTML templates only
 bun run format:check
 ```
 
+### Testing
+
+```bash
+# Run frontend tests
+bun run test
+
+# Run with coverage
+bun run test:coverage
+```
+
 ### Vite Configuration
 
 **Bundle Output:**
@@ -442,7 +631,7 @@ bun run format:check
 
 - All time inputs use `type="time"` with `step="900"` (15 minutes)
 - HTML lang="en-GB" enforces 24-hour time picker display
-- Time values always round UP to the next 15-minute increment
+- Time values always round UP to next 15-minute increment
 - Display format: HH:MM (24-hour)
 
 ## API Endpoints
@@ -452,13 +641,13 @@ bun run format:check
 **`/api/residents/active`**
 
 - Returns list of active residents
-- Format: `[{"id": 1, "name": "John Doe"}, ...]`
+- Format: `[{"id": 1, "name": "John Doe", ...}, ...]`
 
 **`/api/roles`**
 
-- Returns a list of all roles
+- Returns list of all roles
 - Format:
-  `[{"id": 1, "name": "ECC 1", "cutoff_hour": 17, "cutoff_minute": 30}, ...]`
+  `[{"id": 1, "name": "ECC 1", "cutoff_hour": 17, "cutoff_minute": 30, "is_backup": false}, ...]`
 
 ### Form Endpoints (POST)
 
@@ -477,16 +666,23 @@ bun run format:check
 - `/residents/add` - Add new resident (logs CREATE)
 - `/residents/<resident_id>/toggle` - Toggle active status (logs UPDATE, with
   confirmation)
+- `/residents/import_staff` - Import staff from Amion
 
 **Role Management:**
 
 - `/roles/<role_id>/update` - Update role cutoff time (logs UPDATE)
 
+**Holiday Management:**
+
+- `/holidays/add` - Add custom holiday
+- `/holidays/<holiday_id>/delete` - Delete custom holiday
+
 **Reporting:**
 
 - `/reports` - Report generation form (GET)
-- `/generate_report` - Generate a report (POST)
+- `/generate_report` - Generate report (POST)
 - `/export_report_csv` - Export report as CSV (POST)
+- `/email_report` - Send report via email (POST)
 
 **Audit:**
 
@@ -529,22 +725,99 @@ log_import("2025-11-25", entries_count=15)
 **Automatic Data Capture:**
 
 - User from `USER_NAME` config or parameter
-- IP address from request headers (X-Forwarded-For, X-Real-IP, or `remote_addr`)
+- IP address from request headers (X-Forwarded-For, X-Real-IP, or remote_addr)
 - Timestamp (UTC)
 - Details serialized to JSON
+
+## Testing
+
+### Backend Testing (pytest)
+
+**Test Coverage: 99%**
+
+```bash
+# Run all tests
+uv run pytest tests/ -v
+
+# Run with coverage
+uv run pytest tests/ --cov=backend --cov-report=html
+
+# Run specific test file
+uv run pytest tests/test_models.py -v
+
+# Run specific test
+uv run pytest tests/test_models.py::test_overtime_calculation -v
+```
+
+**Test Modules (26 total):**
+
+- `conftest.py` - Shared fixtures
+- `test_models.py` - Database models
+- `test_models_extended.py` - Extended model tests
+- `test_audit.py` - Audit logging
+- `test_auth.py` - Authorization
+- `test_forms.py` - Form validation
+- `test_entries.py` - Time entry routes
+- `test_schedule.py` - Schedule import
+- `test_residents_routes.py` - Resident management
+- `test_roles_routes.py` - Role management
+- `test_reports_routes.py` - Report generation
+- `test_email_service.py` - Email functionality
+- `test_holidays_routes.py` - Holiday management
+- `test_api_routes.py` - API endpoints
+- And more...
+
+### Frontend Testing (Jest)
+
+**Test Coverage: 78%**
+
+```bash
+# Run all tests
+bun run test
+
+# Run with coverage
+bun run test:coverage
+
+# Run specific test
+bun test frontend/static/js/__tests__/luxon-utils.test.js
+```
+
+**Test Suites (4 total):**
+
+- `luxon-utils.test.js` - DateTime utilities
+- `daily-sheet.test.js` - Daily sheet UI
+- `script.test.js` - Main application logic
+- `reports.test.js` - Report functionality
+
+### CI/CD Pipeline
+
+**GitHub Actions** (`.github/workflows/ci.yml`):
+
+1. Backend Tests - Python 3.13, pytest with coverage
+2. Frontend Tests - Bun, Jest with coverage
+3. Frontend Build & Lint - Prettier, Stylelint, Vite build
+4. Security Scan - Bandit for Python security issues
+
+**Coverage Reporting:**
+
+- Codecov integration
+- Coverage badges in README
+- HTML coverage reports
 
 ## Security
 
 ### Current Protections
 
-- **CSRF Protection** — Flask-WTF active on all forms
-- **SQL Injection** — SQLAlchemy ORM with parameterized queries
-- **XSS Protection** — Jinja2 auto-escaping
-- **Input Validation** — WTForms validation with required fields
-- **Audit Trail** — Complete change tracking with IP addresses
-- **Data Backups** — Database files can be backed up via file copy.
-- **Confirmation Dialogs** — For all destructive actions
-- **Time Validation** — Always rounds up (favors resident)
+- **CSRF Protection** - Flask-WTF active on all forms
+- **SQL Injection** - SQLAlchemy ORM with parameterized queries
+- **XSS Protection** - Jinja2 auto-escaping
+- **Input Validation** - WTForms validation with required fields
+- **Audit Trail** - Complete change tracking with IP addresses
+- **Data Backups** - Database files can be backed up via file copy
+- **Confirmation Dialogs** - For all destructive actions
+- **Time Validation** - Always rounds up (favors resident)
+- **Email Validation** - Email addresses validated before sending
+- **Error Handling** - Custom exception classes with user-friendly messages
 
 ### Production Recommendations
 
@@ -553,12 +826,13 @@ Before internet deployment:
 - Implement proper authentication (external SSO recommended)
 - Add rate limiting (Flask-Limiter)
 - Enable HTTPS/SSL
-- Use a production WSGI server (gunicorn, uwsgi)
+- Use production WSGI server (gunicorn, uwsgi)
 - Conduct security audit
 - Implement session management
 - Review `ADMIN_USERS` configuration
 - Set up automated database backups
 - Configure proper logging and monitoring
+- Review email security settings
 
 ## Development Workflow
 
@@ -609,20 +883,38 @@ bun run format:check
 
 # Lint CSS
 bun run lint:css
+
+# Run tests
+bun run test
+```
+
+### Running Tests
+
+```bash
+# Backend tests
+uv run pytest tests/ -v --cov=backend
+
+# Frontend tests
+bun run test:coverage
+
+# All tests (via CI)
+# See .github/workflows/ci.yml
 ```
 
 ### Code Quality
 
 **Automated Formatting:**
 
-- JavaScript: Prettier with 4-space tabs
-- CSS: Prettier with 4-space tabs
-- HTML: Prettier with 4-space tabs, 120 char line width
-- Configuration: `.prettierrc.json`
+- JavaScript: Prettier with 4-space indentation
+- CSS: Prettier with 4-space indentation
+- HTML: Prettier with 4-space indentation, 120 char line width
+- Jinja Templates: Prettier with jinja-template plugin
+- Configuration: `prettier.config.js`
 
 **Linting:**
 
 - CSS: Stylelint with standard config
+- Python: Ruff (configuration in `ruff.toml`)
 - Run: `bun run lint:css`
 
 ## Troubleshooting
@@ -676,9 +968,9 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 
 **Problem:** Database locked
 
-- SQLite locks on writes — usually resolves on retry
+- SQLite locks on writes - usually resolves on retry
 - Check for long-running transactions
-- Restart the application if persistent
+- Restart application if persistent
 
 **Problem:** Missing audit logs
 
@@ -695,15 +987,45 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 - Review import logs in audit trail
 - Ensure residents have EPIC IDs
 
+**Problem:** Staff import fails
+
+- Verify Amion API access
+- Check Report 706 format
+- Review error logs
+- Ensure network connectivity
+
+### Email Issues
+
+**Problem:** Email reports not sending
+
+- Verify SMTP configuration in .env
+- Check EMAIL_HOST, EMAIL_PORT, EMAIL_USERNAME, EMAIL_PASSWORD
+- Test email credentials
+- Check firewall/network settings
+- Review error logs
+
 ## File References
 
 ### Core Application Files
 
 **`backend/app.py`** - Main application
 
-- Authentication removed, uses env vars
-- All routes with audit logging
-- Admin-protected routes use @admin_required decorator
+- Flask app initialization
+- Database setup with SQLAlchemy
+- Blueprint registration
+- Error handler registration
+
+**`backend/routes/`** - Route blueprints (9 modules)
+
+- `api.py` - API endpoints
+- `entries.py` - Time entry CRUD
+- `sheets.py` - Daily sheet operations
+- `schedule.py` - Amion schedule import
+- `residents.py` - Resident management
+- `roles.py` - Role configuration
+- `reports.py` - Report generation
+- `holidays.py` - Holiday management
+- `audit.py` - Audit log viewer
 
 **`backend/auth.py`** - Authorization utilities
 
@@ -713,11 +1035,12 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 
 **`backend/models.py`** - Database models
 
-- Resident model with epic_id
-- Role model with `cutoff_hour` and `cutoff_minute`
+- Resident model with EPIC ID, class year, email, phone
+- Role model with cutoff_hour, cutoff_minute, is_backup
 - TimeEntry model with overtime calculation
 - DailySheet model with lock tracking
 - AuditLog model
+- Holiday model for custom holidays
 
 **`backend/audit.py`** - Audit utilities
 
@@ -725,43 +1048,44 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 - Helper functions for each action type
 - Automatic IP address and user capture
 
+**`backend/email_service.py`** - Email reporting
+
+- Send overtime reports via SMTP
+- HTML email templates
+- CSV attachment generation
+
+**`backend/holidays.py`** - Holiday utilities
+
+- US federal holiday detection
+- Custom holiday management
+- Weekend detection
+- Holiday-aware overtime calculations
+
+**`backend/staff_import.py`** - Staff import
+
+- Amion Report 706 parsing
+- Resident data extraction
+- EPIC ID matching
+
 **`frontend/templates/base.html`** - Base template
 
 - lang="en-GB" for 24-hour time format
 - Admin submenu structure
 - Bundled vendor CSS/JS from Vite
 
-**`frontend/templates/index.html`** — Daily sheet UI
+**`frontend/templates/index.html`** - Daily sheet UI
 
 - Inline editing with tooltips
 - Edit All / Save All with loading states
 - Required exit time field
 - Time rounding message
+- Backup role support
 
-**`frontend/templates/residents.html`** - Resident management
+**`frontend/templates/holidays.html`** - Holiday management
 
-- EPIC ID tooltip
-- Confirmation dialogs
-
-**`frontend/templates/roles.html`** - Role configuration
-
-- Hour and minute cutoff editing
-- Current setting display
-
-**`frontend/templates/reports.html`** - Report generation
-
-- Quick report buttons (auto-submit)
-- Custom date range selection
-
-**`frontend/templates/report_results.html`** — Report display
-
-- Clickable resident names for details
-- CSV export functionality
-
-**`frontend/templates/audit.html`** - Audit viewer
-
-- Filtering interface
-- Audit trail table
+- Federal holidays display
+- Custom holiday CRUD
+- Recurring holiday support
 
 **`frontend/static/js/vendor.js`** - Vite entry point
 
@@ -775,17 +1099,41 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 - Timezone-aware date operations
 - Philadelphia timezone (America/New_York)
 
+**`frontend/static/js/daily-sheet.js`** - Daily sheet UI
+
+- Inline editing interactions
+- Edit All / Save All functionality
+- Form validation
+
+**`frontend/static/js/reports.js`** - Report page
+
+- Quick report buttons
+- Date range selection
+- CSV export handling
+
 **`vite.config.js`** - Vite configuration
 
 - Bundles to frontend/static/dist
 - Relative paths for assets (base: './')
 
-**.prettierrc.json** - Prettier configuration
+**`prettier.config.js`** - Prettier configuration
 
 - 4-space indentation
-- 120-character line width
-- HTML/CSS/JS formatting rules
+- 120-character line width for HTML
+- HTML/CSS/JS/Jinja formatting rules
+
+**`jest.config.js`** - Jest configuration
+
+- Test environment setup
+- Coverage configuration
+- Module path mapping
+
+**`pytest.ini`** - Pytest configuration
+
+- Test discovery patterns
+- Custom markers (unit, integration, slow, timezone, overtime)
+- Coverage settings
 
 ## License
 
-MIT — Free to use and modify
+Apache License 2.0 - Free to use and modify

@@ -1,6 +1,6 @@
 # Contributing to ECC Sheet
 
-Thank you for your interest in contributing to the ECC Sheet project! This
+Thank you for your interest in contributing to the ECC Sheet project. This
 document provides guidelines and instructions for contributing.
 
 ## Table of Contents
@@ -27,7 +27,7 @@ This project adheres to professional standards of conduct:
 
 ### Prerequisites
 
-- Python 3.11 or higher
+- Python 3.13
 - Bun (JavaScript runtime)
 - Git
 - Basic understanding of Flask and SQLAlchemy
@@ -45,6 +45,7 @@ cd ecc-sheet
 2. Set up the backend:
 
 ```bash
+uv venv
 source .venv/bin/activate
 uv sync
 ```
@@ -91,10 +92,6 @@ Use descriptive branch names:
 
 1. Create a new branch from `main`:
 
-```bash
-git checkout -b feature/your-feature-name
-```
-
 2. Make your changes following the [Coding Standards](#coding-standards)
 
 3. Test your changes thoroughly
@@ -103,7 +100,7 @@ git checkout -b feature/your-feature-name
 
 ```bash
 # Backend (Python)
-# Add Python formatter if needed
+# Linting is done via Ruff (automatic in CI)
 
 # Frontend (JavaScript/CSS/HTML)
 bun run format
@@ -123,6 +120,7 @@ bun run format
 - Maximum line length: 100 characters
 - Use descriptive variable and function names
 - Add docstrings for public functions and classes
+- Use route blueprints for new endpoints
 
 Example:
 
@@ -143,6 +141,28 @@ def calculate_overtime(exit_time: str, cutoff_hour: int, cutoff_minute: int) -> 
     pass
 ```
 
+### Route Blueprint Organization
+
+- New routes should be organized into blueprints in `backend/routes/`
+- Each blueprint should have a clear purpose (e.g., `entries.py`, `reports.py`)
+- Register blueprints in `backend/routes/_registry.py`
+- Use `@admin_required` decorator for admin-only routes
+
+Example:
+
+```python
+# backend/routes/my_feature.py
+from flask import Blueprint, jsonify
+from backend.auth import admin_required
+
+bp = Blueprint('my_feature', __name__)
+
+@bp.route('/my-endpoint')
+@admin_required
+def my_endpoint():
+    return jsonify({'status': 'success'})
+```
+
 ### JavaScript (Frontend)
 
 - Use ES6+ syntax
@@ -150,6 +170,7 @@ def calculate_overtime(exit_time: str, cutoff_hour: int, cutoff_minute: int) -> 
 - Use `const` and `let`, avoid `var`
 - Use template literals for string interpolation
 - Add comments for complex logic
+- Write tests for new functionality
 
 Example:
 
@@ -184,7 +205,9 @@ const calculateOvertimeHours = (exitTime, cutoffHour, cutoffMinute) => {
 
 ## Testing
 
-### Running Tests
+### Backend Testing (pytest)
+
+**Coverage Requirement: 99%**
 
 ```bash
 # Run all tests
@@ -200,34 +223,97 @@ uv run pytest tests/test_models.py -v
 uv run pytest tests/test_models.py::test_overtime_calculation -v
 ```
 
+### Frontend Testing (Jest)
+
+**Coverage Requirement: 78%**
+
+```bash
+# Run all tests
+bun run test
+
+# Run with coverage
+bun run test:coverage
+
+# Run specific test file
+bun test frontend/static/js/__tests__/luxon-utils.test.js
+
+# Watch mode
+bun test --watch
+```
+
 ### Writing Tests
 
+#### Backend Tests (pytest)
+
 - Write tests for all new features
-- Maintain or improve code coverage
+- Maintain or improve code coverage (target: 99%)
 - Use descriptive test names
-- Follow AAA pattern (Arrange, Act, Assert)
+- Follow the AAA pattern (Arrange, Act, Assert)
+- Use fixtures from `conftest.py`
 
 Example:
 
 ```python
-def test_overtime_calculation_after_cutoff():
+def test_overtime_calculation_after_cutoff(app):
     """Test that overtime is calculated correctly when exit time is after cutoff."""
-    # Arrange
-    role = Role(name="ECC 1", cutoff_hour=17, cutoff_minute=30)
-    entry = TimeEntry(role=role, exit_time="19:00")
+    with app.app_context():
+        # Arrange
+        role = Role(name="ECC 1", cutoff_hour=17, cutoff_minute=30)
+        db.session.add(role)
+        db.session.commit()
 
-    # Act
-    overtime = entry.calculate_overtime()
+        entry = TimeEntry(role_id=role.id, exit_time="19:00")
 
-    # Assert
-    assert overtime == 1.5  # 1.5 hours of overtime
+        # Act
+        overtime = entry.calculate_overtime()
+
+        # Assert
+        assert overtime == 1.5  # 1.5 hours of overtime
+```
+
+#### Frontend Tests (Jest)
+
+- Write tests for new JavaScript functionality
+- Maintain or improve coverage (target: 78%)
+- Mock DOM elements when needed
+- Test user interactions
+
+Example:
+
+```javascript
+describe("roundToQuarterHour", () => {
+  it("should round up to next 15-minute increment", () => {
+    // Arrange
+    const time = "14:23";
+
+    // Act
+    const rounded = roundToQuarterHour(time);
+
+    // Assert
+    expect(rounded).toBe("14:30");
+  });
+});
 ```
 
 ### Test Coverage Requirements
 
-- New features: Minimum 80% coverage
-- Bug fixes: Add test that reproduces the bug
+- **Backend:** Minimum 99% coverage (enforced in CI)
+- **Frontend:** Minimum 78% coverage (enforced in CI)
+- New features: Add tests that maintain or improve coverage
+- Bug fixes: Add a test that reproduces the bug
 - Refactoring: Maintain existing coverage
+
+### CI/CD Pipeline
+
+All pull requests trigger the GitHub Actions workflow:
+
+1. **Backend Tests** — Python 3.13, pytest with coverage
+2. **Frontend Tests** — Bun, Jest with coverage
+3. **Frontend Build & Lint** - Prettier check, Stylelint, Vite build
+4. **Security Scan** — Bandit security analysis
+5. **Coverage Upload** — Codecov reporting
+
+All checks must pass before merging.
 
 ## Database Migrations
 
@@ -236,7 +322,6 @@ def test_overtime_calculation_after_cutoff():
 When you modify database models:
 
 1. Make changes to `backend/models.py`
-
 2. Generate migration:
 
 ```bash
@@ -244,9 +329,7 @@ uv run flask --app backend.app db migrate -m "Descriptive message"
 ```
 
 3. Review the generated migration in `migrations/versions/`
-
 4. Edit if necessary (Alembic may not detect all changes)
-
 5. Test the migration:
 
 ```bash
@@ -260,7 +343,7 @@ uv run flask --app backend.app db downgrade -1
 uv run flask --app backend.app db upgrade
 ```
 
-6. Include migration file in your commit
+6. Include a migration file in your commit
 
 ### Migration Best Practices
 
@@ -278,12 +361,14 @@ See `docs/DATABASE_MIGRATIONS.md` for detailed guidelines.
 ### Before Submitting
 
 - [ ] Code follows project style guidelines
-- [ ] All tests pass locally
-- [ ] Code is formatted (run `bun run format` for frontend)
+- [ ] All tests pass locally (backend and frontend)
+- [ ] Code is formatted (run `bun run format` for a frontend)
 - [ ] New tests added for new features
+- [ ] Test coverage meets requirements (99% backend, 78% frontend)
 - [ ] Documentation updated if needed
 - [ ] Database migrations included if applicable
-- [ ] No merge conflicts with main branch
+- [ ] No merge conflicts with the main branch
+- [ ] All CI/CD checks pass
 
 ### PR Description Template
 
@@ -305,6 +390,18 @@ Brief description of changes
 
 Describe testing performed
 
+Backend:
+
+- [ ] Unit tests added/updated
+- [ ] Integration tests pass
+- [ ] Coverage maintained at 99%
+
+Frontend:
+
+- [ ] Jest tests added/updated?
+- [ ] All tests pass
+- [ ] Coverage maintained at 78%
+
 ## Database Changes
 
 - [ ] No database changes
@@ -320,13 +417,14 @@ Add screenshots for UI changes
 - [ ] Tests pass
 - [ ] Code formatted
 - [ ] Documentation updated
-- [ ] CHANGELOG updated (if applicable)
+- [ ] CI/CD checks pass
+- [ ] Coverage requirements met
 ```
 
 ### Review Process
 
 1. Automated CI checks must pass
-2. At least one maintainer review required
+2. At least one maintainer review is required
 3. Address review feedback
 4. Squash commits if requested
 5. Maintainer will merge when approved
@@ -378,14 +476,21 @@ Fixes #456
 docs(readme): update installation instructions
 
 Add Bun installation step and clarify UV usage.
-Update Python version requirement to 3.11+.
+Update Python version requirement to 3.13.
+```
+
+```
+test(holidays): add tests for holiday management
+
+Add comprehensive tests for holiday CRUD operations.
+Increases backend coverage from 98% to 99%.
 ```
 
 ### Best Practices
 
-- Use imperative mood ("add" not "added")
+- Use an imperative mood ("add" not "added")
 - First line max 72 characters
-- Separate subject from body with blank line
+- Separate the subject from the body with a blank line
 - Explain what and why, not how
 - Reference issues and PRs when applicable
 
@@ -399,6 +504,8 @@ Update Python version requirement to 3.11+.
 - Verify migrations are safe
 - Test locally when possible
 - Respond within 48 hours
+- Verify CI/CD checks pass
+- Check test coverage requirements
 
 ### For Contributors
 
@@ -406,7 +513,8 @@ Update Python version requirement to 3.11+.
 - Ask questions if feedback is unclear
 - Make requested changes
 - Update PR description if scope changes
-- Be patient during review process
+- Be patient during the review process
+- Address all CI/CD failures
 
 ## Security
 
@@ -414,14 +522,14 @@ Update Python version requirement to 3.11+.
 
 **Do not open public issues for security vulnerabilities.**
 
-Instead, email security concerns to: [your-security-email]
+Instead, email security concerns to the project maintainers.
 
 Include:
 
 - Description of vulnerability
 - Steps to reproduce
 - Potential impact
-- Suggested fix (if any)
+- The suggested fix (if any)
 
 ### Security Best Practices
 
@@ -431,11 +539,13 @@ Include:
 - Use parameterized queries (SQLAlchemy handles this)
 - Follow OWASP guidelines
 - Review audit logging for security events
+- Use `@admin_required` decorator for sensitive routes
 
 ## Questions?
 
 - Check existing issues and discussions
 - Read `CLAUDE.md` for detailed documentation
+- Review `docs/ARCHITECTURE.md` for system design
 - Ask questions in pull request comments
 - Contact maintainers if needed
 
@@ -447,4 +557,4 @@ Contributors will be recognized in:
 - Release notes for significant contributions
 - Project documentation
 
-Thank you for contributing to ECC Sheet!
+Thank you for contributing to ECC Sheet.
