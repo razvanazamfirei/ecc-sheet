@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
-// import { codecovVitePlugin } from "@codecov/vite-plugin";
+import { codecovVitePlugin } from "@codecov/vite-plugin";
 
 export default defineConfig({
   base: "./",
@@ -19,11 +19,11 @@ export default defineConfig({
       },
     },
   },
-  // plugins: [
-  //   codecovVitePlugin({
-  //     enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
-  //     bundleName: "ecc-sheet",
-  //     uploadToken: process.env.CODECOV_TOKEN,
-  //   }),
-  // ],
+  plugins: [
+    codecovVitePlugin({
+      enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
+      bundleName: "ecc-sheet",
+      uploadToken: process.env.CODECOV_TOKEN,
+    }),
+  ],
 });
