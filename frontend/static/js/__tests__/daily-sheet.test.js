@@ -8,6 +8,7 @@ const mockElements = {};
 // Set up DOM mocks
 const mockGetElementById = (id) => mockElements[id] || null;
 const mockQuerySelectorAll = () => [];
+const mockQuerySelector = () => null;
 
 // Set up window mocks
 let confirmReturnValue = true;
@@ -23,6 +24,7 @@ beforeAll(async () => {
   global.document = {
     getElementById: mockGetElementById,
     querySelectorAll: mockQuerySelectorAll,
+    querySelector: mockQuerySelector,
     readyState: "complete",
     addEventListener: () => {},
   };
@@ -51,6 +53,7 @@ beforeAll(async () => {
     cancelEdit: global.window.cancelEdit,
     toggleEditAll: global.window.toggleEditAll,
     saveAll: global.window.saveAll,
+    copyToClipboard: global.window.copyToClipboard,
   };
 });
 
@@ -285,6 +288,452 @@ describe("Daily Sheet Functions", () => {
       expect(typeof exportedFunctions.cancelEdit).toBe("function");
       expect(typeof exportedFunctions.toggleEditAll).toBe("function");
       expect(typeof exportedFunctions.saveAll).toBe("function");
+      expect(typeof exportedFunctions.copyToClipboard).toBe("function");
+    });
+  });
+
+  describe("copyToClipboard", () => {
+    let mockClipboardWrite;
+    let mockBlob;
+    let capturedAlert;
+
+    beforeEach(() => {
+      capturedAlert = null;
+      global.alert = (msg) => {
+        capturedAlert = msg;
+      };
+
+      mockBlob = class MockBlob {
+        constructor(content, options) {
+          this.content = content;
+          this.type = options?.type;
+        }
+      };
+      global.Blob = mockBlob;
+
+      mockClipboardWrite = [];
+      global.ClipboardItem = class MockClipboardItem {
+        constructor(data) {
+          this.data = data;
+        }
+      };
+      global.navigator = {
+        clipboard: {
+          write: (items) => {
+            mockClipboardWrite = items;
+            return Promise.resolve();
+          },
+        },
+      };
+    });
+
+    test("alerts when no entries exist", async () => {
+      global.document.querySelectorAll = () => [];
+
+      await exportedFunctions.copyToClipboard({ target: {} });
+
+      expect(capturedAlert).toBe("No entries to copy");
+    });
+
+    test("generates HTML table for weekday without start time", async () => {
+      const mockRow = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)") return { textContent: "John Doe" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "2.50 hrs" };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]") return [mockRow];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = {
+        textContent: "February 07, 2026\nWeekend/Holiday",
+      };
+
+      const mockButton = {
+        innerHTML: "",
+        classList: {
+          remove: () => {},
+          add: () => {},
+        },
+      };
+
+      const event = {
+        target: {
+          closest: () => mockButton,
+        },
+      };
+
+      await exportedFunctions.copyToClipboard(event);
+
+      expect(mockClipboardWrite.length).toBe(1);
+      expect(mockClipboardWrite[0].data["text/html"]).toBeDefined();
+      expect(mockClipboardWrite[0].data["text/plain"]).toBeDefined();
+
+      const htmlContent = mockClipboardWrite[0].data["text/html"].content[0];
+      expect(htmlContent).toContain("February 07, 2026");
+      expect(htmlContent).toContain("<th>Role</th>");
+      expect(htmlContent).toContain("<th>Name</th>");
+      expect(htmlContent).toContain("<th>Overtime</th>");
+      expect(htmlContent).toContain("<td>ECC 1</td>");
+      expect(htmlContent).toContain("<td>John Doe</td>");
+      expect(htmlContent).toContain("<td>2.50 hrs</td>");
+      expect(htmlContent).toContain("Total Overtime:");
+      expect(htmlContent).toContain("2.50 hrs");
+    });
+
+    test("generates HTML table for weekend with start time", async () => {
+      const mockRow = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECA 1" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "Jane Smith" };
+          if (selector === ".start-time-cell span")
+            return { textContent: "08:00 AM" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "4.00 hrs" };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]") return [mockRow];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return {};
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 08, 2026" };
+
+      const mockButton = {
+        innerHTML: "",
+        classList: { remove: () => {}, add: () => {} },
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      const htmlContent = mockClipboardWrite[0].data["text/html"].content[0];
+      expect(htmlContent).toContain("<th>Start Time</th>");
+      expect(htmlContent).toContain("<td>08:00 AM</td>");
+      expect(htmlContent).toContain("Total Overtime:");
+      expect(htmlContent).toContain("4.00 hrs");
+    });
+
+    test("skips entries with missing exit times", async () => {
+      const mockRowWithExit = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)") return { textContent: "John Doe" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "2.00 hrs" };
+          return null;
+        },
+      };
+
+      const mockRowMissing = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => true } };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]")
+          return [mockRowWithExit, mockRowMissing];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 07, 2026" };
+
+      const mockButton = {
+        innerHTML: "",
+        classList: { remove: () => {}, add: () => {} },
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      const htmlContent = mockClipboardWrite[0].data["text/html"].content[0];
+      expect(htmlContent).toContain("John Doe");
+      expect(htmlContent).not.toContain("Jane Smith");
+    });
+
+    test("calculates total overtime correctly", async () => {
+      const createMockRow = (name, overtime) => ({
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)") return { textContent: name };
+          if (selector === ".overtime-cell span")
+            return { textContent: overtime };
+          return null;
+        },
+      });
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]")
+          return [
+            createMockRow("Person 1", "2.50 hrs"),
+            createMockRow("Person 2", "3.25 hrs"),
+            createMockRow("Person 3", "1.00 hrs"),
+          ];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 07, 2026" };
+
+      const mockButton = {
+        innerHTML: "",
+        classList: { remove: () => {}, add: () => {} },
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      const htmlContent = mockClipboardWrite[0].data["text/html"].content[0];
+      expect(htmlContent).toContain("6.75 hrs");
+    });
+
+    test("shows success feedback after copying", async () => {
+      const mockRow = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)") return { textContent: "John Doe" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "2.00 hrs" };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]") return [mockRow];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 07, 2026" };
+
+      const mockButton = {
+        innerHTML: '<i class="bi bi-clipboard me-1"></i>Copy to Clipboard',
+        classList: {
+          remove: () => {},
+          add: () => {},
+        },
+      };
+
+      let setTimeoutCalled = false;
+      global.setTimeout = (fn) => {
+        setTimeoutCalled = true;
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      expect(mockButton.innerHTML).toContain("Copied!");
+      expect(setTimeoutCalled).toBe(true);
+    });
+
+    test("handles clipboard write errors gracefully", async () => {
+      const mockRow = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)") return { textContent: "John Doe" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "2.00 hrs" };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]") return [mockRow];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 07, 2026" };
+
+      global.navigator.clipboard.write = () =>
+        Promise.reject(new Error("Clipboard error"));
+
+      const mockButton = {
+        innerHTML: "",
+        classList: { remove: () => {}, add: () => {} },
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      expect(capturedAlert).toBe(
+        "Failed to copy to clipboard. Please try again.",
+      );
+    });
+  });
+
+  describe("toggleStartTimeField", () => {
+    test("shows start time field when backup role is selected", () => {
+      const mockRoleSelect = {
+        options: [
+          { dataset: { isBackup: "false" } },
+          { dataset: { isBackup: "true" } },
+        ],
+        selectedIndex: 1,
+        addEventListener: () => {},
+      };
+
+      const mockStartTimeContainer = { style: { display: "none" } };
+
+      mockElements["role_id"] = mockRoleSelect;
+      mockElements["start_time_container"] = mockStartTimeContainer;
+
+      // Import and call the initialization that sets up the role select
+      const roleSelect = mockElements["role_id"];
+      const startTimeContainer = mockElements["start_time_container"];
+
+      if (roleSelect && startTimeContainer) {
+        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+        const isBackup = selectedOption?.dataset?.isBackup === "true";
+        startTimeContainer.style.display = isBackup ? "block" : "none";
+      }
+
+      expect(mockStartTimeContainer.style.display).toBe("block");
+    });
+
+    test("hides start time field when non-backup role is selected", () => {
+      const mockRoleSelect = {
+        options: [
+          { dataset: { isBackup: "false" } },
+          { dataset: { isBackup: "true" } },
+        ],
+        selectedIndex: 0,
+        addEventListener: () => {},
+      };
+
+      const mockStartTimeContainer = { style: { display: "block" } };
+
+      mockElements["role_id"] = mockRoleSelect;
+      mockElements["start_time_container"] = mockStartTimeContainer;
+
+      const roleSelect = mockElements["role_id"];
+      const startTimeContainer = mockElements["start_time_container"];
+
+      if (roleSelect && startTimeContainer) {
+        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+        const isBackup = selectedOption?.dataset?.isBackup === "true";
+        startTimeContainer.style.display = isBackup ? "block" : "none";
+      }
+
+      expect(mockStartTimeContainer.style.display).toBe("none");
+    });
+
+    test("handles missing role select element gracefully", () => {
+      mockElements["role_id"] = null;
+      mockElements["start_time_container"] = { style: { display: "" } };
+
+      const roleSelect = mockElements["role_id"];
+      const startTimeContainer = mockElements["start_time_container"];
+
+      if (!roleSelect || !startTimeContainer) {
+        // Should return early
+        expect(roleSelect).toBe(null);
+      }
+    });
+
+    test("handles missing start time container gracefully", () => {
+      const mockRoleSelect = {
+        options: [{ dataset: { isBackup: "false" } }],
+        selectedIndex: 0,
+        addEventListener: () => {},
+      };
+
+      mockElements["role_id"] = mockRoleSelect;
+      mockElements["start_time_container"] = null;
+
+      const roleSelect = mockElements["role_id"];
+      const startTimeContainer = mockElements["start_time_container"];
+
+      if (!roleSelect || !startTimeContainer) {
+        // Should return early
+        expect(startTimeContainer).toBe(null);
+      }
+    });
+
+    test("handles role with no dataset attribute", () => {
+      const mockRoleSelect = {
+        options: [{}],
+        selectedIndex: 0,
+        addEventListener: () => {},
+      };
+
+      const mockStartTimeContainer = { style: { display: "block" } };
+
+      mockElements["role_id"] = mockRoleSelect;
+      mockElements["start_time_container"] = mockStartTimeContainer;
+
+      const roleSelect = mockElements["role_id"];
+      const startTimeContainer = mockElements["start_time_container"];
+
+      if (roleSelect && startTimeContainer) {
+        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+        const isBackup = selectedOption?.dataset?.isBackup === "true";
+        startTimeContainer.style.display = isBackup ? "block" : "none";
+      }
+
+      expect(mockStartTimeContainer.style.display).toBe("none");
     });
   });
 

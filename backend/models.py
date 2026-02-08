@@ -271,10 +271,6 @@ class TimeEntry(db.Model):
 
         return round(overtime, 2) if overtime > 0 else 0.0
 
-    def calculate_overtime_hours(self):
-        """Backward compatibility - use overtime_hours property instead"""
-        return self.overtime_hours
-
     def __repr__(self):
         resident_name = self.resident.name if self.resident else "Unknown"
         return f"<TimeEntry {self.date} - {resident_name}>"
