@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
+from .config import Config
 from .holidays import is_weekend_or_holiday
 
 db = SQLAlchemy()
@@ -225,7 +226,8 @@ class TimeEntry(db.Model):
         Example:
         - Cutoff: 17:30
         - Exit: 02:30 AM -> Treated as 26:30 (next day) -> 9.0 hours overtime
-        - Exit: 20:00 -> Same day -> 2.5 hours overtime
+        - Exit: 16:00 -> Same day early exit -> 0 hours overtime
+        - Exits: 20:00 -> Same day -> 2.5 hours overtime
         - Backup role on Saturday, start: 09:00, exit: 17:00 -> 8.0 hours overtime
         """
         if not self.exit_time or not self.role:
@@ -242,32 +244,33 @@ class TimeEntry(db.Model):
                 exit_decimal += 24  # overnight shift
             return round(exit_decimal - start_decimal, 2)
 
-        # Convert cutoff time to decimal hours
+        # Convert cutoff and exit to decimal hours
         cutoff_hour = self.role.cutoff_hour
         cutoff_minute = (
             self.role.cutoff_minute if hasattr(self.role, "cutoff_minute") else 30
         )
         cutoff_time_decimal = cutoff_hour + cutoff_minute / 60.0
-
-        # Convert exit time to decimal hours
         exit_hour = self.exit_time.hour
         exit_minute = self.exit_time.minute
         exit_time_decimal = exit_hour + exit_minute / 60.0
 
-        # If exit time is before cutoff hour, assume it's next day (overnight shift)
-        # E.g., cutoff=17:30, exit=02:30 means 02:30 next day
+        # Distinguish overnight shifts from same-day early exits
+        # Overnight threshold: exit times before this are treated as next-day
+        overnight_threshold = Config.DAY_RESET_HOUR
+
         if exit_time_decimal < cutoff_time_decimal:
-            # Add 24 hours to treat as next day
-            exit_time_decimal += 24.0
+            if exit_time_decimal < overnight_threshold:
+                # Early morning exit (before half-cutoff) - overnight shift
+                # Add 24 hours to treat as next day
+                exit_time_decimal += 24.0
+            else:
+                # Exit before cutoff but after threshold - same-day early departure
+                return 0.0
 
         # Calculate overtime
         overtime = exit_time_decimal - cutoff_time_decimal
 
         return round(overtime, 2) if overtime > 0 else 0.0
-
-    def calculate_overtime_hours(self):
-        """Backward compatibility - use overtime_hours property instead"""
-        return self.overtime_hours
 
     def __repr__(self):
         resident_name = self.resident.name if self.resident else "Unknown"

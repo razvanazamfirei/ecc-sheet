@@ -8,6 +8,7 @@ const mockElements = {};
 // Set up DOM mocks
 const mockGetElementById = (id) => mockElements[id] || null;
 const mockQuerySelectorAll = () => [];
+const mockQuerySelector = () => null;
 
 // Set up window mocks
 let confirmReturnValue = true;
@@ -23,8 +24,25 @@ beforeAll(async () => {
   global.document = {
     getElementById: mockGetElementById,
     querySelectorAll: mockQuerySelectorAll,
+    querySelector: mockQuerySelector,
     readyState: "complete",
     addEventListener: () => {},
+    createElement: (tag) => {
+      let text = "";
+      return {
+        set textContent(value) {
+          text = value;
+        },
+        get innerHTML() {
+          return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        },
+      };
+    },
   };
 
   global.window = {
@@ -51,6 +69,8 @@ beforeAll(async () => {
     cancelEdit: global.window.cancelEdit,
     toggleEditAll: global.window.toggleEditAll,
     saveAll: global.window.saveAll,
+    copyToClipboard: global.window.copyToClipboard,
+    toggleStartTimeField: global.window.toggleStartTimeField,
   };
 });
 
@@ -119,25 +139,21 @@ describe("Daily Sheet Functions", () => {
       const mockInput = { value: "18:00", focus: () => {} };
       const mockDisplay = { style: { display: "" } };
       const mockForm = { style: { display: "" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return { style: { display: "" } };
-          if (selector === ".save-btn") return { style: { display: "" } };
-          if (selector === ".cancel-btn") return { style: { display: "" } };
-          if (selector === ".delete-form") return { style: { display: "" } };
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "" } };
+      const mockActionButtons = { style: { display: "" } };
 
       mockElements["input-1"] = mockInput;
       mockElements["display-1"] = mockDisplay;
       mockElements["form-1"] = mockForm;
-      mockElements["actions-1"] = mockActionsCell;
+      mockElements["edit-controls-1"] = mockEditControls;
+      mockElements["action-buttons-1"] = mockActionButtons;
 
       exportedFunctions.editEntry(1);
 
       expect(mockDisplay.style.display).toBe("none");
       expect(mockForm.style.display).toBe("inline");
+      expect(mockEditControls.style.display).toBe("inline-flex");
+      expect(mockActionButtons.style.display).toBe("none");
     });
   });
 
@@ -158,24 +174,14 @@ describe("Daily Sheet Functions", () => {
       const mockInput = { value: "19:00", focus: () => {} };
       const mockDisplay = { style: { display: "none" } };
       const mockForm = { style: { display: "inline" } };
-      const editBtn = { style: { display: "none" } };
-      const saveBtn = { style: { display: "inline-block" } };
-      const cancelBtn = { style: { display: "inline-block" } };
-      const deleteForm = { style: { display: "none" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return editBtn;
-          if (selector === ".save-btn") return saveBtn;
-          if (selector === ".cancel-btn") return cancelBtn;
-          if (selector === ".delete-form") return deleteForm;
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "inline-flex" } };
+      const mockActionButtons = { style: { display: "none" } };
 
       mockElements["input-2"] = mockInput;
       mockElements["display-2"] = mockDisplay;
       mockElements["form-2"] = mockForm;
-      mockElements["actions-2"] = mockActionsCell;
+      mockElements["edit-controls-2"] = mockEditControls;
+      mockElements["action-buttons-2"] = mockActionButtons;
 
       // First edit to store original value
       exportedFunctions.editEntry(2);
@@ -184,15 +190,19 @@ describe("Daily Sheet Functions", () => {
 
       expect(mockDisplay.style.display).toBe("inline");
       expect(mockForm.style.display).toBe("none");
-      expect(editBtn.style.display).toBe("inline-block");
-      expect(saveBtn.style.display).toBe("none");
-      expect(cancelBtn.style.display).toBe("none");
-      expect(deleteForm.style.display).toBe("inline");
+      expect(mockEditControls.style.display).toBe("none");
+      expect(mockActionButtons.style.display).toBe("inline-flex");
     });
   });
 
   describe("toggleEditAll", () => {
     test("enables edit mode for all entries when toggled on", () => {
+      const buttonContainer = {
+        classList: {
+          add: () => {},
+          remove: () => {},
+        },
+      };
       const editAllBtn = {
         innerHTML: '<i class="bi bi-pencil-square me-1"></i>Edit All',
         classList: {
@@ -202,6 +212,7 @@ describe("Daily Sheet Functions", () => {
       };
       const saveAllBtn = { style: { display: "none" } };
 
+      mockElements["edit-all-controls"] = buttonContainer;
       mockElements["edit-all-btn"] = editAllBtn;
       mockElements["save-all-btn"] = saveAllBtn;
 
@@ -216,9 +227,8 @@ describe("Daily Sheet Functions", () => {
         mockElements[`input-${id}`] = { value: "18:00", focus: () => {} };
         mockElements[`display-${id}`] = { style: { display: "" } };
         mockElements[`form-${id}`] = { style: { display: "" } };
-        mockElements[`actions-${id}`] = {
-          querySelector: () => ({ style: { display: "" } }),
-        };
+        mockElements[`edit-controls-${id}`] = { style: { display: "" } };
+        mockElements[`action-buttons-${id}`] = { style: { display: "" } };
       });
 
       exportedFunctions.toggleEditAll();
@@ -295,6 +305,423 @@ describe("Daily Sheet Functions", () => {
       expect(typeof exportedFunctions.cancelEdit).toBe("function");
       expect(typeof exportedFunctions.toggleEditAll).toBe("function");
       expect(typeof exportedFunctions.saveAll).toBe("function");
+      expect(typeof exportedFunctions.copyToClipboard).toBe("function");
+    });
+  });
+
+  describe("copyToClipboard", () => {
+    let mockClipboardWrite;
+    let mockBlob;
+    let capturedAlert;
+
+    beforeEach(() => {
+      capturedAlert = null;
+      global.alert = (msg) => {
+        capturedAlert = msg;
+      };
+
+      mockBlob = class MockBlob {
+        constructor(content, options) {
+          this.content = content;
+          this.type = options?.type;
+        }
+      };
+      global.Blob = mockBlob;
+
+      mockClipboardWrite = [];
+      global.ClipboardItem = class MockClipboardItem {
+        constructor(data) {
+          this.data = data;
+        }
+      };
+      global.navigator = {
+        clipboard: {
+          write: (items) => {
+            mockClipboardWrite = items;
+            return Promise.resolve();
+          },
+        },
+      };
+    });
+
+    test("alerts when no entries exist", async () => {
+      global.document.querySelectorAll = () => [];
+
+      await exportedFunctions.copyToClipboard({ target: {} });
+
+      expect(capturedAlert).toBe("No entries to copy");
+    });
+
+    test("generates HTML table for weekday without start time", async () => {
+      const mockRow = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "John Doe" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "2.50 hrs" };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]") return [mockRow];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = {
+        textContent: "February 07, 2026\nWeekend/Holiday",
+      };
+
+      const mockButton = {
+        innerHTML: "",
+        classList: {
+          remove: () => {},
+          add: () => {},
+        },
+      };
+
+      const event = {
+        target: {
+          closest: () => mockButton,
+        },
+      };
+
+      await exportedFunctions.copyToClipboard(event);
+
+      expect(mockClipboardWrite.length).toBe(1);
+      expect(mockClipboardWrite[0].data["text/html"]).toBeDefined();
+      expect(mockClipboardWrite[0].data["text/plain"]).toBeDefined();
+
+      const htmlContent = mockClipboardWrite[0].data["text/html"].content[0];
+      expect(htmlContent).toContain("February 07, 2026");
+      expect(htmlContent).toContain("<th>Role</th>");
+      expect(htmlContent).toContain("<th>Name</th>");
+      expect(htmlContent).toContain("<th>Overtime</th>");
+      expect(htmlContent).toContain("<td>ECC 1</td>");
+      expect(htmlContent).toContain("<td>John Doe</td>");
+      expect(htmlContent).toContain("<td>2.50 hrs</td>");
+      expect(htmlContent).toContain("Total Overtime:");
+      expect(htmlContent).toContain("2.50 hrs");
+    });
+
+    test("generates HTML table for weekend with start time", async () => {
+      const mockRow = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECA 1" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "Jane Smith" };
+          if (selector === ".start-time-cell span")
+            return { textContent: "08:00 AM" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "4.00 hrs" };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]") return [mockRow];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return {};
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 08, 2026" };
+
+      const mockButton = {
+        innerHTML: "",
+        classList: { remove: () => {}, add: () => {} },
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      const htmlContent = mockClipboardWrite[0].data["text/html"].content[0];
+      expect(htmlContent).toContain("<th>Start Time</th>");
+      expect(htmlContent).toContain("<td>08:00 AM</td>");
+      expect(htmlContent).toContain("Total Overtime:");
+      expect(htmlContent).toContain("4.00 hrs");
+    });
+
+    test("skips entries with missing exit times", async () => {
+      const mockRowWithExit = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "John Doe" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "2.00 hrs" };
+          return null;
+        },
+      };
+
+      const mockRowMissing = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => true } };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]")
+          return [mockRowWithExit, mockRowMissing];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 07, 2026" };
+
+      const mockButton = {
+        innerHTML: "",
+        classList: { remove: () => {}, add: () => {} },
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      const htmlContent = mockClipboardWrite[0].data["text/html"].content[0];
+      expect(htmlContent).toContain("John Doe");
+      expect(htmlContent).not.toContain("Jane Smith");
+    });
+
+    test("calculates total overtime correctly", async () => {
+      const createMockRow = (name, overtime) => ({
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)") return { textContent: name };
+          if (selector === ".overtime-cell span")
+            return { textContent: overtime };
+          return null;
+        },
+      });
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]")
+          return [
+            createMockRow("Person 1", "2.50 hrs"),
+            createMockRow("Person 2", "3.25 hrs"),
+            createMockRow("Person 3", "1.00 hrs"),
+          ];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 07, 2026" };
+
+      const mockButton = {
+        innerHTML: "",
+        classList: { remove: () => {}, add: () => {} },
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      const htmlContent = mockClipboardWrite[0].data["text/html"].content[0];
+      expect(htmlContent).toContain("6.75 hrs");
+    });
+
+    test("shows success feedback after copying", async () => {
+      const mockRow = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "John Doe" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "2.00 hrs" };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]") return [mockRow];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 07, 2026" };
+
+      const mockButton = {
+        innerHTML: '<i class="bi bi-clipboard me-1"></i>Copy to Clipboard',
+        classList: {
+          remove: () => {},
+          add: () => {},
+        },
+      };
+
+      let setTimeoutCalled = false;
+      global.setTimeout = (fn) => {
+        setTimeoutCalled = true;
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      expect(mockButton.innerHTML).toContain("Copied!");
+      expect(setTimeoutCalled).toBe(true);
+    });
+
+    test("handles clipboard write errors gracefully", async () => {
+      const mockRow = {
+        querySelector: (selector) => {
+          if (selector === ".exit-time-cell")
+            return { classList: { contains: () => false } };
+          if (selector === "td:nth-child(1) .badge")
+            return { textContent: "ECC 1" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "John Doe" };
+          if (selector === ".overtime-cell span")
+            return { textContent: "2.00 hrs" };
+          return null;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === "[data-entry-id]") return [mockRow];
+        return [];
+      };
+
+      global.document.querySelector = (selector) => {
+        if (selector === ".start-time-cell") return null;
+        return null;
+      };
+
+      mockElements["sheet-date"] = { textContent: "February 07, 2026" };
+
+      global.navigator.clipboard.write = () =>
+        Promise.reject(new Error("Clipboard error"));
+
+      const mockButton = {
+        innerHTML: "",
+        classList: { remove: () => {}, add: () => {} },
+      };
+
+      await exportedFunctions.copyToClipboard({
+        target: { closest: () => mockButton },
+      });
+
+      expect(capturedAlert).toBe(
+        "Failed to copy to clipboard. Please try again.",
+      );
+    });
+  });
+
+  describe("toggleStartTimeField", () => {
+    test("shows start time field when backup role is selected", () => {
+      const mockRoleSelect = {
+        options: [
+          { dataset: { isBackup: "false" } },
+          { dataset: { isBackup: "true" } },
+        ],
+        selectedIndex: 1,
+      };
+
+      const mockStartTimeContainer = { style: { display: "none" } };
+
+      mockElements["role_id"] = mockRoleSelect;
+      mockElements["start_time_container"] = mockStartTimeContainer;
+
+      exportedFunctions.toggleStartTimeField();
+
+      expect(mockStartTimeContainer.style.display).toBe("block");
+    });
+
+    test("hides start time field when non-backup role is selected", () => {
+      const mockRoleSelect = {
+        options: [
+          { dataset: { isBackup: "false" } },
+          { dataset: { isBackup: "true" } },
+        ],
+        selectedIndex: 0,
+      };
+
+      const mockStartTimeContainer = { style: { display: "block" } };
+
+      mockElements["role_id"] = mockRoleSelect;
+      mockElements["start_time_container"] = mockStartTimeContainer;
+
+      exportedFunctions.toggleStartTimeField();
+
+      expect(mockStartTimeContainer.style.display).toBe("none");
+    });
+
+    test("handles missing role select element gracefully", () => {
+      mockElements["role_id"] = null;
+      const mockStartTimeContainer = { style: { display: "block" } };
+      mockElements["start_time_container"] = mockStartTimeContainer;
+
+      exportedFunctions.toggleStartTimeField();
+
+      // Should return early without error, display unchanged
+      expect(mockStartTimeContainer.style.display).toBe("block");
+    });
+
+    test("handles missing start time container gracefully", () => {
+      const mockRoleSelect = {
+        options: [{ dataset: { isBackup: "true" } }],
+        selectedIndex: 0,
+      };
+
+      mockElements["role_id"] = mockRoleSelect;
+      mockElements["start_time_container"] = null;
+
+      // Should not throw an error
+      expect(() => exportedFunctions.toggleStartTimeField()).not.toThrow();
+    });
+
+    test("handles role with no dataset attribute", () => {
+      const mockRoleSelect = {
+        options: [{}],
+        selectedIndex: 0,
+      };
+
+      const mockStartTimeContainer = { style: { display: "block" } };
+
+      mockElements["role_id"] = mockRoleSelect;
+      mockElements["start_time_container"] = mockStartTimeContainer;
+
+      exportedFunctions.toggleStartTimeField();
+
+      expect(mockStartTimeContainer.style.display).toBe("none");
     });
   });
 
@@ -305,22 +732,16 @@ describe("Daily Sheet Functions", () => {
       const mockStartDisplay = { style: { display: "inline" } };
       const mockDisplay = { style: { display: "" } };
       const mockForm = { style: { display: "" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return { style: { display: "" } };
-          if (selector === ".save-btn") return { style: { display: "" } };
-          if (selector === ".cancel-btn") return { style: { display: "" } };
-          if (selector === ".delete-form") return { style: { display: "" } };
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "" } };
+      const mockActionButtons = { style: { display: "" } };
 
       mockElements["input-3"] = mockInput;
       mockElements["start-input-3"] = mockStartInput;
       mockElements["start-display-3"] = mockStartDisplay;
       mockElements["display-3"] = mockDisplay;
       mockElements["form-3"] = mockForm;
-      mockElements["actions-3"] = mockActionsCell;
+      mockElements["edit-controls-3"] = mockEditControls;
+      mockElements["action-buttons-3"] = mockActionButtons;
 
       exportedFunctions.editEntry(3);
 
@@ -336,26 +757,16 @@ describe("Daily Sheet Functions", () => {
       const mockStartDisplay = { style: { display: "none" } };
       const mockDisplay = { style: { display: "none" } };
       const mockForm = { style: { display: "inline" } };
-      const editBtn = { style: { display: "none" } };
-      const saveBtn = { style: { display: "inline-block" } };
-      const cancelBtn = { style: { display: "inline-block" } };
-      const deleteForm = { style: { display: "none" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return editBtn;
-          if (selector === ".save-btn") return saveBtn;
-          if (selector === ".cancel-btn") return cancelBtn;
-          if (selector === ".delete-form") return deleteForm;
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "inline-flex" } };
+      const mockActionButtons = { style: { display: "none" } };
 
       mockElements["input-4"] = mockInput;
       mockElements["start-input-4"] = mockStartInput;
       mockElements["start-display-4"] = mockStartDisplay;
       mockElements["display-4"] = mockDisplay;
       mockElements["form-4"] = mockForm;
-      mockElements["actions-4"] = mockActionsCell;
+      mockElements["edit-controls-4"] = mockEditControls;
+      mockElements["action-buttons-4"] = mockActionButtons;
 
       // First edit to store original value
       exportedFunctions.editEntry(4);
@@ -375,24 +786,14 @@ describe("Daily Sheet Functions", () => {
       const mockInput = { value: "18:00", focus: () => {} };
       const mockDisplay = { style: { display: "none" } };
       const mockForm = { style: { display: "inline" } };
-      const editBtn = { style: { display: "none" } };
-      const saveBtn = { style: { display: "inline-block" } };
-      const cancelBtn = { style: { display: "inline-block" } };
-      const deleteForm = { style: { display: "none" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return editBtn;
-          if (selector === ".save-btn") return saveBtn;
-          if (selector === ".cancel-btn") return cancelBtn;
-          if (selector === ".delete-form") return deleteForm;
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "inline-flex" } };
+      const mockActionButtons = { style: { display: "none" } };
 
       mockElements["input-5"] = mockInput;
       mockElements["display-5"] = mockDisplay;
       mockElements["form-5"] = mockForm;
-      mockElements["actions-5"] = mockActionsCell;
+      mockElements["edit-controls-5"] = mockEditControls;
+      mockElements["action-buttons-5"] = mockActionButtons;
 
       // Edit the entry - this stores the original value "18:00"
       exportedFunctions.editEntry(5);
@@ -409,6 +810,12 @@ describe("Daily Sheet Functions", () => {
   describe("toggleEditAll cancel mode", () => {
     test("verifies toggle behavior by checking state changes", () => {
       // Start with edit mode button that tracks its state
+      const buttonContainer = {
+        classList: {
+          add: () => {},
+          remove: () => {},
+        },
+      };
       const editAllBtn = {
         innerHTML: '<i class="bi bi-pencil-square me-1"></i>Edit All',
         classList: {
@@ -418,6 +825,7 @@ describe("Daily Sheet Functions", () => {
       };
       const saveAllBtn = { style: { display: "none" } };
 
+      mockElements["edit-all-controls"] = buttonContainer;
       mockElements["edit-all-btn"] = editAllBtn;
       mockElements["save-all-btn"] = saveAllBtn;
 
@@ -426,9 +834,8 @@ describe("Daily Sheet Functions", () => {
         mockElements[`input-${id}`] = { value: "18:00", focus: () => {} };
         mockElements[`display-${id}`] = { style: { display: "" } };
         mockElements[`form-${id}`] = { style: { display: "" } };
-        mockElements[`actions-${id}`] = {
-          querySelector: () => ({ style: { display: "" } }),
-        };
+        mockElements[`edit-controls-${id}`] = { style: { display: "" } };
+        mockElements[`action-buttons-${id}`] = { style: { display: "" } };
       });
 
       global.document.querySelectorAll = () => [
