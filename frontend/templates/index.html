@@ -203,7 +203,10 @@
       class="card-header d-flex justify-content-between align-items-center entries-header">
       <h5 class="mb-0"><i class="bi bi-table me-2"></i>Entries</h5>
       {% if not daily_sheet.locked and time_entries %}
-        <div class="btn-group btn-group-sm edit-all-controls" role="group">
+        <div
+          class="btn-group-sm edit-all-controls"
+          id="edit-all-controls"
+          role="group">
           <button
             id="edit-all-btn"
             onclick="toggleEditAll()"
@@ -226,21 +229,22 @@
           <table class="table table-striped table-hover mb-0">
             <thead class="table-light">
               <tr>
-                <th>Role</th>
-                <th>Name</th>
+                <th class="col-2">Role</th>
+                <th class="col-2">Name</th>
                 {% if is_weekend_or_holiday %}
-                  <th>Start Time</th>
+                  <th class="col-3">Start Time</th>
                 {% endif %}
-                <th>Exit Time</th>
-                <th>Overtime</th>
+                <th class="col-3">Exit Time</th>
+                <th class="col-1">Overtime</th>
                 {% if not daily_sheet.locked %}
-                  <th class="text-end">Actions</th>
+                  <th class="col-1">Actions</th>
                 {% endif %}
               </tr>
             </thead>
             <tbody>
               {% for entry in time_entries %}
                 <tr
+                  class="align-middle"
                   id="entry-row-{{ entry.id }}"
                   data-entry-id="{{ entry.id }}"
                   data-role-is-backup="{{ entry.role.is_backup|lower }}"
@@ -275,7 +279,7 @@
                             title="Click to edit time"
                           {% endif %}>
                           {% if entry.start_time %}
-                            {{ entry.start_time.strftime('%H:%M') }}
+                            {{ entry.start_time.strftime('%I:%M %p') }}
                           {% else %}
                             <span class="text-muted">-</span>
                           {% endif %}
@@ -287,8 +291,8 @@
                           id="start-input-{{ entry.id }}"
                           value="{{ entry.start_time.strftime('%H:%M') if entry.start_time else '' }}"
                           step="900"
-                          class="inline-time-input form-control form-control-sm"
-                          style="display: none;" />
+                          class="form-control"
+                          style="display: none; width: 150px;" />
                       {% else %}
                         <span class="text-muted">-</span>
                       {% endif %}
@@ -305,11 +309,11 @@
                       {% endif %}"
                       {% if not daily_sheet.locked %}title="Click to edit time"{% endif %}>
                       {% if entry.exit_time %}
-                        {{ entry.exit_time.strftime('%H:%M') }}
+                        {{ entry.exit_time.strftime('%I:%M %p') }}
                       {% else %}
                         <span class="text-warning">
                           <i class="bi bi-exclamation-triangle-fill"></i>
-                          Missing exit time
+                          Exit time?
                         </span>
                       {% endif %}
                     </span>
@@ -329,41 +333,47 @@
                         id="input-{{ entry.id }}"
                         value="{{ entry.exit_time.strftime('%H:%M') if entry.exit_time else '' }}"
                         step="900"
-                        class="inline-time-input form-control form-control-sm" />
+                        class="form-control"
+                        style="width: 150px;" />
                     </form>
                   </td>
                   <td class="overtime-cell">
                     <span id="overtime-{{ entry.id }}"
-                      >{{ "%.2f"|format(entry.calculate_overtime_hours()) }}
-                      hrs</span
+                      >{{ "%.2f"|format(entry.overtime_hours) }} hrs</span
                     >
                   </td>
                   {% if not daily_sheet.locked %}
-                    <td class="text-end" id="actions-{{ entry.id }}">
+                    <td id="actions-{{ entry.id }}">
                       <div
-                        class="btn-group btn-group-sm action-buttons"
-                        role="group">
-                        <button
-                          onclick="editEntry({{ entry.id }})"
-                          class="btn btn-outline-primary edit-btn">
-                          <i class="bi bi-pencil"></i>
-                        </button>
+                        class="btn-group action-buttons"
+                        role="group"
+                        id="edit-controls-{{ entry.id }}"
+                        style="display: none;">
                         <button
                           onclick="saveEntry({{ entry.id }})"
-                          class="btn btn-outline-success save-btn"
-                          style="display: none;">
-                          <i class="bi bi-check"></i>
+                          class="btn btn-outline-success save-btn">
+                          <i class="bi bi-check fs-6"></i>
                         </button>
                         <button
                           onclick="cancelEdit({{ entry.id }})"
-                          class="btn btn-outline-secondary cancel-btn"
-                          style="display: none;">
-                          <i class="bi bi-x"></i>
+                          class="btn btn-outline-secondary cancel-btn">
+                          <i class="bi bi-x fs-6"></i>
                         </button>
+                      </div>
+                      <div
+                        class="btn-group action-buttons"
+                        role="group"
+                        id="action-buttons-{{ entry.id }}">
+                        <div class="btn-group">
+                          <button
+                            onclick="editEntry({{ entry.id }})"
+                            class="btn btn-outline-primary edit-btn">
+                            <i class="bi bi-pencil fs-6"></i>
+                          </button>
+                        </div>
                         <form
                           method="POST"
                           action="{{ url_for('entries.delete', entry_id=entry.id) }}"
-                          style="display: inline;"
                           class="btn-group delete-form">
                           <input
                             type="hidden"
@@ -373,7 +383,7 @@
                             type="submit"
                             class="btn btn-outline-danger"
                             onclick="return confirm('Delete this entry?')">
-                            <i class="bi bi-trash"></i>
+                            <i class="bi bi-trash fs-6"></i>
                           </button>
                         </form>
                       </div>
@@ -394,7 +404,7 @@
                   >
                 </td>
                 {% if not daily_sheet.locked %}
-                  <td class="text-end"></td>
+                  <td></td>
                 {% endif %}
               </tr>
             </tfoot>
@@ -406,6 +416,52 @@
           <p>No entries for this date.</p>
         </div>
       {% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-center gap-3 mt-4 mb-4 sheet-actions">
+    <div
+      class="btn-wrapper"
+      {% if not daily_sheet.locked %}
+        data-tooltip="Disabled until sheet is locked"
+      {% endif %}>
+      <button
+        type="button"
+        class="btn btn-outline-primary"
+        onclick="copyToClipboard(event)"
+        {% if not daily_sheet.locked %}disabled{% endif %}>
+        <i class="bi bi-clipboard me-2"></i>Copy to Clipboard
+      </button>
+    </div>
+    <div
+      class="btn-wrapper"
+      {% if not daily_sheet.locked %}
+        data-tooltip="Disabled until sheet is locked"
+      {% endif %}>
+      <button
+        type="button"
+        class="btn btn-outline-secondary"
+        onclick="window.print()"
+        {% if not daily_sheet.locked %}disabled{% endif %}>
+        <i class="bi bi-printer me-2"></i>Print for Signing
+      </button>
+    </div>
+  </div>
+
+  <div class="signature-section print-only">
+    <div class="row mt-5">
+      <div class="col-6">
+        <div class="signature-line">
+          <div class="signature-label">Attending Signature</div>
+          <div class="signature-underline"></div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="signature-line">
+          <div class="signature-label">First Call Signature</div>
+          <div class="signature-underline"></div>
+        </div>
+      </div>
     </div>
   </div>
 {% endblock %}

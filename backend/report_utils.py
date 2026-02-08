@@ -41,7 +41,7 @@ def aggregate_entries_by_resident(entries) -> dict:
         if res_name not in resident_data:
             resident_data[res_name] = {"entries": [], "total_overtime": 0.0}
 
-        overtime = entry.calculate_overtime_hours()
+        overtime = entry.overtime_hours
         resident_data[res_name]["entries"].append(
             {
                 "date": entry.date.strftime("%Y-%m-%d"),
@@ -70,7 +70,7 @@ def generate_csv_content(entries) -> str:
                 entry.resident.name,
                 entry.role.name,
                 entry.exit_time.strftime("%H:%M") if entry.exit_time else "",
-                f"{entry.calculate_overtime_hours():.2f}",
+                f"{entry.overtime_hours:.2f}",
             ]
         )
 

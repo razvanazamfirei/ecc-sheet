@@ -48,7 +48,7 @@ def init_db():
         db.create_all()
 
         # Backup role names
-        backup_roles = {"Backup", "Cardiac Backup"}
+        backup_roles = {"Backup", "Cardiac Backup", "Moonlighting"}
 
         # Create default roles if they don't exist
         default_roles = [
@@ -70,6 +70,7 @@ def init_db():
             ("HUP EP 12", 16),
             ("Backup", 17),
             ("Cardiac Backup", 18),
+            ("Moonlighting", 19),
         ]
 
         for role_name, order in default_roles:

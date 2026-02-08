@@ -225,7 +225,8 @@ class TimeEntry(db.Model):
         Example:
         - Cutoff: 17:30
         - Exit: 02:30 AM -> Treated as 26:30 (next day) -> 9.0 hours overtime
-        - Exit: 20:00 -> Same day -> 2.5 hours overtime
+        - Exit: 16:00 -> Same day early exit -> 0 hours overtime
+        - Exits: 20:00 -> Same day -> 2.5 hours overtime
         - Backup role on Saturday, start: 09:00, exit: 17:00 -> 8.0 hours overtime
         """
         if not self.exit_time or not self.role:
@@ -242,23 +243,28 @@ class TimeEntry(db.Model):
                 exit_decimal += 24  # overnight shift
             return round(exit_decimal - start_decimal, 2)
 
-        # Convert cutoff time to decimal hours
+        # Convert cutoff and exit to decimal hours
         cutoff_hour = self.role.cutoff_hour
         cutoff_minute = (
             self.role.cutoff_minute if hasattr(self.role, "cutoff_minute") else 30
         )
         cutoff_time_decimal = cutoff_hour + cutoff_minute / 60.0
-
-        # Convert exit time to decimal hours
         exit_hour = self.exit_time.hour
         exit_minute = self.exit_time.minute
         exit_time_decimal = exit_hour + exit_minute / 60.0
 
-        # If exit time is before cutoff hour, assume it's next day (overnight shift)
-        # E.g., cutoff=17:30, exit=02:30 means 02:30 next day
+        # Distinguish overnight shifts from same-day early exits
+        # Overnight threshold: exit times before this are treated as next-day
+        overnight_threshold = 8.0
+
         if exit_time_decimal < cutoff_time_decimal:
-            # Add 24 hours to treat as next day
-            exit_time_decimal += 24.0
+            if exit_time_decimal < overnight_threshold:
+                # Early morning exit - overnight shift
+                # Add 24 hours to treat as next day
+                exit_time_decimal += 24.0
+            else:
+                # Afternoon exit before cutoff - same-day early departure
+                return 0.0
 
         # Calculate overtime
         overtime = exit_time_decimal - cutoff_time_decimal

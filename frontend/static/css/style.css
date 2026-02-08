@@ -20,9 +20,11 @@
   margin: 0;
 }
 
-.inline-time-input {
-  width: 100px;
-}
+/* .inline-time-input { */
+
+/*  width: 100px; */
+
+/* } */
 
 /* Action Buttons in Tables */
 .action-buttons {
@@ -65,14 +67,176 @@
   }
 }
 
+/* Sheet Actions */
+.sheet-actions {
+  gap: 1rem;
+}
+
+.sheet-actions .btn-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.sheet-actions .btn {
+  min-width: 200px;
+}
+
+.sheet-actions .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.sheet-actions .btn-wrapper[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background-color: #333;
+  color: white;
+  font-size: 14px;
+  white-space: nowrap;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 1000;
+}
+
+.sheet-actions .btn-wrapper[data-tooltip]::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 2px;
+  border: 6px solid transparent;
+  border-top-color: #333;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 1000;
+}
+
+.sheet-actions .btn-wrapper[data-tooltip]:hover::after,
+.sheet-actions .btn-wrapper[data-tooltip]:hover::before {
+  opacity: 1;
+}
+
+/* Signature Section */
+.signature-section {
+  display: none;
+}
+
+.print-only {
+  display: none;
+}
+
+.signature-line {
+  text-align: center;
+  padding: 20px;
+}
+
+.signature-label {
+  font-weight: bold;
+  margin-bottom: 40px;
+  font-size: 14px;
+}
+
+.signature-underline {
+  border-bottom: 2px solid black;
+  margin: 0 20px;
+  min-height: 1px;
+}
+
 /* Print Styles */
 @media print {
+  .table,
+  .table-light {
+    --bs-table-striped-bg: transparent;
+    --bs-table-hover-color: black;
+    --bs-table-hover-bg: transparent;
+    --bs-table-bg: transparent;
+    --bs-table-color: black;
+    --bs-table-striped-color: black;
+  }
+
   .navbar,
   .btn,
   .action-buttons,
   .edit-all-controls,
   .sheet-controls,
-  .export-options {
+  .sheet-actions,
+  .export-options,
+  .date-navigation,
+  .alert,
+  .add-entry-form,
+  .entries-header .btn-group-sm,
+  .text-warning,
+  tfoot,
+  footer,
+  i {
     display: none !important;
+  }
+
+  .overtime-cell {
+    font-weight: revert;
+  }
+
+  .entries-header {
+    padding-inline: 0 !important;
+    background: transparent !important;
+  }
+
+  .bg-secondary {
+    background-color: transparent !important;
+  }
+
+  .badge {
+    padding: 0 !important;
+    background-color: transparent !important;
+    color: black !important;
+    font-weight: revert;
+    font-size: unset;
+  }
+
+  .text-muted {
+    color: black !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .signature-section {
+    display: block !important;
+    break-before: avoid;
+    margin-top: 50px;
+  }
+
+  .card {
+    border: none;
+    box-shadow: none;
+  }
+
+  .table {
+    border: 1px solid black;
+  }
+
+  .table th,
+  .table td {
+    border: 1px solid black;
+    padding: 8px;
+  }
+
+  body {
+    margin: 0;
+    padding: 20px;
+  }
+
+  h2 {
+    margin-bottom: 10px;
   }
 }

@@ -119,25 +119,21 @@ describe("Daily Sheet Functions", () => {
       const mockInput = { value: "18:00", focus: () => {} };
       const mockDisplay = { style: { display: "" } };
       const mockForm = { style: { display: "" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return { style: { display: "" } };
-          if (selector === ".save-btn") return { style: { display: "" } };
-          if (selector === ".cancel-btn") return { style: { display: "" } };
-          if (selector === ".delete-form") return { style: { display: "" } };
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "" } };
+      const mockActionButtons = { style: { display: "" } };
 
       mockElements["input-1"] = mockInput;
       mockElements["display-1"] = mockDisplay;
       mockElements["form-1"] = mockForm;
-      mockElements["actions-1"] = mockActionsCell;
+      mockElements["edit-controls-1"] = mockEditControls;
+      mockElements["action-buttons-1"] = mockActionButtons;
 
       exportedFunctions.editEntry(1);
 
       expect(mockDisplay.style.display).toBe("none");
       expect(mockForm.style.display).toBe("inline");
+      expect(mockEditControls.style.display).toBe("inline-flex");
+      expect(mockActionButtons.style.display).toBe("none");
     });
   });
 
@@ -158,24 +154,14 @@ describe("Daily Sheet Functions", () => {
       const mockInput = { value: "19:00", focus: () => {} };
       const mockDisplay = { style: { display: "none" } };
       const mockForm = { style: { display: "inline" } };
-      const editBtn = { style: { display: "none" } };
-      const saveBtn = { style: { display: "inline-block" } };
-      const cancelBtn = { style: { display: "inline-block" } };
-      const deleteForm = { style: { display: "none" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return editBtn;
-          if (selector === ".save-btn") return saveBtn;
-          if (selector === ".cancel-btn") return cancelBtn;
-          if (selector === ".delete-form") return deleteForm;
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "inline-flex" } };
+      const mockActionButtons = { style: { display: "none" } };
 
       mockElements["input-2"] = mockInput;
       mockElements["display-2"] = mockDisplay;
       mockElements["form-2"] = mockForm;
-      mockElements["actions-2"] = mockActionsCell;
+      mockElements["edit-controls-2"] = mockEditControls;
+      mockElements["action-buttons-2"] = mockActionButtons;
 
       // First edit to store original value
       exportedFunctions.editEntry(2);
@@ -184,15 +170,19 @@ describe("Daily Sheet Functions", () => {
 
       expect(mockDisplay.style.display).toBe("inline");
       expect(mockForm.style.display).toBe("none");
-      expect(editBtn.style.display).toBe("inline-block");
-      expect(saveBtn.style.display).toBe("none");
-      expect(cancelBtn.style.display).toBe("none");
-      expect(deleteForm.style.display).toBe("inline");
+      expect(mockEditControls.style.display).toBe("none");
+      expect(mockActionButtons.style.display).toBe("inline-flex");
     });
   });
 
   describe("toggleEditAll", () => {
     test("enables edit mode for all entries when toggled on", () => {
+      const buttonContainer = {
+        classList: {
+          add: () => {},
+          remove: () => {},
+        },
+      };
       const editAllBtn = {
         innerHTML: '<i class="bi bi-pencil-square me-1"></i>Edit All',
         classList: {
@@ -202,6 +192,7 @@ describe("Daily Sheet Functions", () => {
       };
       const saveAllBtn = { style: { display: "none" } };
 
+      mockElements["edit-all-controls"] = buttonContainer;
       mockElements["edit-all-btn"] = editAllBtn;
       mockElements["save-all-btn"] = saveAllBtn;
 
@@ -216,9 +207,8 @@ describe("Daily Sheet Functions", () => {
         mockElements[`input-${id}`] = { value: "18:00", focus: () => {} };
         mockElements[`display-${id}`] = { style: { display: "" } };
         mockElements[`form-${id}`] = { style: { display: "" } };
-        mockElements[`actions-${id}`] = {
-          querySelector: () => ({ style: { display: "" } }),
-        };
+        mockElements[`edit-controls-${id}`] = { style: { display: "" } };
+        mockElements[`action-buttons-${id}`] = { style: { display: "" } };
       });
 
       exportedFunctions.toggleEditAll();
@@ -305,22 +295,16 @@ describe("Daily Sheet Functions", () => {
       const mockStartDisplay = { style: { display: "inline" } };
       const mockDisplay = { style: { display: "" } };
       const mockForm = { style: { display: "" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return { style: { display: "" } };
-          if (selector === ".save-btn") return { style: { display: "" } };
-          if (selector === ".cancel-btn") return { style: { display: "" } };
-          if (selector === ".delete-form") return { style: { display: "" } };
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "" } };
+      const mockActionButtons = { style: { display: "" } };
 
       mockElements["input-3"] = mockInput;
       mockElements["start-input-3"] = mockStartInput;
       mockElements["start-display-3"] = mockStartDisplay;
       mockElements["display-3"] = mockDisplay;
       mockElements["form-3"] = mockForm;
-      mockElements["actions-3"] = mockActionsCell;
+      mockElements["edit-controls-3"] = mockEditControls;
+      mockElements["action-buttons-3"] = mockActionButtons;
 
       exportedFunctions.editEntry(3);
 
@@ -336,26 +320,16 @@ describe("Daily Sheet Functions", () => {
       const mockStartDisplay = { style: { display: "none" } };
       const mockDisplay = { style: { display: "none" } };
       const mockForm = { style: { display: "inline" } };
-      const editBtn = { style: { display: "none" } };
-      const saveBtn = { style: { display: "inline-block" } };
-      const cancelBtn = { style: { display: "inline-block" } };
-      const deleteForm = { style: { display: "none" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return editBtn;
-          if (selector === ".save-btn") return saveBtn;
-          if (selector === ".cancel-btn") return cancelBtn;
-          if (selector === ".delete-form") return deleteForm;
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "inline-flex" } };
+      const mockActionButtons = { style: { display: "none" } };
 
       mockElements["input-4"] = mockInput;
       mockElements["start-input-4"] = mockStartInput;
       mockElements["start-display-4"] = mockStartDisplay;
       mockElements["display-4"] = mockDisplay;
       mockElements["form-4"] = mockForm;
-      mockElements["actions-4"] = mockActionsCell;
+      mockElements["edit-controls-4"] = mockEditControls;
+      mockElements["action-buttons-4"] = mockActionButtons;
 
       // First edit to store original value
       exportedFunctions.editEntry(4);
@@ -375,24 +349,14 @@ describe("Daily Sheet Functions", () => {
       const mockInput = { value: "18:00", focus: () => {} };
       const mockDisplay = { style: { display: "none" } };
       const mockForm = { style: { display: "inline" } };
-      const editBtn = { style: { display: "none" } };
-      const saveBtn = { style: { display: "inline-block" } };
-      const cancelBtn = { style: { display: "inline-block" } };
-      const deleteForm = { style: { display: "none" } };
-      const mockActionsCell = {
-        querySelector: (selector) => {
-          if (selector === ".edit-btn") return editBtn;
-          if (selector === ".save-btn") return saveBtn;
-          if (selector === ".cancel-btn") return cancelBtn;
-          if (selector === ".delete-form") return deleteForm;
-          return null;
-        },
-      };
+      const mockEditControls = { style: { display: "inline-flex" } };
+      const mockActionButtons = { style: { display: "none" } };
 
       mockElements["input-5"] = mockInput;
       mockElements["display-5"] = mockDisplay;
       mockElements["form-5"] = mockForm;
-      mockElements["actions-5"] = mockActionsCell;
+      mockElements["edit-controls-5"] = mockEditControls;
+      mockElements["action-buttons-5"] = mockActionButtons;
 
       // Edit the entry - this stores the original value "18:00"
       exportedFunctions.editEntry(5);
@@ -409,6 +373,12 @@ describe("Daily Sheet Functions", () => {
   describe("toggleEditAll cancel mode", () => {
     test("verifies toggle behavior by checking state changes", () => {
       // Start with edit mode button that tracks its state
+      const buttonContainer = {
+        classList: {
+          add: () => {},
+          remove: () => {},
+        },
+      };
       const editAllBtn = {
         innerHTML: '<i class="bi bi-pencil-square me-1"></i>Edit All',
         classList: {
@@ -418,6 +388,7 @@ describe("Daily Sheet Functions", () => {
       };
       const saveAllBtn = { style: { display: "none" } };
 
+      mockElements["edit-all-controls"] = buttonContainer;
       mockElements["edit-all-btn"] = editAllBtn;
       mockElements["save-all-btn"] = saveAllBtn;
 
@@ -426,9 +397,8 @@ describe("Daily Sheet Functions", () => {
         mockElements[`input-${id}`] = { value: "18:00", focus: () => {} };
         mockElements[`display-${id}`] = { style: { display: "" } };
         mockElements[`form-${id}`] = { style: { display: "" } };
-        mockElements[`actions-${id}`] = {
-          querySelector: () => ({ style: { display: "" } }),
-        };
+        mockElements[`edit-controls-${id}`] = { style: { display: "" } };
+        mockElements[`action-buttons-${id}`] = { style: { display: "" } };
       });
 
       global.document.querySelectorAll = () => [

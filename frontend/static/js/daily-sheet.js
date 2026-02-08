@@ -1,10 +1,110 @@
 /**
  * Daily Sheet Page JavaScript
- * Handles entry editing, bulk save, and auto-lock countdown
+ * Handles entry editing, bulk save, auto-lock countdown, and clipboard copy
  */
-
 let editAllMode = false;
 const originalValues = {};
+
+/**
+ * Copies the daily sheet as a basic HTML table to clipboard
+ * @param {Event} event - The click event
+ */
+async function copyToClipboard(event) {
+  const rows = document.querySelectorAll("[data-entry-id]");
+  const dateElement = document.getElementById("sheet-date");
+  const isWeekendOrHoliday =
+    document.querySelector(".start-time-cell") !== null;
+
+  if (!rows.length) {
+    alert("No entries to copy");
+    return;
+  }
+
+  const dateText = dateElement
+    ? dateElement.textContent.trim().split("\n")[0].trim()
+    : "";
+
+  let html = `<p>Attached is the resident ECC sheet for ${dateText}.</p>`;
+  html += "<table>";
+  html += "<thead><tr>";
+  html += "<th>Role</th>";
+  html += "<th>Name</th>";
+  if (isWeekendOrHoliday) {
+    html += "<th>Start Time</th>";
+  }
+  html += "<th>Overtime</th>";
+  html += "</tr></thead>";
+  html += "<tbody>";
+
+  let totalOvertime = 0;
+
+  rows.forEach((row) => {
+    const exitCell = row.querySelector(".exit-time-cell");
+    const hasMissingData = exitCell && exitCell.classList.contains("missing");
+
+    if (hasMissingData) {
+      return;
+    }
+
+    const roleElement = row.querySelector("td:nth-child(1) .badge");
+    const nameElement = row.querySelector("td:nth-child(2)");
+    const overtimeElement = row.querySelector(".overtime-cell span");
+
+    const role = roleElement ? roleElement.textContent.trim() : "";
+    const name = nameElement ? nameElement.textContent.trim() : "";
+    const overtime = overtimeElement ? overtimeElement.textContent.trim() : "";
+
+    html += "<tr>";
+    html += `<td>${role}</td>`;
+    html += `<td>${name}</td>`;
+
+    if (isWeekendOrHoliday) {
+      const startElement = row.querySelector(".start-time-cell span");
+      const start = startElement ? startElement.textContent.trim() : "-";
+      html += `<td>${start}</td>`;
+    }
+
+    html += `<td>${overtime}</td>`;
+    html += "</tr>";
+
+    const overtimeMatch = overtime.match(/[\d.]+/);
+    if (overtimeMatch) {
+      totalOvertime += parseFloat(overtimeMatch[0]);
+    }
+  });
+
+  html += "</tbody>";
+  html += "<tfoot><tr>";
+  html += `<td colspan='${isWeekendOrHoliday ? "3" : "2"}'><strong>Total Overtime:</strong></td>`;
+  html += `<td><strong>${totalOvertime.toFixed(2)} hrs</strong></td>`;
+  html += "</tr></tfoot>";
+  html += "</table>";
+
+  try {
+    const htmlBlob = new Blob([html], { type: "text/html" });
+    const textBlob = new Blob([html], { type: "text/plain" });
+    const clipboardItem = new ClipboardItem({
+      "text/html": htmlBlob,
+      "text/plain": textBlob,
+    });
+
+    await navigator.clipboard.write([clipboardItem]);
+
+    const btn = event.target.closest("button");
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+    btn.classList.remove("btn-outline-primary");
+    btn.classList.add("btn-success");
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+      btn.classList.remove("btn-success");
+      btn.classList.add("btn-outline-primary");
+    }, 2000);
+  } catch (err) {
+    alert("Failed to copy to clipboard. Please try again.");
+    console.error("Clipboard error:", err);
+  }
+}
 
 /**
  * Shows confirmation dialog when locking sheet with missing exit times
@@ -39,7 +139,9 @@ function editEntry(entryId) {
     originalValues[entryId].start = startInput.value;
     // Show start time input
     const startDisplay = document.getElementById("start-display-" + entryId);
-    if (startDisplay) startDisplay.style.display = "none";
+    if (startDisplay) {
+      startDisplay.style.display = "none";
+    }
     startInput.style.display = "inline";
   }
 
@@ -48,11 +150,10 @@ function editEntry(entryId) {
   document.getElementById("form-" + entryId).style.display = "inline";
 
   // Toggle buttons
-  const actionsCell = document.getElementById("actions-" + entryId);
-  actionsCell.querySelector(".edit-btn").style.display = "none";
-  actionsCell.querySelector(".save-btn").style.display = "inline-block";
-  actionsCell.querySelector(".cancel-btn").style.display = "inline-block";
-  actionsCell.querySelector(".delete-form").style.display = "none";
+  const editBtnGroup = document.getElementById("edit-controls-" + entryId);
+  const actionsGroup = document.getElementById("action-buttons-" + entryId);
+  actionsGroup.style.display = "none";
+  editBtnGroup.style.display = "inline-flex";
 
   // Focus the input
   input.focus();
@@ -90,19 +191,22 @@ function cancelEdit(entryId) {
   // Hide start time input if it exists
   const startInput = document.getElementById("start-input-" + entryId);
   const startDisplay = document.getElementById("start-display-" + entryId);
-  if (startInput) startInput.style.display = "none";
-  if (startDisplay) startDisplay.style.display = "inline";
+  if (startInput) {
+    startInput.style.display = "none";
+  }
+  if (startDisplay) {
+    startDisplay.style.display = "inline";
+  }
 
   // Toggle visibility
   document.getElementById("display-" + entryId).style.display = "inline";
   document.getElementById("form-" + entryId).style.display = "none";
 
   // Toggle buttons
-  const actionsCell = document.getElementById("actions-" + entryId);
-  actionsCell.querySelector(".edit-btn").style.display = "inline-block";
-  actionsCell.querySelector(".save-btn").style.display = "none";
-  actionsCell.querySelector(".cancel-btn").style.display = "none";
-  actionsCell.querySelector(".delete-form").style.display = "inline";
+  const editBtnGroup = document.getElementById("edit-controls-" + entryId);
+  const actionsGroup = document.getElementById("action-buttons-" + entryId);
+  actionsGroup.style.display = "inline-flex";
+  editBtnGroup.style.display = "none";
 }
 
 /**
@@ -110,11 +214,13 @@ function cancelEdit(entryId) {
  */
 function toggleEditAll() {
   editAllMode = !editAllMode;
+  const buttonContainer = document.getElementById("edit-all-controls");
   const editAllBtn = document.getElementById("edit-all-btn");
   const saveAllBtn = document.getElementById("save-all-btn");
 
   if (editAllMode) {
     // Enable edit mode for all entries
+    buttonContainer.classList.add("btn-group");
     editAllBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel All';
     editAllBtn.classList.remove("btn-outline-secondary");
     editAllBtn.classList.add("btn-warning");
@@ -129,6 +235,7 @@ function toggleEditAll() {
   } else {
     // Disable edit mode for all entries
     editAllBtn.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Edit All';
+    buttonContainer.classList.remove("btn-group");
     editAllBtn.classList.remove("btn-warning");
     editAllBtn.classList.add("btn-outline-secondary");
     saveAllBtn.style.display = "none";
@@ -225,6 +332,7 @@ window.saveEntry = saveEntry;
 window.cancelEdit = cancelEdit;
 window.toggleEditAll = toggleEditAll;
 window.saveAll = saveAll;
+window.copyToClipboard = copyToClipboard;
 
 /**
  * Toggles start time field visibility based on selected role
@@ -233,7 +341,9 @@ function toggleStartTimeField() {
   const roleSelect = document.getElementById("role_id");
   const startTimeContainer = document.getElementById("start_time_container");
 
-  if (!roleSelect || !startTimeContainer) return;
+  if (!roleSelect || !startTimeContainer) {
+    return;
+  }
 
   const selectedOption = roleSelect.options[roleSelect.selectedIndex];
   const isBackup = selectedOption?.dataset?.isBackup === "true";

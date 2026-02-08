@@ -532,7 +532,7 @@ class TestTimeEntryModel:
             db.session.commit()
 
             # All 8 hours should be overtime on weekend backup
-            overtime = entry.calculate_overtime_hours()
+            overtime = entry.overtime_hours
             assert overtime == 8.0
 
             db.session.delete(entry)
@@ -575,7 +575,7 @@ class TestTimeEntryModel:
             db.session.commit()
 
             # All 8 hours should be overtime on custom holiday backup
-            overtime = entry.calculate_overtime_hours()
+            overtime = entry.overtime_hours
             assert overtime == 8.0
 
             db.session.delete(entry)
@@ -612,7 +612,7 @@ class TestTimeEntryModel:
             db.session.commit()
 
             # Should calculate from default start (08:00) to 17:00 = 9 hours
-            overtime = entry.calculate_overtime_hours()
+            overtime = entry.overtime_hours
             assert overtime == 9.0
 
             db.session.delete(entry)
@@ -645,7 +645,7 @@ class TestTimeEntryModel:
             db.session.commit()
 
             # Should calculate overnight: 20:00 to 30:00 (6 AM next day) = 10 hours
-            overtime = entry.calculate_overtime_hours()
+            overtime = entry.overtime_hours
             assert overtime == 10.0
 
             db.session.delete(entry)
@@ -664,7 +664,7 @@ class TestTimeEntryModel:
             db.session.add(entry)
             db.session.commit()
 
-            assert entry.calculate_overtime_hours() == 0.0
+            assert entry.overtime_hours == 0.0
 
             db.session.delete(entry)
             db.session.commit()
@@ -686,7 +686,7 @@ class TestTimeEntryModel:
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
             # Property should return same as method
-            assert entry.overtime_hours == entry.calculate_overtime_hours()
+            assert entry.overtime_hours == entry.overtime_hours
 
     def test_time_entry_repr_with_resident(self, app, sample_resident, sample_role):
         """Test TimeEntry __repr__ with resident."""

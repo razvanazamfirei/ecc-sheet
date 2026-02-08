@@ -328,6 +328,23 @@ uv run flask --app backend.app db history
 - Import schedule from Amion
 - View lock status with user and timestamp
 
+**Copy to Clipboard (Locked Sheets Only):**
+
+- Generates HTML table suitable for email
+- Includes: Role, Name, Start Time (if weekend/holiday), Overtime
+- Omits entries without exit times
+- Includes introductory message with date
+- Copies to clipboard in HTML format for rich email clients
+- Button disabled with tooltip until sheet is locked
+
+**Print for Signing (Locked Sheets Only):**
+
+- Opens print-friendly view
+- Minimally formatted for clean printing
+- Includes signature lines for Attending and First Call
+- Hides UI elements (buttons, navigation, alerts)
+- Button disabled with tooltip until sheet is locked
+
 **Backup Role Support:**
 
 - Special roles with start and exit times

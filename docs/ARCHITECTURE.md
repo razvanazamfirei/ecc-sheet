@@ -316,15 +316,15 @@ Modular route organization for better code structure:
 - `Role` - Shift roles (ECC 1-5, ECA, backup roles, etc.)
   - 18 default roles configured
 - `TimeEntry` - Individual shift records
-  - Methods: `calculate_overtime_hours()`
+  - Methods: `entry.overtime_hours`
 - `DailySheet` - Sheet metadata (locked, submitted)
 - `AuditLog` - Change tracking
 - `Holiday` - Custom and federal holidays
 
 **Business Logic:**
 
-- `TimeEntry.calculate_overtime_hours()` - Calculates overtime based on role
-  cutoff and holiday awareness
+- `TimeEntry.overtime_hours` - Calculates overtime based on role cutoff and
+  holiday awareness
 - `Resident.get_or_create()` - Finds or creates resident by EPIC ID
 - `Holiday` utilities for federal and custom holidays
 
@@ -581,37 +581,31 @@ Configured in database, editable via UI:
 ### Implemented ✅
 
 1. **CSRF Protection**
-
    - Flask-WTF CSRFProtect enabled
    - All POST requests require token
    - Tokens in all templates
 
 2. **Input Validation**
-
    - WTForms schema validation
    - Type coercion (strings → dates/times)
    - Length limits enforced
 
 3. **SQL Injection Prevention**
-
    - SQLAlchemy ORM (parameterized queries)
    - No raw SQL execution
    - Use of `db.session.get()` for safe queries
 
 4. **XSS Prevention**
-
    - Jinja2 auto-escaping enabled
    - All user input escaped
 
 5. **Error Handling**
-
    - Custom exception classes
    - Try-catch blocks on all DB operations
    - Graceful degradation
    - Error logging
 
 6. **Logging**
-
    - Application logging configured
    - All errors logged
    - Audit trail for all actions
@@ -624,18 +618,15 @@ Configured in database, editable via UI:
 ### Not Implemented ❌
 
 1. **Authentication**
-
    - No user login system
    - No password management
    - Must use external auth (SSO, reverse proxy)
 
 2. **Rate Limiting**
-
    - No request throttling
    - Vulnerable to abuse without external protection
 
 3. **HTTPS**
-
    - HTTP only (local dev)
    - Must configure SSL/TLS in production
 
@@ -719,11 +710,9 @@ Internet
 ### Bottlenecks
 
 1. **Email sending (SMTP timeout)**
-
    - Mitigation: Async email sending (future enhancement)
 
 2. **Database locks (concurrent writes)**
-
    - Mitigation: Write transactions are fast (< 10ms)
 
 3. **Amion API calls (network latency)**

@@ -170,12 +170,8 @@ class TestOvertimeCalculation:
             db.session.commit()
 
             # Before cutoff and not in AM hours, so treated as early departure
-            # Based on the logic: if exit < cutoff, add 24 hours (overnight)
-            # 15:00 < 17:30, so it becomes 39:00 → 21.5 hours overtime
-            # Actually, we need to check the logic - let me reconsider
-            # The current logic treats ANY time before cutoff as overnight
-            # This might be intended behavior for overnight shifts only
-            assert entry.overtime_hours == 21.5
+            # Exit time 15:00 is after overnight threshold (8:00), so no overtime
+            assert entry.overtime_hours == 0.0
 
     def test_late_night_overtime(self, app, sample_resident, sample_role):
         """Test overtime for late night (before midnight)"""
