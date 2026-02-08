@@ -316,7 +316,7 @@ Modular route organization for better code structure:
 - `Role` - Shift roles (ECC 1-5, ECA, backup roles, etc.)
   - 18 default roles configured
 - `TimeEntry` - Individual shift records
-  - Methods: `entry.overtime_hours`
+  - Property: `entry.overtime_hours`
 - `DailySheet` - Sheet metadata (locked, submitted)
 - `AuditLog` - Change tracking
 - `Holiday` - Custom and federal holidays

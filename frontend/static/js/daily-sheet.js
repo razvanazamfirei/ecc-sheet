@@ -110,16 +110,19 @@ async function copyToClipboard(event) {
 
     await navigator.clipboard.write([clipboardItem]);
 
-    const btn = event.target.closest("button");
-    const originalHTML = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
-    btn.classList.remove("btn-outline-primary");
-    btn.classList.add("btn-success");
-    setTimeout(() => {
-      btn.innerHTML = originalHTML;
-      btn.classList.remove("btn-success");
-      btn.classList.add("btn-outline-primary");
-    }, 2000);
+    // Update button UI if event came from a button click
+    const btn = event?.target?.closest("button");
+    if (btn) {
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+      btn.classList.remove("btn-outline-primary");
+      btn.classList.add("btn-success");
+      setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.classList.remove("btn-success");
+        btn.classList.add("btn-outline-primary");
+      }, 2000);
+    }
   } catch (err) {
     alert("Failed to copy to clipboard. Please try again.");
     console.error("Clipboard error:", err);
@@ -370,6 +373,9 @@ function toggleStartTimeField() {
 
   startTimeContainer.style.display = isBackup ? "block" : "none";
 }
+
+// Expose for testing
+window.toggleStartTimeField = toggleStartTimeField;
 
 /**
  * Initialize role select change handler

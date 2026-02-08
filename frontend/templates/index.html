@@ -244,7 +244,10 @@
             <tbody>
               {% for entry in time_entries %}
                 <tr
-                  class="align-middle{% if not entry.exit_time %}entry-missing-data{% endif %}"
+                  class="align-middle
+                  {% if not entry.exit_time %}
+                    entry-missing-data
+                  {% endif %}"
                   id="entry-row-{{ entry.id }}"
                   data-entry-id="{{ entry.id }}"
                   data-role-is-backup="{{ entry.role.is_backup|lower }}">
@@ -337,9 +340,9 @@
                     </form>
                   </td>
                   <td class="overtime-cell">
-                    <span id="overtime-{{ entry.id }}"
-                      >{{ "%.2f"|format(entry.overtime_hours) }} hrs</span
-                    >
+                    <span id="overtime-{{ entry.id }}">
+                      {{ "%.2f"|format(entry.overtime_hours) }} hrs
+                    </span>
                   </td>
                   {% if not daily_sheet.locked %}
                     <td id="actions-{{ entry.id }}">

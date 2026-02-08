@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
+from .config import Config
 from .holidays import is_weekend_or_holiday
 
 db = SQLAlchemy()
@@ -255,15 +256,15 @@ class TimeEntry(db.Model):
 
         # Distinguish overnight shifts from same-day early exits
         # Overnight threshold: exit times before this are treated as next-day
-        overnight_threshold = 8.0
+        overnight_threshold = Config.DAY_RESET_HOUR
 
         if exit_time_decimal < cutoff_time_decimal:
             if exit_time_decimal < overnight_threshold:
-                # Early morning exit - overnight shift
+                # Early morning exit (before half-cutoff) - overnight shift
                 # Add 24 hours to treat as next day
                 exit_time_decimal += 24.0
             else:
-                # Afternoon exit before cutoff - same-day early departure
+                # Exit before cutoff but after threshold - same-day early departure
                 return 0.0
 
         # Calculate overtime

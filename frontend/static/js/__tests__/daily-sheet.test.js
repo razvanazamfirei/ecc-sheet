@@ -70,6 +70,7 @@ beforeAll(async () => {
     toggleEditAll: global.window.toggleEditAll,
     saveAll: global.window.saveAll,
     copyToClipboard: global.window.copyToClipboard,
+    toggleStartTimeField: global.window.toggleStartTimeField,
   };
 });
 
@@ -652,7 +653,6 @@ describe("Daily Sheet Functions", () => {
           { dataset: { isBackup: "true" } },
         ],
         selectedIndex: 1,
-        addEventListener: () => {},
       };
 
       const mockStartTimeContainer = { style: { display: "none" } };
@@ -660,15 +660,7 @@ describe("Daily Sheet Functions", () => {
       mockElements["role_id"] = mockRoleSelect;
       mockElements["start_time_container"] = mockStartTimeContainer;
 
-      // Import and call the initialization that sets up the role select
-      const roleSelect = mockElements["role_id"];
-      const startTimeContainer = mockElements["start_time_container"];
-
-      if (roleSelect && startTimeContainer) {
-        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
-        const isBackup = selectedOption?.dataset?.isBackup === "true";
-        startTimeContainer.style.display = isBackup ? "block" : "none";
-      }
+      exportedFunctions.toggleStartTimeField();
 
       expect(mockStartTimeContainer.style.display).toBe("block");
     });
@@ -680,7 +672,6 @@ describe("Daily Sheet Functions", () => {
           { dataset: { isBackup: "true" } },
         ],
         selectedIndex: 0,
-        addEventListener: () => {},
       };
 
       const mockStartTimeContainer = { style: { display: "block" } };
@@ -688,55 +679,39 @@ describe("Daily Sheet Functions", () => {
       mockElements["role_id"] = mockRoleSelect;
       mockElements["start_time_container"] = mockStartTimeContainer;
 
-      const roleSelect = mockElements["role_id"];
-      const startTimeContainer = mockElements["start_time_container"];
-
-      if (roleSelect && startTimeContainer) {
-        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
-        const isBackup = selectedOption?.dataset?.isBackup === "true";
-        startTimeContainer.style.display = isBackup ? "block" : "none";
-      }
+      exportedFunctions.toggleStartTimeField();
 
       expect(mockStartTimeContainer.style.display).toBe("none");
     });
 
     test("handles missing role select element gracefully", () => {
       mockElements["role_id"] = null;
-      mockElements["start_time_container"] = { style: { display: "" } };
+      const mockStartTimeContainer = { style: { display: "block" } };
+      mockElements["start_time_container"] = mockStartTimeContainer;
 
-      const roleSelect = mockElements["role_id"];
-      const startTimeContainer = mockElements["start_time_container"];
+      exportedFunctions.toggleStartTimeField();
 
-      if (!roleSelect || !startTimeContainer) {
-        // Should return early
-        expect(roleSelect).toBe(null);
-      }
+      // Should return early without error, display unchanged
+      expect(mockStartTimeContainer.style.display).toBe("block");
     });
 
     test("handles missing start time container gracefully", () => {
       const mockRoleSelect = {
-        options: [{ dataset: { isBackup: "false" } }],
+        options: [{ dataset: { isBackup: "true" } }],
         selectedIndex: 0,
-        addEventListener: () => {},
       };
 
       mockElements["role_id"] = mockRoleSelect;
       mockElements["start_time_container"] = null;
 
-      const roleSelect = mockElements["role_id"];
-      const startTimeContainer = mockElements["start_time_container"];
-
-      if (!roleSelect || !startTimeContainer) {
-        // Should return early
-        expect(startTimeContainer).toBe(null);
-      }
+      // Should not throw an error
+      expect(() => exportedFunctions.toggleStartTimeField()).not.toThrow();
     });
 
     test("handles role with no dataset attribute", () => {
       const mockRoleSelect = {
         options: [{}],
         selectedIndex: 0,
-        addEventListener: () => {},
       };
 
       const mockStartTimeContainer = { style: { display: "block" } };
@@ -744,14 +719,7 @@ describe("Daily Sheet Functions", () => {
       mockElements["role_id"] = mockRoleSelect;
       mockElements["start_time_container"] = mockStartTimeContainer;
 
-      const roleSelect = mockElements["role_id"];
-      const startTimeContainer = mockElements["start_time_container"];
-
-      if (roleSelect && startTimeContainer) {
-        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
-        const isBackup = selectedOption?.dataset?.isBackup === "true";
-        startTimeContainer.style.display = isBackup ? "block" : "none";
-      }
+      exportedFunctions.toggleStartTimeField();
 
       expect(mockStartTimeContainer.style.display).toBe("none");
     });

@@ -75,3 +75,4 @@ frontend/static/dist/
 
 # Keep the directory structure but ignore compiled files
 !static/js/.gitkeep
+junit.xml
