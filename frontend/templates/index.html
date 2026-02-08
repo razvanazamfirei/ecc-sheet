@@ -244,11 +244,10 @@
             <tbody>
               {% for entry in time_entries %}
                 <tr
-                  class="align-middle"
+                  class="align-middle{% if not entry.exit_time %}entry-missing-data{% endif %}"
                   id="entry-row-{{ entry.id }}"
                   data-entry-id="{{ entry.id }}"
-                  data-role-is-backup="{{ entry.role.is_backup|lower }}"
-                  {% if not entry.exit_time %}class="entry-missing-data"{% endif %}>
+                  data-role-is-backup="{{ entry.role.is_backup|lower }}">
                   <td>
                     <span class="badge bg-secondary"
                       >{{ entry.role.name }}</span

@@ -6,6 +6,17 @@ let editAllMode = false;
 const originalValues = {};
 
 /**
+ * Escapes HTML special characters to prevent XSS
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped text
+ */
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
  * Copies the daily sheet as a basic HTML table to clipboard
  * @param {Event} event - The click event
  */
@@ -24,7 +35,7 @@ async function copyToClipboard(event) {
     ? dateElement.textContent.trim().split("\n")[0].trim()
     : "";
 
-  let html = `<p>Attached is the resident ECC sheet for ${dateText}.</p>`;
+  let html = `<p>Attached is the resident ECC sheet for ${escapeHtml(dateText)}.</p>`;
   html += "<table>";
   html += "<thead><tr>";
   html += "<th>Role</th>";
@@ -35,6 +46,9 @@ async function copyToClipboard(event) {
   html += "<th>Overtime</th>";
   html += "</tr></thead>";
   html += "<tbody>";
+
+  let plainText = `Attached is the resident ECC sheet for ${dateText}.\n\n`;
+  plainText += `Role\tName${isWeekendOrHoliday ? "\tStart Time" : ""}\tOvertime\n`;
 
   let totalOvertime = 0;
 
@@ -55,17 +69,21 @@ async function copyToClipboard(event) {
     const overtime = overtimeElement ? overtimeElement.textContent.trim() : "";
 
     html += "<tr>";
-    html += `<td>${role}</td>`;
-    html += `<td>${name}</td>`;
+    html += `<td>${escapeHtml(role)}</td>`;
+    html += `<td>${escapeHtml(name)}</td>`;
+
+    plainText += `${role}\t${name}`;
 
     if (isWeekendOrHoliday) {
       const startElement = row.querySelector(".start-time-cell span");
       const start = startElement ? startElement.textContent.trim() : "-";
-      html += `<td>${start}</td>`;
+      html += `<td>${escapeHtml(start)}</td>`;
+      plainText += `\t${start}`;
     }
 
-    html += `<td>${overtime}</td>`;
+    html += `<td>${escapeHtml(overtime)}</td>`;
     html += "</tr>";
+    plainText += `\t${overtime}\n`;
 
     const overtimeMatch = overtime.match(/[\d.]+/);
     if (overtimeMatch) {
@@ -80,9 +98,11 @@ async function copyToClipboard(event) {
   html += "</tr></tfoot>";
   html += "</table>";
 
+  plainText += `\nTotal Overtime: ${totalOvertime.toFixed(2)} hrs`;
+
   try {
     const htmlBlob = new Blob([html], { type: "text/html" });
-    const textBlob = new Blob([html], { type: "text/plain" });
+    const textBlob = new Blob([plainText], { type: "text/plain" });
     const clipboardItem = new ClipboardItem({
       "text/html": htmlBlob,
       "text/plain": textBlob,

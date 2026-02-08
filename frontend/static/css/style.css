@@ -20,12 +20,6 @@
   margin: 0;
 }
 
-/* .inline-time-input { */
-
-/*  width: 100px; */
-
-/* } */
-
 /* Action Buttons in Tables */
 .action-buttons {
   display: flex;
@@ -177,7 +171,8 @@
   .text-warning,
   tfoot,
   footer,
-  i {
+  i.bi,
+  .bi {
     display: none !important;
   }
 

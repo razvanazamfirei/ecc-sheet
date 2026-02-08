@@ -27,6 +27,22 @@ beforeAll(async () => {
     querySelector: mockQuerySelector,
     readyState: "complete",
     addEventListener: () => {},
+    createElement: (tag) => {
+      let text = "";
+      return {
+        set textContent(value) {
+          text = value;
+        },
+        get innerHTML() {
+          return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        },
+      };
+    },
   };
 
   global.window = {
@@ -342,7 +358,8 @@ describe("Daily Sheet Functions", () => {
             return { classList: { contains: () => false } };
           if (selector === "td:nth-child(1) .badge")
             return { textContent: "ECC 1" };
-          if (selector === "td:nth-child(2)") return { textContent: "John Doe" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "John Doe" };
           if (selector === ".overtime-cell span")
             return { textContent: "2.50 hrs" };
           return null;
@@ -447,7 +464,8 @@ describe("Daily Sheet Functions", () => {
             return { classList: { contains: () => false } };
           if (selector === "td:nth-child(1) .badge")
             return { textContent: "ECC 1" };
-          if (selector === "td:nth-child(2)") return { textContent: "John Doe" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "John Doe" };
           if (selector === ".overtime-cell span")
             return { textContent: "2.00 hrs" };
           return null;
@@ -540,7 +558,8 @@ describe("Daily Sheet Functions", () => {
             return { classList: { contains: () => false } };
           if (selector === "td:nth-child(1) .badge")
             return { textContent: "ECC 1" };
-          if (selector === "td:nth-child(2)") return { textContent: "John Doe" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "John Doe" };
           if (selector === ".overtime-cell span")
             return { textContent: "2.00 hrs" };
           return null;
@@ -587,7 +606,8 @@ describe("Daily Sheet Functions", () => {
             return { classList: { contains: () => false } };
           if (selector === "td:nth-child(1) .badge")
             return { textContent: "ECC 1" };
-          if (selector === "td:nth-child(2)") return { textContent: "John Doe" };
+          if (selector === "td:nth-child(2)")
+            return { textContent: "John Doe" };
           if (selector === ".overtime-cell span")
             return { textContent: "2.00 hrs" };
           return null;

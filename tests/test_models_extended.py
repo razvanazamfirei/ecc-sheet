@@ -685,8 +685,8 @@ class TestTimeEntryModel:
         """Test overtime_hours property."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
-            # Property should return same as method
-            assert entry.overtime_hours == entry.overtime_hours
+            # Exit time 20:00, cutoff 17:30 -> 2.5 hours overtime
+            assert entry.overtime_hours == 2.5
 
     def test_time_entry_repr_with_resident(self, app, sample_resident, sample_role):
         """Test TimeEntry __repr__ with resident."""
