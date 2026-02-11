@@ -26,7 +26,7 @@
       th,
       td {
         border: 1px solid #ddd;
-        padding: 10px;
+        padding: 12px;
         text-align: left;
       }
       th {
@@ -83,36 +83,33 @@
         </p>
       </div>
 
-      <h3>Detailed Breakdown</h3>
-
-      {% for name, data in resident_data|dictsort %}
-        <h4>
-          {{ name }} - Total:
-          <span class="overtime"
-            >{{ "%.2f"|format(data.total_overtime) }} hours</span
-          >
-        </h4>
-        <table>
-          <thead>
+      <h3>Payroll Summary</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Resident Name</th>
+            <th style="text-align: right;">Total Overtime Hours</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for name, data in resident_data|dictsort %}
             <tr>
-              <th>Date</th>
-              <th>Role</th>
-              <th>Exit Time</th>
-              <th>Overtime Hours</th>
+              <td>{{ name }}</td>
+              <td class="overtime" style="text-align: right;">
+                {{ "%.2f"|format(data.total_overtime) }}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {% for entry in data.entries %}
-              <tr>
-                <td>{{ entry.date }}</td>
-                <td>{{ entry.role }}</td>
-                <td>{{ entry.exit_time or "-" }}</td>
-                <td class="overtime">{{ "%.2f"|format(entry.overtime) }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% endfor %}
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td><strong>Grand Total</strong></td>
+            <td class="overtime" style="text-align: right;">
+              <strong>{{ "%.2f"|format(total_overtime) }}</strong>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
     {% endif %}
 
     <div class="footer">

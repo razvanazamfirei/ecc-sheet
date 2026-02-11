@@ -296,23 +296,24 @@ class TestLogActionExceptionHandling:
 
     def test_log_action_handles_db_error(self, app):
         """Test that log_action handles database errors gracefully."""
-        with app.app_context():
-            with patch.object(db.session, "commit") as mock_commit:
-                mock_commit.side_effect = Exception("Database error")
+        with app.app_context(), patch.object(db.session, "commit") as mock_commit:
+            mock_commit.side_effect = Exception("Database error")
 
-                # Should not raise an exception
-                log_action("TEST", "TestEntity", entity_id=1, details={})
+            # Should not raise an exception
+            log_action("TEST", "TestEntity", entity_id=1, details={})
 
     def test_log_action_rollback_on_error(self, app):
         """Test that log_action rolls back on error."""
-        with app.app_context():
-            with patch.object(db.session, "commit") as mock_commit:
-                with patch.object(db.session, "rollback") as mock_rollback:
-                    mock_commit.side_effect = Exception("Database error")
+        with (
+            app.app_context(),
+            patch.object(db.session, "commit") as mock_commit,
+            patch.object(db.session, "rollback") as mock_rollback,
+        ):
+            mock_commit.side_effect = Exception("Database error")
 
-                    log_action("TEST", "TestEntity", entity_id=1, details={})
+            log_action("TEST", "TestEntity", entity_id=1, details={})
 
-                    mock_rollback.assert_called_once()
+            mock_rollback.assert_called_once()
 
 
 class TestGetAuditTrail:

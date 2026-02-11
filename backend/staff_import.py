@@ -13,12 +13,12 @@ from backend.audit import log_import
 from backend.models import Resident, db
 
 
-def fetch_staff_list(schedule_code: str = "upennane") -> str:
+def fetch_staff_list(schedule_code: str) -> str:
     """
     Fetch staff list from Amion API.
 
     Args:
-        schedule_code: The Amion schedule code (default: upennane)
+        schedule_code: The Amion schedule code (e.g., "upennane")
 
     Returns:
         CSV content as string
@@ -187,7 +187,7 @@ def import_staff_to_database(
 
 
 def import_staff_list(
-    schedule_code: str = "upennane", user: str | None = None
+    schedule_code: str, user: str | None = None
 ) -> dict[str, any]:
     """
     Complete staff list import workflow.
@@ -195,7 +195,7 @@ def import_staff_list(
     Fetches staff list from Amion, parses it, and imports into database.
 
     Args:
-        schedule_code: The Amion schedule code (default: upennane)
+        schedule_code: The Amion schedule code (e.g., "upennane")
         user: Username for audit logging
 
     Returns:

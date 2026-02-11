@@ -26,11 +26,11 @@ class TestFetchStaffList:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        result = fetch_staff_list()
+        result = fetch_staff_list("testcode")
 
         assert "Staff type" in result
         mock_get.assert_called_once_with(
-            "http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=706", timeout=30
+            "http://www.amion.com/cgi-bin/ocs?Lo=testcode&Rpt=706", timeout=30
         )
 
     @patch("backend.staff_import.requests.get")
@@ -54,7 +54,7 @@ class TestFetchStaffList:
         mock_get.side_effect = requests.RequestException("Network error")
 
         with pytest.raises(requests.RequestException, match="Network error"):
-            fetch_staff_list()
+            fetch_staff_list("testcode")
 
     @patch("backend.staff_import.requests.get")
     def test_fetch_http_error(self, mock_get):
@@ -64,7 +64,7 @@ class TestFetchStaffList:
         mock_get.return_value = mock_response
 
         with pytest.raises(requests.HTTPError, match="404 Not Found"):
-            fetch_staff_list()
+            fetch_staff_list("testcode")
 
 
 class TestParseStaffList:
@@ -456,7 +456,7 @@ class TestImportStaffList:
 Staff type\tName\tUnique ID\tBackup ID\tAbbreviation\tType ID\tPager\tTel.\tEmail
 CA1\tFlow Test\tEPICID:TEST_FLOW_001\t\tFT\t1\t\t\tflow@test.com
 """
-            result = import_staff_list(user="test_user")
+            result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is True
             assert result["created"] == 1
@@ -479,7 +479,7 @@ Staff type\tName\tUnique ID\tBackup ID\tAbbreviation\tType ID\tPager\tTel.\tEmai
 CA1\tPlaceholder\tEPICID:R00001\t\tPH\t1\t\t\tph@test.com
 CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
 """
-            result = import_staff_list(user="test_user")
+            result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
             assert result["error"] == "No staff records found in import"
@@ -494,7 +494,7 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
         with app.app_context():
             mock_fetch.side_effect = requests.RequestException("Connection failed")
 
-            result = import_staff_list(user="test_user")
+            result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
             assert "Failed to fetch staff list from Amion" in result["error"]
@@ -508,7 +508,7 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
         with app.app_context():
             mock_fetch.return_value = "Invalid content without header"
 
-            result = import_staff_list(user="test_user")
+            result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
             assert "Import failed" in result["error"]
@@ -546,7 +546,7 @@ CA1\tTest Person\tEPICID:R12345
 """
             mock_import_db.side_effect = Exception("Database connection lost")
 
-            result = import_staff_list(user="test_user")
+            result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
             assert "Import failed" in result["error"]

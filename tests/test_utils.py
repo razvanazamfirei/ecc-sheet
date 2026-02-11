@@ -13,7 +13,6 @@ from backend.config import Config
 from backend.utils import (
     get_effective_date,
     get_philadelphia_time,
-    philly_today,
 )
 
 
@@ -148,18 +147,18 @@ class TestPhillyToday:
 
     def test_philly_today_returns_date(self):
         """Test that philly_today returns a date object"""
-        today = philly_today()
+        today = get_effective_date()
         assert isinstance(today, date)
 
     def test_philly_today_accounts_for_8am_reset(self):
         """Test that philly_today uses effective date logic"""
         # This test would need to be run at specific times to fully verify
         # For now, just ensure it returns a valid date
-        today = philly_today()
+        today = get_effective_date()
         assert isinstance(today, date)
 
         # Should be within a reasonable range
-        actual_today = philly_today()
+        actual_today = get_effective_date()
         yesterday = actual_today - timedelta(days=1)
 
         # philly_today should be either yesterday or today depending on time
@@ -237,17 +236,15 @@ class TestPhillyNow:
 
     def test_philly_now_returns_aware_datetime(self):
         """Test that philly_now returns timezone-aware datetime"""
-        from backend.utils import philly_now
 
-        now = philly_now()
+        now = get_philadelphia_time()
         assert now.tzinfo is not None
         assert now.tzinfo.zone == "America/New_York"
 
     def test_philly_now_equivalent_to_get_philadelphia_time(self):
         """Test that philly_now is equivalent to get_philadelphia_time"""
-        from backend.utils import philly_now
 
-        result = philly_now()
+        result = get_philadelphia_time()
         expected = get_philadelphia_time()
 
         # Should be within 1 second of each other
@@ -314,21 +311,23 @@ class TestHandleDbError:
             raise Exception("Database error")
 
         # Use test_request_context to provide proper request context
-        with app.test_request_context(), app.app_context():
-            # Mock db.session.rollback and flash to verify they're called
-            with patch("backend.utils.db.session.rollback") as mock_rollback:
-                with patch("backend.utils.flash") as mock_flash:
-                    # The decorator should catch the exception and try to redirect
-                    # This may raise BuildError if 'index' endpoint doesn't exist
-                    import werkzeug.routing.exceptions
+        with (
+            app.test_request_context(),
+            app.app_context(),
+            patch("backend.utils.db.session.rollback") as mock_rollback,
+            patch("backend.utils.flash") as mock_flash,
+        ):
+            # The decorator should catch the exception and try to redirect
+            # This may raise BuildError if 'index' endpoint doesn't exist
+            import werkzeug.routing.exceptions
 
-                    try:
-                        failing_function()
-                    except werkzeug.routing.exceptions.BuildError:
-                        # Expected - the decorator tried to redirect to 'index'
-                        # which may not exist. Verify error handling occurred.
-                        mock_rollback.assert_called_once()
-                        mock_flash.assert_called_once()
+            try:
+                failing_function()
+            except werkzeug.routing.exceptions.BuildError:
+                # Expected - the decorator tried to redirect to 'index'
+                # which may not exist. Verify error handling occurred.
+                mock_rollback.assert_called_once()
+                mock_flash.assert_called_once()
 
 
 @pytest.mark.unit
@@ -403,7 +402,7 @@ class TestBackupDatabaseExceptionHandling:
             db_path = app.config["SQLALCHEMY_DATABASE_URI"].replace("sqlite:///", "")
 
             # Mock shutil.copy2 to raise an exception where it's used
-            def mock_copy2(*args, **kwargs):
+            def mock_copy2():
                 raise OSError("Permission denied")
 
             monkeypatch.setattr("backend.utils.shutil.copy2", mock_copy2)

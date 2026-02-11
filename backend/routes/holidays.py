@@ -8,7 +8,7 @@ from ..audit import log_create, log_delete
 from ..auth import admin_required
 from ..holidays import get_federal_holidays
 from ..models import Holiday, db
-from ..utils import philly_today
+from ..utils import get_effective_date
 
 bp = Blueprint("holidays", __name__)
 
@@ -86,7 +86,7 @@ def delete(holiday_id):
 def refresh_federal():
     """Refresh federal holidays for current and next year."""
     try:
-        current_year = philly_today().year
+        current_year = get_effective_date().year
         added = 0
 
         for year in [current_year, current_year + 1]:

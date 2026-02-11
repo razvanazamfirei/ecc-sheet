@@ -58,7 +58,7 @@ def aggregate_entries_by_resident(entries) -> dict:
 
 
 def generate_csv_content(entries) -> str:
-    """Generate CSV content from time entries."""
+    """Generate detailed CSV content from time entries."""
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(["Date", "Resident", "Role", "Exit Time", "Overtime Hours"])
@@ -73,5 +73,31 @@ def generate_csv_content(entries) -> str:
                 f"{entry.overtime_hours:.2f}",
             ]
         )
+
+    return output.getvalue()
+
+
+def generate_billing_csv_content(resident_data: dict) -> str:
+    """
+    Generate billing/payroll CSV content from aggregated resident data.
+
+    Args:
+        resident_data: Dictionary from aggregate_entries_by_resident()
+
+    Returns:
+        CSV content with just Resident Name and Total Overtime Hours
+    """
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Resident Name", "Total Overtime Hours"])
+
+    # Sort by resident name for consistent output
+    for resident_name in sorted(resident_data.keys()):
+        total_overtime = resident_data[resident_name]["total_overtime"]
+        writer.writerow([resident_name, f"{total_overtime:.2f}"])
+
+    # Add grand total row
+    grand_total = sum(data["total_overtime"] for data in resident_data.values())
+    writer.writerow(["Grand Total", f"{grand_total:.2f}"])
 
     return output.getvalue()

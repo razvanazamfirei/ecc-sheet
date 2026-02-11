@@ -37,7 +37,7 @@ Tests for utility functions:
 - **Effective date**: 8 AM reset logic, edge cases
 - **Time validation**: Format checking
 - **String sanitization**: Input cleaning, max length
-- **Quarter-hour rounding**: 15-minute increments
+- **Five-minute rounding**: 5-minute increments
 - **Database backup**: File creation, data integrity
 
 ### conftest.py
@@ -143,7 +143,7 @@ The most critical feature. Tests cover:
 - **Overnight shifts**: Exit before the cutoff (treated as next day)
 - **Edge cases**: Midnight, 8 AM, exactly at cutoff
 - **Different cutoffs**: Various role cutoff times
-- **15-minute increments**: Proper time rounding
+- **5-minute increments**: Proper time rounding
 
 Example:
 

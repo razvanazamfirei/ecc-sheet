@@ -18,6 +18,7 @@ from ..models import TimeEntry
 from ..report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
+    generate_billing_csv_content,
     generate_csv_content,
     get_resident_name,
 )
@@ -69,14 +70,14 @@ def generate():
 
 @bp.route("/api/report/export_csv", methods=["POST"])
 def export_csv():
-    """Export report to CSV."""
+    """Export detailed report to CSV."""
     try:
         start_date, end_date, resident_id = _parse_report_params()
         query = build_entries_query(start_date, end_date, resident_id)
         entries = query.order_by(TimeEntry.date, TimeEntry.resident_id).all()
         csv_content = generate_csv_content(entries)
 
-        filename = f"overtime_report_{start_date}_{end_date}.csv"
+        filename = f"overtime_report_detailed_{start_date}_{end_date}.csv"
         return Response(
             csv_content,
             mimetype="text/csv",
@@ -85,6 +86,28 @@ def export_csv():
 
     except Exception as e:
         flash(f"Error exporting report: {e!s}", "error")
+        return redirect(url_for("reports.index"))
+
+
+@bp.route("/api/report/export_billing_csv", methods=["POST"])
+def export_billing_csv():
+    """Export billing/payroll summary to CSV."""
+    try:
+        start_date, end_date, resident_id = _parse_report_params()
+        query = build_entries_query(start_date, end_date, resident_id)
+        entries = query.all()
+        resident_data = aggregate_entries_by_resident(entries)
+        csv_content = generate_billing_csv_content(resident_data)
+
+        filename = f"overtime_billing_{start_date}_{end_date}.csv"
+        return Response(
+            csv_content,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    except Exception as e:
+        flash(f"Error exporting billing report: {e!s}", "error")
         return redirect(url_for("reports.index"))
 
 

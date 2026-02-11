@@ -1,4 +1,6 @@
+from collections.abc import Iterable
 from datetime import UTC, datetime
+from typing import cast
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -47,7 +49,11 @@ class Resident(db.Model):
     @property
     def active_entries(self):
         """Time entries that are not submitted"""
-        return [entry for entry in self.time_entries if not entry.submitted]
+        return [
+            entry
+            for entry in cast(Iterable["TimeEntry"], cast(object, self.time_entries))
+            if not entry.submitted
+        ]
 
     def to_dict(self, include_entries=False):
         """
@@ -134,9 +140,8 @@ class Resident(db.Model):
         Returns:
             List of TimeEntry objects
         """
-        return [
-            entry for entry in self.time_entries if start_date <= entry.date <= end_date
-        ]
+        entries = cast(Iterable["TimeEntry"], cast(object, self.time_entries))
+        return [entry for entry in entries if start_date <= entry.date <= end_date]
 
     def get_total_overtime(self, start_date=None, end_date=None):
         """

@@ -8,7 +8,7 @@ import pytest
 
 from backend.app import db
 from backend.models import DailySheet, Resident, Role, TimeEntry
-from backend.utils import philly_today
+from backend.utils import get_effective_date
 
 
 @pytest.mark.unit
@@ -101,7 +101,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 20:00, cutoff at 17:30 → 2.5 hours overtime
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(20, 0),
@@ -116,7 +116,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 02:30 AM, cutoff at 17:30 → 9 hours overnight
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(2, 30),
@@ -131,7 +131,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 00:00, cutoff at 17:30 → 6.5 hours
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(0, 0),
@@ -146,7 +146,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 17:30, cutoff at 17:30 → 0 hours
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(17, 30),
@@ -161,7 +161,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 15:00, cutoff at 17:30 → 0 hours (not overnight)
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(15, 0),
@@ -178,7 +178,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 23:45, cutoff at 17:30 → 6.25 hours
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(23, 45),
@@ -193,7 +193,7 @@ class TestOvertimeCalculation:
         with app.app_context():
             # Exit at 07:00 AM, cutoff at 17:30 → 13.5 hours overnight
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(7, 0),
@@ -218,7 +218,7 @@ class TestOvertimeCalculation:
 
             # Exit at 22:30, cutoff at 20:00 → 2.5 hours
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=role.id,
                 exit_time=time(22, 30),
@@ -234,11 +234,11 @@ class TestOvertimeCalculation:
             db.session.commit()
 
     def test_fifteen_minute_increments(self, app, sample_resident, sample_role):
-        """Test overtime calculation with 15-minute increments"""
+        """Test overtime calculation with 5-minute increments"""
         with app.app_context():
             # Exit at 18:15, cutoff at 17:30 → 0.75 hours (45 minutes)
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(18, 15),
@@ -256,7 +256,7 @@ class TestTimeEntry:
     def test_time_entry_creation(self, app, sample_resident, sample_role):
         """Test creating a time entry"""
         with app.app_context():
-            today = philly_today()
+            today = get_effective_date()
             entry = TimeEntry(
                 date=today,
                 resident_id=sample_resident.id,
@@ -283,7 +283,7 @@ class TestTimeEntry:
         """Test that exit_time can be null"""
         with app.app_context():
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=None,  # No exit time yet
@@ -305,7 +305,7 @@ class TestDailySheet:
 
         with app.app_context():
             # Use a future date to avoid conflicts
-            test_date = philly_today() + timedelta(days=10)
+            test_date = get_effective_date() + timedelta(days=10)
             sheet = DailySheet(date=test_date, locked=False, submitted=False)
             db.session.add(sheet)
             db.session.commit()

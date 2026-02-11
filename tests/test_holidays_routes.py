@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from unittest.mock import patch
 
 from backend.models import Holiday, db
-from backend.utils import philly_today
+from backend.utils import get_effective_date
 
 
 class TestHolidaysIndex:
@@ -58,7 +58,7 @@ class TestAddHoliday:
     def test_add_holiday_success(self, client, app):
         """Test successfully adding a holiday."""
         with app.app_context():
-            test_date = philly_today() + timedelta(days=365)
+            test_date = get_effective_date() + timedelta(days=365)
             date_str = test_date.strftime("%Y-%m-%d")
 
             response = client.post(
@@ -92,7 +92,7 @@ class TestAddHoliday:
     def test_add_holiday_missing_name(self, client, app):
         """Test adding holiday without name fails."""
         with app.app_context():
-            test_date = philly_today() + timedelta(days=400)
+            test_date = get_effective_date() + timedelta(days=400)
             date_str = test_date.strftime("%Y-%m-%d")
 
             response = client.post(
@@ -106,7 +106,7 @@ class TestAddHoliday:
     def test_add_holiday_duplicate_date(self, client, app):
         """Test adding holiday with duplicate date fails."""
         with app.app_context():
-            test_date = philly_today() + timedelta(days=500)
+            test_date = get_effective_date() + timedelta(days=500)
             date_str = test_date.strftime("%Y-%m-%d")
 
             # Add first holiday
@@ -293,6 +293,7 @@ class TestRefreshFederalHolidays:
 class TestHolidayExceptionHandling:
     """Tests for exception handling in holiday routes."""
 
+    # noinspection DuplicatedCode
     def test_delete_holiday_db_error(self, client, app):
         """Test delete handles database errors gracefully."""
         with app.app_context():
@@ -325,11 +326,9 @@ class TestHolidayExceptionHandling:
 
     def test_refresh_federal_holidays_db_error(self, client, app):
         """Test refresh handles database errors gracefully."""
-        with app.app_context():
-            # Mock commit to raise an exception
-            with patch.object(db.session, "commit") as mock_commit:
-                mock_commit.side_effect = Exception("Database error")
+        with app.app_context(), patch.object(db.session, "commit") as mock_commit:
+            mock_commit.side_effect = Exception("Database error")
 
-                response = client.post("/holidays/refresh", follow_redirects=True)
-                assert response.status_code == 200
-                assert b"error" in response.data.lower()
+            response = client.post("/holidays/refresh", follow_redirects=True)
+            assert response.status_code == 200
+            assert b"error" in response.data.lower()

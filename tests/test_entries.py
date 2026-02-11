@@ -4,7 +4,7 @@ from datetime import time
 from unittest.mock import patch
 
 from backend.models import DailySheet, TimeEntry, db
-from backend.utils import philly_today
+from backend.utils import get_effective_date
 
 
 class TestEntryUpdate:
@@ -82,6 +82,7 @@ class TestEntryUpdate:
             sheet.locked = False
             db.session.commit()
 
+    # noinspection DuplicatedCode
     def test_update_with_start_time(self, client, app, sample_resident):
         """Test updating entry with start time for backup role."""
         with app.app_context():
@@ -102,7 +103,7 @@ class TestEntryUpdate:
 
             # Create entry with backup role
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=backup_role.id,
                 exit_time=time(20, 0),
@@ -112,7 +113,7 @@ class TestEntryUpdate:
             entry_id = entry.id
 
             # Ensure sheet is unlocked
-            sheet = DailySheet.query.filter_by(date=philly_today()).first()
+            sheet = DailySheet.query.filter_by(date=get_effective_date()).first()
             if sheet:
                 sheet.locked = False
                 db.session.commit()
@@ -145,7 +146,7 @@ class TestEntryAdd:
             role = Role.query.first()
 
             # Ensure sheet is unlocked
-            sheet = DailySheet.query.filter_by(date=philly_today()).first()
+            sheet = DailySheet.query.filter_by(date=get_effective_date()).first()
             if sheet:
                 sheet.locked = False
                 db.session.commit()
@@ -153,7 +154,7 @@ class TestEntryAdd:
             response = client.post(
                 "/entries/add",
                 data={
-                    "date": philly_today().strftime("%Y-%m-%d"),
+                    "date": get_effective_date().strftime("%Y-%m-%d"),
                     "resident_id": sample_resident.id,
                     "role_id": role.id,
                     "exit_time": "19:00",
@@ -165,7 +166,7 @@ class TestEntryAdd:
 
             # Verify entry was created
             entry = TimeEntry.query.filter_by(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=role.id,
             ).first()
@@ -256,7 +257,7 @@ class TestEntryEdgeCases:
 
             # Create entry with start time
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=role.id,
                 exit_time=time(20, 0),
@@ -267,7 +268,7 @@ class TestEntryEdgeCases:
             entry_id = entry.id
 
             # Ensure sheet is unlocked
-            sheet = DailySheet.query.filter_by(date=philly_today()).first()
+            sheet = DailySheet.query.filter_by(date=get_effective_date()).first()
             if sheet:
                 sheet.locked = False
                 db.session.commit()
@@ -299,7 +300,7 @@ class TestEntryEdgeCases:
             response = client.post(
                 "/entries/add",
                 data={
-                    "date": philly_today().strftime("%Y-%m-%d"),
+                    "date": get_effective_date().strftime("%Y-%m-%d"),
                     "resident_id": "",
                     "role_id": sample_role.id,
                     "exit_time": "20:00",
@@ -312,7 +313,10 @@ class TestEntryEdgeCases:
             final_count = TimeEntry.query.count()
             assert final_count == initial_count
             # Should show error message
-            assert b"required" in response.data.lower() or b"error" in response.data.lower()
+            assert (
+                b"required" in response.data.lower()
+                or b"error" in response.data.lower()
+            )
 
 
 class TestEntryExceptionHandling:
@@ -342,12 +346,13 @@ class TestEntryExceptionHandling:
                 assert response.status_code == 200
                 assert b"error" in response.data.lower()
 
+    # noinspection DuplicatedCode
     def test_delete_entry_db_error(self, client, app, sample_resident, sample_role):
         """Test delete handles database errors gracefully."""
         with app.app_context():
             # Create a fresh entry for this test
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=time(20, 0),
@@ -357,7 +362,7 @@ class TestEntryExceptionHandling:
             entry_id = entry.id
 
             # Ensure sheet is unlocked
-            sheet = DailySheet.query.filter_by(date=philly_today()).first()
+            sheet = DailySheet.query.filter_by(date=get_effective_date()).first()
             if sheet:
                 sheet.locked = False
                 db.session.commit()
@@ -384,7 +389,7 @@ class TestEntryExceptionHandling:
         """Test add handles database errors gracefully."""
         with app.app_context():
             # Ensure sheet is unlocked
-            sheet = DailySheet.query.filter_by(date=philly_today()).first()
+            sheet = DailySheet.query.filter_by(date=get_effective_date()).first()
             if sheet:
                 sheet.locked = False
                 db.session.commit()
@@ -396,7 +401,7 @@ class TestEntryExceptionHandling:
                 response = client.post(
                     "/entries/add",
                     data={
-                        "date": philly_today().strftime("%Y-%m-%d"),
+                        "date": get_effective_date().strftime("%Y-%m-%d"),
                         "resident_id": sample_resident.id,
                         "role_id": sample_role.id,
                         "exit_time": "20:00",

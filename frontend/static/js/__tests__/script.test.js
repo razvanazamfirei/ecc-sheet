@@ -38,7 +38,7 @@ beforeAll(async () => {
     location: { href: "/" },
     print: () => {},
     LuxonUtils: {
-      roundToQuarterHour: (time) => {
+      roundToFiveMinutes: (time) => {
         if (!time) return time;
         const [hours, minutes] = time.split(":").map(Number);
         const remainder = minutes % 15;
@@ -217,28 +217,28 @@ describe("Script Functions", () => {
 });
 
 describe("Time Input Rounding", () => {
-  test("roundToQuarterHour rounds up to next quarter", () => {
-    const result = global.window.LuxonUtils.roundToQuarterHour("14:07");
+  test("roundToFiveMinutes rounds up to next quarter", () => {
+    const result = global.window.LuxonUtils.roundToFiveMinutes("14:07");
     expect(result).toBe("14:15");
   });
 
-  test("roundToQuarterHour does not change already rounded times", () => {
-    const result = global.window.LuxonUtils.roundToQuarterHour("14:15");
+  test("roundToFiveMinutes does not change already rounded times", () => {
+    const result = global.window.LuxonUtils.roundToFiveMinutes("14:15");
     expect(result).toBe("14:15");
   });
 
-  test("roundToQuarterHour handles hour rollover", () => {
-    const result = global.window.LuxonUtils.roundToQuarterHour("23:55");
+  test("roundToFiveMinutes handles hour rollover", () => {
+    const result = global.window.LuxonUtils.roundToFiveMinutes("23:55");
     expect(result).toBe("00:00");
   });
 
-  test("roundToQuarterHour handles empty input", () => {
-    const result = global.window.LuxonUtils.roundToQuarterHour("");
+  test("roundToFiveMinutes handles empty input", () => {
+    const result = global.window.LuxonUtils.roundToFiveMinutes("");
     expect(result).toBe("");
   });
 
-  test("roundToQuarterHour handles null input", () => {
-    const result = global.window.LuxonUtils.roundToQuarterHour(null);
+  test("roundToFiveMinutes handles null input", () => {
+    const result = global.window.LuxonUtils.roundToFiveMinutes(null);
     expect(result).toBe(null);
   });
 });

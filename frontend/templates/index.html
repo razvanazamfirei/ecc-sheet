@@ -170,7 +170,7 @@
                   name="start_time"
                   id="start_time"
                   class="form-control"
-                  step="900"
+                  step="300"
                   placeholder="HH:MM" />
               </div>
             {% endif %}
@@ -182,7 +182,7 @@
                 name="exit_time"
                 id="exit_time"
                 class="form-control"
-                step="900"
+                step="300"
                 placeholder="HH:MM"
                 required />
             </div>
@@ -292,7 +292,7 @@
                           form="form-{{ entry.id }}"
                           id="start-input-{{ entry.id }}"
                           value="{{ entry.start_time.strftime('%H:%M') if entry.start_time else '' }}"
-                          step="900"
+                          step="300"
                           class="form-control"
                           style="display: none; width: 150px;" />
                       {% else %}
@@ -334,7 +334,7 @@
                         name="exit_time"
                         id="input-{{ entry.id }}"
                         value="{{ entry.exit_time.strftime('%H:%M') if entry.exit_time else '' }}"
-                        step="900"
+                        step="300"
                         class="form-control"
                         style="width: 150px;" />
                     </form>

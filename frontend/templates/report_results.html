@@ -165,7 +165,29 @@
           name="resident_id"
           value="{{ resident_id if resident_id else '' }}" />
         <button type="submit" class="btn btn-success">
-          <i class="bi bi-file-earmark-spreadsheet me-2"></i>Export to CSV
+          <i class="bi bi-file-earmark-spreadsheet me-2"></i>Export Detailed CSV
+        </button>
+      </form>
+
+      <form
+        method="POST"
+        action="{{ url_for('reports.export_billing_csv') }}"
+        class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input
+          type="hidden"
+          name="start_date"
+          value="{{ start_date.strftime('%Y-%m-%d') }}" />
+        <input
+          type="hidden"
+          name="end_date"
+          value="{{ end_date.strftime('%Y-%m-%d') }}" />
+        <input
+          type="hidden"
+          name="resident_id"
+          value="{{ resident_id if resident_id else '' }}" />
+        <button type="submit" class="btn btn-outline-success">
+          <i class="bi bi-receipt me-2"></i>Export Billing CSV
         </button>
       </form>
 

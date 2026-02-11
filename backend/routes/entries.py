@@ -65,6 +65,8 @@ def add():
                 "date": sheet_date_str,
                 "resident": entry.resident.name,
                 "role": entry.role.name,
+                "exit_time": exit_time_str if exit_time_str else None,
+                "start_time": start_time_str if start_time_str else None,
             },
         )
 
@@ -95,28 +97,47 @@ def update(entry_id):
     try:
         changes = {}
 
+        # Store old values for audit
+        old_exit_time = entry.exit_time.strftime("%H:%M") if entry.exit_time else None
+        old_start_time = entry.start_time.strftime("%H:%M") if entry.start_time else None
+
         exit_time_str = request.form.get("exit_time")
         if exit_time_str:
             entry.exit_time = datetime.strptime(exit_time_str, "%H:%M").time()  # noqa: DTZ007
-            changes["exit_time"] = exit_time_str
+            if old_exit_time != exit_time_str:
+                changes["exit_time"] = {"old": old_exit_time, "new": exit_time_str}
         else:
             entry.exit_time = None
-            changes["exit_time"] = "cleared"
+            if old_exit_time is not None:
+                changes["exit_time"] = {"old": old_exit_time, "new": None}
 
         # Handle start_time for backup roles
         start_time_str = request.form.get("start_time")
         if start_time_str is not None:  # Only update if field was submitted
             if start_time_str:
                 entry.start_time = datetime.strptime(start_time_str, "%H:%M").time()  # noqa: DTZ007
-                changes["start_time"] = start_time_str
+                if old_start_time != start_time_str:
+                    changes["start_time"] = {"old": old_start_time, "new": start_time_str}
             else:
                 entry.start_time = None
-                changes["start_time"] = "cleared"
+                if old_start_time is not None:
+                    changes["start_time"] = {"old": old_start_time, "new": None}
 
         db.session.commit()
 
-        # Log the action
-        log_update("TimeEntry", entry.id, changes)
+        # Log the action with enhanced details
+        if changes:
+            log_update(
+                "TimeEntry",
+                entry.id,
+                changes=changes,
+                details={
+                    "entry_id": entry.id,
+                    "resident": entry.resident.name,
+                    "role": entry.role.name,
+                    "date": entry.date.strftime("%Y-%m-%d"),
+                },
+            )
 
         flash("Entry updated successfully", "success")
 
@@ -150,9 +171,12 @@ def delete(entry_id):
             "TimeEntry",
             entry.id,
             {
+                "entry_id": entry.id,
                 "date": str(entry.date),
                 "resident": entry.resident.name,
                 "role": entry.role.name,
+                "exit_time": entry.exit_time.strftime("%H:%M") if entry.exit_time else None,
+                "start_time": entry.start_time.strftime("%H:%M") if entry.start_time else None,
             },
         )
 

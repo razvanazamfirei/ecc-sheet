@@ -315,7 +315,7 @@ uv run flask --app backend.app db history
 
 - Click exit time to edit (tooltip: "Click to edit time")
 - Time inputs display in 24-hour format (enforced with lang="en-GB")
-- Time values always round UP to the next 15-minute increment
+- Time values always round UP to the next 5-minute increment
 - Save/Cancel buttons per entry
 - "Edit All" mode enables all entries simultaneously
 - "Save All" submits all changes asynchronously with loading spinner
@@ -365,7 +365,7 @@ uv run flask --app backend.app db history
 **Process:**
 
 1. Fetches CSV from Amion API:
-   `http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`
+   `http://www.amion.com/cgi-bin/ocs?Lo={AMION_SCHEDULE_CODE}`http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`Rpt=619`http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`Day={day}`http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`Month={month}` (schedule code from config)
 2. Parses CSV data for resident assignments
 3. Extracts EPIC IDs (format: `EPICID:R103348` -> `R103348`)
 4. Finds or creates residents by EPIC ID
@@ -566,6 +566,9 @@ EMAIL_USERNAME=user@example.com
 EMAIL_PASSWORD=password
 EMAIL_RECIPIENT=recipient@example.com
 
+# Amion Integration (for schedule/staff imports)
+AMION_SCHEDULE_CODE=your-schedule-code-here
+
 # Optional
 TIMEZONE=America/New_York
 PORT=5000
@@ -646,9 +649,9 @@ bun run test:coverage
 
 **Time Format:**
 
-- All time inputs use `type="time"` with `step="900"` (15 minutes)
+- All time inputs use `type="time"` with `step="300"` (5 minutes)
 - HTML lang="en-GB" enforces 24-hour time picker display
-- Time values always round UP to next 15-minute increment
+- Time values always round UP to next 5-minute increment
 - Display format: HH:MM (24-hour)
 
 ## API Endpoints

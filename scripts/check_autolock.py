@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from backend.app import app, db
 from backend.audit import log_action
 from backend.models import DailySheet
-from backend.utils import philly_today
+from backend.utils import get_effective_date
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -41,7 +41,7 @@ def should_auto_lock():
 def auto_lock_sheets():
     """Auto-lock all unlocked sheets for dates before today"""
     with app.app_context():
-        today = philly_today()
+        today = get_effective_date()
 
         # Find all unlocked sheets before today
         unlocked_sheets = DailySheet.query.filter(

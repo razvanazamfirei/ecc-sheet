@@ -14,7 +14,7 @@ from backend.models import (
     TimeEntry,
     db,
 )
-from backend.utils import philly_today
+from backend.utils import get_effective_date
 
 
 class TestRoleModel:
@@ -92,7 +92,7 @@ class TestResidentModel:
             # Create some entries
             for i in range(3):
                 entry = TimeEntry(
-                    date=philly_today() + timedelta(days=i + 100),
+                    date=get_effective_date() + timedelta(days=i + 100),
                     resident_id=resident.id,
                     role_id=role.id,
                     exit_time=time(18, 0),
@@ -120,21 +120,21 @@ class TestResidentModel:
 
             # Create submitted and non-submitted entries
             entry1 = TimeEntry(
-                date=philly_today() + timedelta(days=200),
+                date=get_effective_date() + timedelta(days=200),
                 resident_id=resident.id,
                 role_id=role.id,
                 exit_time=time(18, 0),
                 submitted=True,
             )
             entry2 = TimeEntry(
-                date=philly_today() + timedelta(days=201),
+                date=get_effective_date() + timedelta(days=201),
                 resident_id=resident.id,
                 role_id=role.id,
                 exit_time=time(18, 0),
                 submitted=False,
             )
             entry3 = TimeEntry(
-                date=philly_today() + timedelta(days=202),
+                date=get_effective_date() + timedelta(days=202),
                 resident_id=resident.id,
                 role_id=role.id,
                 exit_time=time(18, 0),
@@ -656,7 +656,7 @@ class TestTimeEntryModel:
         """Test overtime calculation without exit time returns 0."""
         with app.app_context():
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 resident_id=sample_resident.id,
                 role_id=sample_role.id,
                 exit_time=None,
@@ -674,7 +674,7 @@ class TestTimeEntryModel:
         with app.app_context():
             # Create a transient entry without role to test the None role branch
             entry = TimeEntry(
-                date=philly_today(),
+                date=get_effective_date(),
                 exit_time=time(20, 0),
             )
             entry.role = None

@@ -116,13 +116,3 @@ def get_effective_date(dt=None):
         return (dt - timedelta(days=1)).date()
 
     return dt.date()
-
-
-def philly_now():
-    """Convenience function to get current Philadelphia datetime"""
-    return get_philadelphia_time()
-
-
-def philly_today():
-    """Get today's effective date in Philadelphia time (accounting for 8 AM reset)"""
-    return get_effective_date()

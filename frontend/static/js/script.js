@@ -4,16 +4,16 @@
  */
 
 /**
- * Rounds a time string to the nearest 15-minute increment using Luxon
+ * Rounds a time string to the nearest 5-minute increment using Luxon
  * @param {string} time - Time string in HH:MM format
  * @returns {string} Rounded time string in HH:MM format
  */
-function roundToQuarterHour(time) {
-  return window.LuxonUtils.roundToQuarterHour(time);
+function roundToFiveMinutes(time) {
+  return window.LuxonUtils.roundToFiveMinutes(time);
 }
 
 /**
- * Applies quarter-hour rounding to all time inputs
+ * Applies 5-minute rounding to all time inputs
  */
 function initializeTimeInputs() {
   const timeInputs = document.querySelectorAll('input[type="time"]');
@@ -21,7 +21,7 @@ function initializeTimeInputs() {
   timeInputs.forEach((input) => {
     input.addEventListener("change", function () {
       if (this.value) {
-        this.value = roundToQuarterHour(this.value);
+        this.value = roundToFiveMinutes(this.value);
       }
     });
   });

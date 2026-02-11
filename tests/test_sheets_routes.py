@@ -4,7 +4,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from backend.models import DailySheet, TimeEntry, db
-from backend.utils import philly_today
+from backend.utils import get_effective_date
 
 
 class TestSheetsIndex:
@@ -13,7 +13,7 @@ class TestSheetsIndex:
     def test_index_creates_daily_sheet_if_not_exists(self, client, app):
         """Test that index creates daily sheet if it doesn't exist."""
         with app.app_context():
-            today = philly_today()
+            today = get_effective_date()
             # Delete existing sheet
             DailySheet.query.filter_by(date=today).delete()
             db.session.commit()
@@ -52,7 +52,7 @@ class TestSheetsView:
 
     def test_view_past_date(self, client, app):
         """Test viewing a past date sheet."""
-        past_date = philly_today() - timedelta(days=7)
+        past_date = get_effective_date() - timedelta(days=7)
         date_str = past_date.strftime("%Y-%m-%d")
 
         response = client.get(f"/sheets/{date_str}")
@@ -61,7 +61,7 @@ class TestSheetsView:
 
     def test_view_future_date(self, client, app):
         """Test viewing a future date sheet."""
-        future_date = philly_today() + timedelta(days=7)
+        future_date = get_effective_date() + timedelta(days=7)
         date_str = future_date.strftime("%Y-%m-%d")
 
         response = client.get(f"/sheets/{date_str}")
@@ -78,7 +78,7 @@ class TestSheetsView:
         """Test that viewing creates sheet if it doesn't exist."""
         with app.app_context():
             # Use a date far in the future
-            future_date = philly_today() + timedelta(days=100)
+            future_date = get_effective_date() + timedelta(days=100)
             date_str = future_date.strftime("%Y-%m-%d")
 
             # Ensure no sheet exists
@@ -101,7 +101,7 @@ class TestSheetsView:
     ):
         """Test that view shows entries for the specific date."""
         with app.app_context():
-            test_date = philly_today() - timedelta(days=5)
+            test_date = get_effective_date() - timedelta(days=5)
             date_str = test_date.strftime("%Y-%m-%d")
 
             # Create entry for this date
@@ -128,7 +128,7 @@ class TestSheetsLock:
     def test_lock_unlocked_sheet(self, client, app):
         """Test locking an unlocked sheet."""
         with app.app_context():
-            today = philly_today()
+            today = get_effective_date()
             date_str = today.strftime("%Y-%m-%d")
 
             # Ensure sheet is unlocked
@@ -155,7 +155,7 @@ class TestSheetsLock:
     def test_unlock_locked_sheet(self, client, app):
         """Test unlocking a locked sheet."""
         with app.app_context():
-            today = philly_today()
+            today = get_effective_date()
             date_str = today.strftime("%Y-%m-%d")
 
             # Ensure sheet is locked
@@ -181,7 +181,7 @@ class TestSheetsLock:
     def test_lock_records_user_and_time(self, client, app):
         """Test that locking records user and timestamp."""
         with app.app_context():
-            today = philly_today()
+            today = get_effective_date()
             date_str = today.strftime("%Y-%m-%d")
 
             # Ensure sheet is unlocked
@@ -207,7 +207,7 @@ class TestSheetsLock:
     def test_unlock_clears_user_and_time(self, client, app):
         """Test that unlocking clears user and timestamp."""
         with app.app_context():
-            today = philly_today()
+            today = get_effective_date()
             date_str = today.strftime("%Y-%m-%d")
 
             # Ensure sheet is locked with info
@@ -232,7 +232,7 @@ class TestSheetsLock:
         """Test that locking creates sheet if it doesn't exist."""
         with app.app_context():
             # Use a unique date
-            test_date = philly_today() - timedelta(days=200)
+            test_date = get_effective_date() - timedelta(days=200)
             date_str = test_date.strftime("%Y-%m-%d")
 
             # Ensure no sheet exists
@@ -262,7 +262,7 @@ class TestWeekendHolidayDisplay:
         """Test that weekends are indicated."""
         with app.app_context():
             # Find a Saturday
-            today = philly_today()
+            today = get_effective_date()
             days_until_saturday = (5 - today.weekday()) % 7
             if days_until_saturday == 0:
                 days_until_saturday = 7
@@ -282,7 +282,7 @@ class TestSheetsExceptionHandling:
     def test_lock_sheet_db_error(self, client, app):
         """Test lock handles database errors gracefully."""
         with app.app_context():
-            today = philly_today()
+            today = get_effective_date()
             date_str = today.strftime("%Y-%m-%d")
 
             # Ensure sheet exists and is unlocked

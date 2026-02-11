@@ -9,7 +9,7 @@ from .config import Config
 from .holidays import get_federal_holidays
 from .models import Holiday, Role, db
 from .routes import register_blueprints
-from .utils import philly_today, setup_logging
+from .utils import get_effective_date, setup_logging
 
 # Get the project root directory (parent of backend/)
 project_root = Path(__file__).parent.parent
@@ -95,7 +95,7 @@ def init_db():
                 existing_role.is_backup = True
 
         # Initialize federal holidays for current and next year
-        current_year = philly_today().year
+        current_year = get_effective_date().year
         for year in [current_year, current_year + 1]:
             for holiday_date, holiday_name in get_federal_holidays(year):
                 if not Holiday.query.filter_by(date=holiday_date).first():

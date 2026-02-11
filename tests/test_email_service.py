@@ -39,6 +39,7 @@ class TestEmailService:
             )
             assert result is False
 
+    # noinspection DuplicatedCode
     @patch("backend.email_service.smtplib.SMTP")
     @patch("backend.email_service.Config")
     def test_send_report_email_success(self, mock_config, mock_smtp, app):
@@ -63,6 +64,7 @@ class TestEmailService:
             )
             assert result is True
 
+    # noinspection DuplicatedCode
     @patch("backend.email_service.smtplib.SMTP")
     @patch("backend.email_service.Config")
     def test_send_report_email_with_resident_filter(

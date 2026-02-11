@@ -7,7 +7,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, url_
 from ..audit import log_lock
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Role, TimeEntry, db
-from ..utils import get_philadelphia_time, handle_db_error, philly_today
+from ..utils import get_effective_date, get_philadelphia_time, handle_db_error
 
 bp = Blueprint(
     "sheets",
@@ -18,7 +18,7 @@ bp = Blueprint(
 @bp.route("/")
 def index():
     """Dashboard showing today's sheet."""
-    today = philly_today()
+    today = get_effective_date()
     daily_sheet = DailySheet.query.filter_by(date=today).first()
 
     if not daily_sheet:

@@ -105,7 +105,10 @@ class TestAddResident:
             final_count = Resident.query.count()
             assert final_count == initial_count
             # Should show error message
-            assert b"required" in response.data.lower() or b"error" in response.data.lower()
+            assert (
+                b"required" in response.data.lower()
+                or b"error" in response.data.lower()
+            )
 
     def test_add_resident_trims_whitespace(self, client, app):
         """Test that resident name is trimmed of leading/trailing whitespace."""
@@ -323,22 +326,22 @@ class TestResidentManagement:
             assert sample_resident.name.encode() in response.data
 
 
+# noinspection DuplicatedCode
 class TestResidentExceptionHandling:
     """Tests for exception handling in resident routes."""
 
     def test_add_resident_db_error(self, client, app):
         """Test add handles database errors gracefully."""
-        with app.app_context():
-            with patch.object(db.session, "commit") as mock_commit:
-                mock_commit.side_effect = Exception("Database error")
+        with app.app_context(), patch.object(db.session, "commit") as mock_commit:
+            mock_commit.side_effect = Exception("Database error")
 
-                response = client.post(
-                    "/residents/add",
-                    data={"name": "DB Error Test"},
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
-                assert b"error" in response.data.lower()
+            response = client.post(
+                "/residents/add",
+                data={"name": "DB Error Test"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"error" in response.data.lower()
 
     def test_toggle_resident_db_error(self, client, app):
         """Test toggle handles database errors gracefully."""

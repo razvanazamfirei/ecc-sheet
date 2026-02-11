@@ -19,6 +19,9 @@ class Config:
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
     EMAIL_RECIPIENT = os.getenv("EMAIL_RECIPIENT")
 
+    # Amion integration
+    AMION_SCHEDULE_CODE = os.getenv("AMION_SCHEDULE_CODE", "upennane")
+
     # Time tracking configuration
     DEFAULT_CUTOFF_HOUR = int(os.getenv("DEFAULT_CUTOFF_HOUR", "17"))
     DEFAULT_CUTOFF_MINUTE = int(os.getenv("DEFAULT_CUTOFF_MINUTE", "30"))

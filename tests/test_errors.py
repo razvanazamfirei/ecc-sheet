@@ -144,7 +144,7 @@ def error_test_app():
     """Create a fresh Flask app with error handlers and test routes."""
     app = Flask(__name__)
     app.config["TESTING"] = True
-    app.config["SECRET_KEY"] = "test-secret"
+    app.config["SECRET_KEY"] = "test-secret"  # noqa: S105
 
     # Register error handlers
     register_error_handlers(app)

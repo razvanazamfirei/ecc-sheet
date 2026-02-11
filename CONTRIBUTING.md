@@ -281,13 +281,13 @@ def test_overtime_calculation_after_cutoff(app):
 Example:
 
 ```javascript
-describe("roundToQuarterHour", () => {
-  it("should round up to next 15-minute increment", () => {
+describe("roundToFiveMinutes", () => {
+  it("should round up to next 5-minute increment", () => {
     // Arrange
     const time = "14:23";
 
     // Act
-    const rounded = roundToQuarterHour(time);
+    const rounded = roundToFiveMinutes(time);
 
     // Assert
     expect(rounded).toBe("14:30");

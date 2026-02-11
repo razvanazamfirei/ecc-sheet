@@ -1,51 +1,49 @@
 # ECC Sheet — Medical Shift Tracking System
 
-A comprehensive Flask-based web application for tracking medical resident
-shifts, calculating overtime, and generating reports with full audit logging.
+A comprehensive Flask-based web application for tracking medical resident shifts, calculating overtime, and generating reports with full audit logging.
 
 **Status:** Production-ready | **Test Coverage:** 99% backend, 78% frontend
 
 ## Features
 
 - **Daily Shift Management**
-
-  - Inline time editing with a 24-hour format
+  - Inline time editing with 24-hour format
+  - Automatic time rounding to 5-minute increments (always rounds up)
   - Automatic overtime calculation based on configurable cutoff times
   - Sheet locking with user tracking
   - Import schedules from Amion API
   - Backup role support with start/exit times
+  - Copy to clipboard and print for signing
 
 - **Staff Management**
-
   - Import staff from Amion (Report 706)
   - Track class year, email, phone, EPIC ID
   - Active/inactive status
   - Backup resident assignments
 
 - **Holiday Management**
-
   - US federal holidays (automatic)
   - Custom holidays with recurring support
   - Holiday-aware overtime calculations
 
 - **Comprehensive Reporting**
-
   - Quick reports (Last 7/30/90 days)
   - Custom date range reports
   - Resident-specific filtering
-  - CSV export functionality
-  - Email reports with CSV attachments
+  - Detailed CSV export (date, role, times, overtime)
+  - Billing CSV export (resident name, total overtime)
+  - Email reports with payroll-style summaries
 
 - **Audit Trail**
-
   - Complete change tracking for all operations
+  - Enhanced logging with old/new value tracking
   - User and IP address logging
   - Filterable by action type and entity
   - Timestamps for all actions
 
 - **Admin Features**
   - Resident management with EPIC ID support
-  - Role configuration with customizable cutoff times
+  - Role configuration with customizable cutoff times (hour and minute)
   - Holiday management
   - Full audit log access
   - Email reporting
@@ -103,6 +101,9 @@ EMAIL_USERNAME=user@example.com
 EMAIL_PASSWORD=password
 EMAIL_RECIPIENT=recipient@example.com
 
+# Amion Integration (for schedule/staff imports)
+AMION_SCHEDULE_CODE=your-schedule-code-here
+
 # Optional
 TIMEZONE=America/New_York
 PORT=5000
@@ -115,37 +116,37 @@ See `.env.example` for a complete template.
 ### Backend
 
 - **Python 3.13** with Flask 3.1.2
-- **SQLite** — File-based database with migration support
+- **SQLite** - File-based database with migration support
 - **SQLAlchemy** - ORM with relationship management
-- **Flask-Migrate 4.1.0 (Alembic)** — Database version control
-- **Flask-WTF 1.2.2** — Form validation with CSRF protection
+- **Flask-Migrate 4.1.0 (Alembic)** - Database version control
+- **Flask-WTF 1.2.2** - Form validation with CSRF protection
 - **pytz 2025.2** - Timezone handling
-- **holidays 0.89** — US federal holiday tracking
+- **holidays 0.89** - US federal holiday tracking
 
 ### Frontend
 
-- **Jinja2** — Server-side templates with 24-hour time format
-- **Vanilla JavaScript** — ES6+ with Luxon for timezone handling
-- **Bootstrap 5.3.8** — UI framework (bundled locally)
-- **Bootstrap Icons 1.13.1** — Icon library
-- **Luxon 3.7.2** — DateTime library with timezone support
+- **Jinja2** - Server-side templates with 24-hour time format
+- **Vanilla JavaScript** - ES6+ with Luxon for timezone handling
+- **Bootstrap 5.3.8** - UI framework (bundled locally)
+- **Bootstrap Icons 1.13.1** - Icon library
+- **Luxon 3.7.2** - DateTime library with timezone support
 - **Vite 7.3.1** - Build tool for asset bundling
 - **Prettier 3.8.1** - Code formatter
 
 ### Testing
 
-- **pytest 9.0.2** — Python testing framework (99% coverage)
-- **Jest 30.2.0** — JavaScript testing framework (78% coverage)
-- **GitHub Actions** — Automated CI/CD pipeline
-- **Codecov** — Coverage tracking and reporting
+- **pytest 9.0.2** - Python testing framework (99% coverage)
+- **Jest 30.2.0** - JavaScript testing framework (78% coverage)
+- **GitHub Actions** - Automated CI/CD pipeline
+- **Codecov** - Coverage tracking and reporting
 
 ### Build Tools
 
 - **UV** - Python package manager
-- **Bun** — JavaScript runtime and package manager
+- **Bun** - JavaScript runtime and package manager
 - **Vite** - Frontend build tool
-- **Ruff** — Python linting
-- **Stylelint** — CSS linting
+- **Ruff** - Python linting
+- **Stylelint** - CSS linting
 
 ## Development
 
@@ -212,8 +213,6 @@ uv run flask --app backend.app db current
 uv run flask --app backend.app db history
 ```
 
-See `docs/DATABASE_MIGRATIONS.md` for detailed migration workflow.
-
 ## Project Structure
 
 ```
@@ -227,6 +226,7 @@ ecc-sheet/
 │   ├── config.py           # Configuration
 │   ├── email_service.py    # Email reporting
 │   ├── holidays.py         # Holiday utilities
+│   ├── report_utils.py     # Report generation utilities
 │   └── staff_import.py     # Amion staff parsing
 ├── frontend/                # Frontend templates and assets
 │   ├── templates/          # Jinja2 templates
@@ -238,6 +238,7 @@ ecc-sheet/
 ├── migrations/              # Database migrations
 ├── tests/                   # Python test suite (26 modules)
 ├── docs/                    # Documentation
+├── scripts/                 # Utility scripts
 └── instance/                # Instance files (database)
 ```
 
@@ -249,8 +250,7 @@ The application uses environment-based authentication:
 - **Admin Access**: Controlled by `ADMIN_USERS` (comma-separated list)
 - **External Auth**: Designed to work with SSO or reverse proxy
 
-Authentication must be handled externally (e.g., institutional SSO, reverse
-proxy).
+Authentication must be handled externally (e.g., institutional SSO, reverse proxy).
 
 ## Security
 
@@ -283,8 +283,8 @@ proxy).
 ### Form Endpoints (POST)
 
 - `/entries/add` - Add time entry
-- `/entries/<id>/update` - Update time entry
-- `/entries/<id>/delete` - Delete time entry
+- `/entries/<id>/update` - Update time entry (with audit logging)
+- `/entries/<id>/delete` - Delete time entry (with audit logging)
 - `/sheets/<date>/lock` - Toggle sheet lock
 - `/schedule/<date>/import` - Import from Amion
 - `/residents/add` - Add resident
@@ -293,20 +293,19 @@ proxy).
 - `/roles/<id>/update` - Update role cutoff
 - `/holidays/add` - Add custom holiday
 - `/holidays/<id>/delete` - Delete holiday
-- `/generate_report` - Generate overtime reports
-- `/export_report_csv` - Export report as CSV
-- `/email_report` - Send reports via email
+- `/api/report` - Generate overtime reports
+- `/api/report/export_csv` - Export detailed report as CSV
+- `/api/report/export_billing_csv` - Export billing/payroll summary as CSV
+- `/api/report/send_email` - Send reports via email
 
 All POST endpoints require CSRF token.
 
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)** - Comprehensive project documentation
-- **[DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md)** — Migration workflow
-  guide
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture reference
-- **[PRODUCTION.md](docs/PRODUCTION.md)** - Production deployment guide
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture reference
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
+- **[docs/README.md](docs/README.md)** - Documentation overview
 
 ## Testing
 
@@ -338,19 +337,18 @@ bun run test:coverage
 
 GitHub Actions workflow includes:
 
-1. **Backend Tests** — Python 3.13, pytest with coverage
-2. **Frontend Tests** — Bun, Jest with coverage
+1. **Backend Tests** - Python 3.13, pytest with coverage
+2. **Frontend Tests** - Bun, Jest with coverage
 3. **Frontend Build & Lint** - Prettier, Stylelint, Vite build
-4. **Security Scan** — Bandit security analysis
-5. **Coverage Upload** — Codecov reporting
+4. **Security Scan** - Bandit security analysis
+5. **Coverage Upload** - Codecov reporting
 
 ## Troubleshooting
 
 ### Database Issues
 
-- **Database locked**: SQLite write locks — usually resolves on retry
-- **Migration conflicts**: Run `uv run flask --app backend.app db history` to
-  view
+- **Database locked**: SQLite write locks - usually resolves on retry
+- **Migration conflicts**: Run `uv run flask --app backend.app db history` to view
 
 ### Frontend Issues
 
@@ -360,13 +358,13 @@ GitHub Actions workflow includes:
 ### Import Issues
 
 - **Schedule import fails**: Verify Amion URL accessibility
-- **Staff import fails**: Check Amion API access and Report 706 format.
+- **Staff import fails**: Check Amion API access and Report 706 format
 - **Missing residents**: Ensure EPIC IDs are populated
 
 ### Email Issues
 
 - **Email reports not sending**: Verify SMTP configuration in `.env`
-- **Check credentials**: EMAIL_HOST, EMAIL_PORT, EMAIL_USERNAME, EMAIL_PASSWORD.
+- **Check credentials**: EMAIL_HOST, EMAIL_PORT, EMAIL_USERNAME, EMAIL_PASSWORD
 
 See `CLAUDE.md` for detailed troubleshooting.
 
@@ -382,9 +380,20 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
 
 ## License
 
-Apache License 2.0 — See [LICENSE](LICENSE) file for details.
+Apache License 2.0 - See [LICENSE](LICENSE) file for details.
 
 ## Changelog
+
+### Version 3.1 (2026-02-11)
+
+- Changed time rounding from 15-minute to 5-minute increments
+- Added billing/payroll CSV export (resident name + total overtime)
+- Enhanced audit logging with old/new value tracking
+- Simplified email reports to payroll format (name + total only)
+- Moved Amion schedule code to environment variable (AMION_SCHEDULE_CODE)
+- Updated all documentation and setup scripts
+
+**Migration Note:** Add `AMION_SCHEDULE_CODE=your-schedule-code-here` to your `.env` file
 
 ### Version 3.0 (2026-01-31)
 

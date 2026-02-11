@@ -1,6 +1,15 @@
 """Resident management routes."""
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 from ..auth import admin_required, get_current_user
 from ..models import Resident, db
@@ -70,7 +79,10 @@ def toggle(resident_id):
 def import_staff():
     """Import staff list from Amion to populate resident information."""
     try:
-        result = import_staff_list(user=get_current_user())
+        # Get schedule code from config
+        schedule_code = current_app.config.get("AMION_SCHEDULE_CODE", "upennane")
+
+        result = import_staff_list(schedule_code=schedule_code, user=get_current_user())
 
         if result["success"]:
             flash(

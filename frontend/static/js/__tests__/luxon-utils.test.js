@@ -14,41 +14,57 @@ await import("../luxon-utils.js");
 const LuxonUtils = global.window.LuxonUtils;
 
 describe("LuxonUtils", () => {
-  describe("roundToQuarterHour", () => {
+  describe("roundToFiveMinutes", () => {
     test("returns null/undefined for empty input", () => {
-      expect(LuxonUtils.roundToQuarterHour(null)).toBeNull();
-      expect(LuxonUtils.roundToQuarterHour(undefined)).toBeUndefined();
-      expect(LuxonUtils.roundToQuarterHour("")).toBe("");
+      expect(LuxonUtils.roundToFiveMinutes(null)).toBeNull();
+      expect(LuxonUtils.roundToFiveMinutes(undefined)).toBeUndefined();
+      expect(LuxonUtils.roundToFiveMinutes("")).toBe("");
     });
 
-    test("returns same time for times already on quarter hour", () => {
-      expect(LuxonUtils.roundToQuarterHour("10:00")).toBe("10:00");
-      expect(LuxonUtils.roundToQuarterHour("10:15")).toBe("10:15");
-      expect(LuxonUtils.roundToQuarterHour("10:30")).toBe("10:30");
-      expect(LuxonUtils.roundToQuarterHour("10:45")).toBe("10:45");
+    test("returns same time for times already on 5-minute mark", () => {
+      expect(LuxonUtils.roundToFiveMinutes("10:00")).toBe("10:00");
+      expect(LuxonUtils.roundToFiveMinutes("10:05")).toBe("10:05");
+      expect(LuxonUtils.roundToFiveMinutes("10:10")).toBe("10:10");
+      expect(LuxonUtils.roundToFiveMinutes("10:15")).toBe("10:15");
+      expect(LuxonUtils.roundToFiveMinutes("10:20")).toBe("10:20");
+      expect(LuxonUtils.roundToFiveMinutes("10:25")).toBe("10:25");
+      expect(LuxonUtils.roundToFiveMinutes("10:30")).toBe("10:30");
+      expect(LuxonUtils.roundToFiveMinutes("10:35")).toBe("10:35");
+      expect(LuxonUtils.roundToFiveMinutes("10:40")).toBe("10:40");
+      expect(LuxonUtils.roundToFiveMinutes("10:45")).toBe("10:45");
+      expect(LuxonUtils.roundToFiveMinutes("10:50")).toBe("10:50");
+      expect(LuxonUtils.roundToFiveMinutes("10:55")).toBe("10:55");
     });
 
-    test("rounds UP to next quarter hour", () => {
-      expect(LuxonUtils.roundToQuarterHour("10:01")).toBe("10:15");
-      expect(LuxonUtils.roundToQuarterHour("10:07")).toBe("10:15");
-      expect(LuxonUtils.roundToQuarterHour("10:14")).toBe("10:15");
-      expect(LuxonUtils.roundToQuarterHour("10:16")).toBe("10:30");
-      expect(LuxonUtils.roundToQuarterHour("10:29")).toBe("10:30");
-      expect(LuxonUtils.roundToQuarterHour("10:31")).toBe("10:45");
-      expect(LuxonUtils.roundToQuarterHour("10:44")).toBe("10:45");
-      expect(LuxonUtils.roundToQuarterHour("10:46")).toBe("11:00");
-      expect(LuxonUtils.roundToQuarterHour("10:59")).toBe("11:00");
+    test("rounds UP to next 5-minute increment", () => {
+      expect(LuxonUtils.roundToFiveMinutes("10:01")).toBe("10:05");
+      expect(LuxonUtils.roundToFiveMinutes("10:02")).toBe("10:05");
+      expect(LuxonUtils.roundToFiveMinutes("10:03")).toBe("10:05");
+      expect(LuxonUtils.roundToFiveMinutes("10:04")).toBe("10:05");
+      expect(LuxonUtils.roundToFiveMinutes("10:06")).toBe("10:10");
+      expect(LuxonUtils.roundToFiveMinutes("10:07")).toBe("10:10");
+      expect(LuxonUtils.roundToFiveMinutes("10:11")).toBe("10:15");
+      expect(LuxonUtils.roundToFiveMinutes("10:14")).toBe("10:15");
+      expect(LuxonUtils.roundToFiveMinutes("10:16")).toBe("10:20");
+      expect(LuxonUtils.roundToFiveMinutes("10:19")).toBe("10:20");
+      expect(LuxonUtils.roundToFiveMinutes("10:21")).toBe("10:25");
+      expect(LuxonUtils.roundToFiveMinutes("10:29")).toBe("10:30");
+      expect(LuxonUtils.roundToFiveMinutes("10:31")).toBe("10:35");
+      expect(LuxonUtils.roundToFiveMinutes("10:44")).toBe("10:45");
+      expect(LuxonUtils.roundToFiveMinutes("10:46")).toBe("10:50");
+      expect(LuxonUtils.roundToFiveMinutes("10:56")).toBe("11:00");
+      expect(LuxonUtils.roundToFiveMinutes("10:59")).toBe("11:00");
     });
 
     test("handles hour rollover correctly", () => {
-      expect(LuxonUtils.roundToQuarterHour("09:46")).toBe("10:00");
-      expect(LuxonUtils.roundToQuarterHour("23:46")).toBe("00:00");
+      expect(LuxonUtils.roundToFiveMinutes("09:56")).toBe("10:00");
+      expect(LuxonUtils.roundToFiveMinutes("23:56")).toBe("00:00");
     });
 
     test("handles midnight correctly", () => {
-      expect(LuxonUtils.roundToQuarterHour("00:00")).toBe("00:00");
-      expect(LuxonUtils.roundToQuarterHour("00:01")).toBe("00:15");
-      expect(LuxonUtils.roundToQuarterHour("00:14")).toBe("00:15");
+      expect(LuxonUtils.roundToFiveMinutes("00:00")).toBe("00:00");
+      expect(LuxonUtils.roundToFiveMinutes("00:01")).toBe("00:05");
+      expect(LuxonUtils.roundToFiveMinutes("00:04")).toBe("00:05");
     });
   });
 

@@ -106,11 +106,11 @@ function getDateRange(period) {
 }
 
 /**
- * Rounds time UP to next 15-minute increment
+ * Rounds time UP to next 5-minute increment
  * @param {string} time - Time string in HH:mm format
  * @returns {string} Rounded time string in HH:mm format
  */
-function roundToQuarterHour(time) {
+function roundToFiveMinutes(time) {
   if (!time) {
     return time;
   }
@@ -121,8 +121,8 @@ function roundToQuarterHour(time) {
     { zone: TIMEZONE },
   );
 
-  // Round minutes UP to next 15-minute increment
-  const roundedMinutes = Math.ceil(minutes / 15) * 15;
+  // Round minutes UP to next 5-minute increment
+  const roundedMinutes = Math.ceil(minutes / 5) * 5;
 
   let finalDt;
   if (roundedMinutes === 60) {
@@ -182,7 +182,7 @@ window.LuxonUtils = {
   getDaysFromNow,
   toISODate,
   getDateRange,
-  roundToQuarterHour,
+  roundToFiveMinutes,
   isValidDateRange,
   toRelative,
 };

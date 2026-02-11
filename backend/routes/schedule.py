@@ -6,7 +6,7 @@ from datetime import date, datetime
 from io import StringIO
 
 import requests
-from flask import Blueprint, flash, redirect, url_for
+from flask import Blueprint, current_app, flash, redirect, url_for
 
 from ..audit import log_import
 from ..models import DailySheet, Resident, Role, TimeEntry, db
@@ -27,10 +27,13 @@ def import_schedule(date_str):
             flash("Cannot import schedule - sheet is locked", "error")
             return redirect(url_for("sheets.view", date_str=date_str))
 
+        # Get schedule code from config
+        schedule_code = current_app.config.get("AMION_SCHEDULE_CODE", "upennane")
+
         # Construct Amion URL
         day = sheet_date.day
         month = sheet_date.month
-        amion_url = f"http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}"
+        amion_url = f"http://www.amion.com/cgi-bin/ocs?Lo={schedule_code}&Rpt=619&Day={day}&Month={month}"
 
         # Fetch data from Amion
         logger.info("Fetching schedule from Amion: %s", amion_url)

@@ -12,7 +12,7 @@ import pytest
 from backend.app import app as flask_app
 from backend.app import init_db
 from backend.models import DailySheet, Resident, Role, TimeEntry, db
-from backend.utils import philly_today
+from backend.utils import get_effective_date
 
 
 @pytest.fixture(scope="session")
@@ -67,6 +67,7 @@ def db_session(app):
         db.session.rollback()
 
 
+# noinspection PyBroadException
 @pytest.fixture
 def sample_resident(app):
     """Create a sample resident for testing"""
@@ -88,6 +89,7 @@ def sample_resident(app):
             db.session.rollback()
 
 
+# noinspection PyBroadException
 @pytest.fixture
 def sample_role(app):
     """Create a sample role for testing"""
@@ -111,13 +113,13 @@ def sample_role(app):
             db.session.rollback()
 
 
+# noinspection PyBroadException
 @pytest.fixture
 def sample_time_entry(app, sample_resident, sample_role):
     """Create a sample time entry for testing"""
     with app.app_context():
-        # Use philly_today() for timezone consistency with the app
         entry = TimeEntry(
-            date=philly_today(),
+            date=get_effective_date(),
             resident_id=sample_resident.id,
             role_id=sample_role.id,
             exit_time=time(20, 0),  # 20:00
@@ -135,12 +137,12 @@ def sample_time_entry(app, sample_resident, sample_role):
             db.session.rollback()
 
 
+# noinspection PyBroadException
 @pytest.fixture
 def sample_daily_sheet(app):
     """Create a sample daily sheet for testing"""
     with app.app_context():
-        # Use philly_today() for timezone consistency with the app
-        today = philly_today()
+        today = get_effective_date()
         sheet = DailySheet.query.filter_by(date=today).first()
         if not sheet:
             sheet = DailySheet(date=today, locked=False, submitted=False)
@@ -161,8 +163,7 @@ def sample_daily_sheet(app):
 def clean_database(app):
     """Clean database before and after test"""
     with app.app_context():
-        # Use philly_today() for timezone consistency with the app
-        today = philly_today()
+        today = get_effective_date()
 
         # Clean before test
         TimeEntry.query.delete(synchronize_session="fetch")
