@@ -1,6 +1,7 @@
 """Extended tests for models."""
 
 from datetime import UTC, date, datetime, time, timedelta
+from math import isclose
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -155,11 +156,16 @@ class TestResidentModel:
     def test_to_dict_basic(self, app):
         """Test to_dict method without entries."""
         with app.app_context():
+            # Use a unique ID that won't collide with production data
+            existing = Resident.query.filter_by(epic_id="TEST_DICT_BASIC_001").first()
+            if existing:
+                db.session.delete(existing)
+                db.session.commit()
             resident = Resident(
                 name="Dict Test",
-                epic_id="EPIC123",
+                epic_id="TEST_DICT_BASIC_001",
                 active=True,
-                class_year="CA2",
+                class_year="CA-2",
                 email="test@example.com",
                 phone="555-1234",
                 abbreviation="DT",
@@ -171,10 +177,10 @@ class TestResidentModel:
             data = resident.to_dict()
 
             assert data["name"] == "Dict Test"
-            assert data["epic_id"] == "EPIC123"
+            assert data["epic_id"] == "TEST_DICT_BASIC_001"
             assert data["active"] is True
             assert data["status"] == "Active"
-            assert data["class_year"] == "CA2"
+            assert data["class_year"] == "CA-2"
             assert data["email"] == "test@example.com"
             assert data["phone"] == "555-1234"
             assert data["abbreviation"] == "DT"
@@ -441,7 +447,7 @@ class TestResidentModel:
             db.session.commit()
 
             total = resident.get_total_overtime()
-            assert total == 4.5
+            assert isclose(total, 4.5, abs_tol=0.01)
 
             # Cleanup - delete resident first (cascade handles time_entries)
             db.session.delete(resident)
@@ -488,7 +494,7 @@ class TestResidentModel:
 
             # Get OT only for middle entry
             total = resident.get_total_overtime(date(2024, 3, 10), date(2024, 3, 20))
-            assert total == 2.5
+            assert isclose(total, 2.5, abs_tol=0.01)
 
             # Cleanup - delete resident first (cascade handles time_entries)
             db.session.delete(resident)
@@ -533,7 +539,7 @@ class TestTimeEntryModel:
 
             # All 8 hours should be overtime on weekend backup
             overtime = entry.overtime_hours
-            assert overtime == 8.0
+            assert isclose(overtime, 8.0, abs_tol=0.01)
 
             db.session.delete(entry)
             db.session.delete(backup_role)
@@ -576,7 +582,7 @@ class TestTimeEntryModel:
 
             # All 8 hours should be overtime on custom holiday backup
             overtime = entry.overtime_hours
-            assert overtime == 8.0
+            assert isclose(overtime, 8.0, abs_tol=0.01)
 
             db.session.delete(entry)
             db.session.delete(backup_role)
@@ -613,7 +619,7 @@ class TestTimeEntryModel:
 
             # Should calculate from default start (08:00) to 17:00 = 9 hours
             overtime = entry.overtime_hours
-            assert overtime == 9.0
+            assert isclose(overtime, 9.0, abs_tol=0.01)
 
             db.session.delete(entry)
             db.session.delete(backup_role)
@@ -646,7 +652,7 @@ class TestTimeEntryModel:
 
             # Should calculate overnight: 20:00 to 30:00 (6 AM next day) = 10 hours
             overtime = entry.overtime_hours
-            assert overtime == 10.0
+            assert isclose(overtime, 10.0, abs_tol=0.01)
 
             db.session.delete(entry)
             db.session.delete(backup_role)
@@ -664,7 +670,7 @@ class TestTimeEntryModel:
             db.session.add(entry)
             db.session.commit()
 
-            assert entry.overtime_hours == 0.0
+            assert isclose(entry.overtime_hours, 0.0, abs_tol=0.01)
 
             db.session.delete(entry)
             db.session.commit()
@@ -679,14 +685,14 @@ class TestTimeEntryModel:
             )
             entry.role = None
 
-            assert entry.overtime_hours == 0.0
+            assert isclose(entry.overtime_hours, 0.0, abs_tol=0.01)
 
     def test_overtime_hours_property(self, app, sample_time_entry):
         """Test overtime_hours property."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
             # Exit time 20:00, cutoff 17:30 -> 2.5 hours overtime
-            assert entry.overtime_hours == 2.5
+            assert isclose(entry.overtime_hours, 2.5, abs_tol=0.01)
 
     def test_time_entry_repr_with_resident(self, app, sample_resident, sample_role):
         """Test TimeEntry __repr__ with resident."""

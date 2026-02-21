@@ -217,7 +217,7 @@ class TestImportStaffToDatabase:
             resident = Resident.get_by_epic_id("TEST_NEW_001")
             assert resident is not None
             assert resident.name == "New Test Resident"
-            assert resident.class_year == "CA1"
+            assert resident.class_year == "CA-1"
             assert resident.email == "new@test.com"
             assert resident.phone == "555-1234"
             assert resident.abbreviation == "NTR"
@@ -231,11 +231,13 @@ class TestImportStaffToDatabase:
     def test_update_existing_resident(self, app):
         """Test updating an existing resident with changed information."""
         with app.app_context():
-            # Create an existing resident
+            # Create an existing resident with canonical class_year
             existing = Resident(
                 name="Old Name",
+                first_name="Old",
+                last_name="Name",
                 epic_id="TEST_UPDATE_001",
-                class_year="CA1",
+                class_year="CA-1",
                 email="old@test.com",
                 phone="555-0000",
                 abbreviation="OLD",
@@ -268,7 +270,7 @@ class TestImportStaffToDatabase:
             # Verify resident was updated
             resident = Resident.get_by_epic_id("TEST_UPDATE_001")
             assert resident.name == "Updated Name"
-            assert resident.class_year == "CA2"
+            assert resident.class_year == "CA-2"
             assert resident.email == "updated@test.com"
             assert resident.phone == "555-9999"
             assert resident.abbreviation == "UPD"
@@ -281,11 +283,14 @@ class TestImportStaffToDatabase:
     def test_skip_unchanged_resident(self, app):
         """Test that unchanged residents are skipped."""
         with app.app_context():
-            # Create an existing resident
+            # Create an existing resident with already-normalized class_year and
+            # pre-split names
             existing = Resident(
                 name="Same Name",
+                first_name="Same",
+                last_name="Name",
                 epic_id="TEST_SKIP_001",
-                class_year="CA1",
+                class_year="CA-1",
                 email="same@test.com",
                 phone="555-1111",
                 abbreviation="SAM",
@@ -295,7 +300,7 @@ class TestImportStaffToDatabase:
             db.session.add(existing)
             db.session.commit()
 
-            # Import with same data
+            # Import with same data using Amion-style class_year (maps to "CA-1")
             staff_list = [
                 {
                     "name": "Same Name",
@@ -327,11 +332,14 @@ class TestImportStaffToDatabase:
             Resident.query.filter(Resident.epic_id.like("TEST_MIX_%")).delete()
             db.session.commit()
 
-            # Create existing residents
+            # Create existing residents with canonical class_year values
+            # and pre-split names
             existing_unchanged = Resident(
                 name="Unchanged",
+                first_name="Unchanged",
+                last_name=None,
                 epic_id="TEST_MIX_001",
-                class_year="CA1",
+                class_year="CA-1",
                 email="unchanged@test.com",
                 phone="555-0001",
                 abbreviation="UNC",
@@ -340,8 +348,10 @@ class TestImportStaffToDatabase:
             )
             existing_to_update = Resident(
                 name="To Update",
+                first_name="To",
+                last_name="Update",
                 epic_id="TEST_MIX_002",
-                class_year="CA1",
+                class_year="CA-1",
                 email="old@test.com",
                 phone="555-0002",
                 abbreviation="TOU",
@@ -355,7 +365,7 @@ class TestImportStaffToDatabase:
                 {
                     "name": "Unchanged",
                     "epic_id": "TEST_MIX_001",
-                    "class_year": "CA1",
+                    "class_year": "CA1",  # Maps to "CA-1" (unchanged)
                     "email": "unchanged@test.com",
                     "phone": "555-0001",
                     "abbreviation": "UNC",
@@ -364,7 +374,7 @@ class TestImportStaffToDatabase:
                 {
                     "name": "To Update",
                     "epic_id": "TEST_MIX_002",
-                    "class_year": "CA2",  # Changed
+                    "class_year": "CA2",  # Maps to "CA-2" (changed)
                     "email": "old@test.com",
                     "phone": "555-0002",
                     "abbreviation": "TOU",
@@ -396,11 +406,13 @@ class TestImportStaffToDatabase:
     def test_partial_field_updates(self, app):
         """Test that only changed fields trigger an update."""
         with app.app_context():
-            # Create an existing resident
+            # Create an existing resident with canonical class_year and pre-split names
             existing = Resident(
                 name="Test Person",
+                first_name="Test",
+                last_name="Person",
                 epic_id="TEST_PARTIAL_001",
-                class_year="CA1",
+                class_year="CA-1",
                 email="test@test.com",
                 phone="555-1111",
                 abbreviation="TST",
@@ -410,7 +422,7 @@ class TestImportStaffToDatabase:
             db.session.add(existing)
             db.session.commit()
 
-            # Change only the email
+            # Change only the email; class_year "CA1" maps to "CA-1" (no change)
             staff_list = [
                 {
                     "name": "Test Person",
@@ -431,10 +443,10 @@ class TestImportStaffToDatabase:
             assert updated == 1
             assert skipped == 0
 
-            # Verify only email changed
+            # Verify only email changed; class_year remains "CA-1"
             resident = Resident.get_by_epic_id("TEST_PARTIAL_001")
             assert resident.email == "newemail@test.com"
-            assert resident.class_year == "CA1"  # Unchanged
+            assert resident.class_year == "CA-1"  # Unchanged (CA1 → CA-1)
 
             # Cleanup
             db.session.delete(resident)
