@@ -123,6 +123,46 @@ class TestResident:
             db.session.delete(resident)
             db.session.commit()
 
+    def test_resident_new_fields_storage(self, app):
+        """Test that first_name, last_name, lawson_id, and hire_date are persisted."""
+        with app.app_context():
+            from datetime import date as date_type
+
+            resident = Resident(
+                name="Fields Storage Test",
+                first_name="Alice",
+                last_name="Smith",
+                lawson_id=12345,
+                hire_date=date_type(2023, 7, 1),
+            )
+            db.session.add(resident)
+            db.session.commit()
+
+            fetched = db.session.get(Resident, resident.id)
+            assert fetched.first_name == "Alice"
+            assert fetched.last_name == "Smith"
+            assert fetched.lawson_id == 12345
+            assert fetched.hire_date == date_type(2023, 7, 1)
+
+            db.session.delete(fetched)
+            db.session.commit()
+
+    def test_resident_new_fields_nullable(self, app):
+        """Test that first_name, last_name, lawson_id, and hire_date default to None."""
+        with app.app_context():
+            resident = Resident(name="Fields Nullable Test")
+            db.session.add(resident)
+            db.session.commit()
+
+            fetched = db.session.get(Resident, resident.id)
+            assert fetched.first_name is None
+            assert fetched.last_name is None
+            assert fetched.lawson_id is None
+            assert fetched.hire_date is None
+
+            db.session.delete(fetched)
+            db.session.commit()
+
     def test_class_years_constant_contains_expected_values(self):
         """Test that CLASS_YEARS contains the expected canonical values."""
         assert "CA-1" in Resident.CLASS_YEARS
@@ -195,7 +235,7 @@ class TestOvertimeCalculation:
             db.session.add(entry)
             db.session.commit()
 
-            assert isclose(entry.overtime_hours, 0.0, abs_tol=0.01)
+            assert entry.overtime_hours == 0
 
     def test_no_overtime_before_cutoff(self, app, sample_resident, sample_role):
         """Test no overtime for afternoon exit before cutoff"""
@@ -212,7 +252,7 @@ class TestOvertimeCalculation:
 
             # Before cutoff and not in AM hours, so treated as early departure
             # Exit time 15:00 is after overnight threshold (8:00), so no overtime
-            assert isclose(entry.overtime_hours, 0.0, abs_tol=0.01)
+            assert entry.overtime_hours == 0
 
     def test_late_night_overtime(self, app, sample_resident, sample_role):
         """Test overtime for late night (before midnight)"""
@@ -333,7 +373,7 @@ class TestTimeEntry:
             db.session.commit()
 
             assert entry.exit_time is None
-            assert isclose(entry.overtime_hours, 0.0, abs_tol=0.01)
+            assert entry.overtime_hours == 0
 
 
 @pytest.mark.unit

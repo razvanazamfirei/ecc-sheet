@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import ClassVar, cast
@@ -7,6 +8,8 @@ from sqlalchemy.orm import validates
 
 from .config import Config
 from .holidays import is_weekend_or_holiday
+
+logger = logging.getLogger(__name__)
 
 db = SQLAlchemy()
 
@@ -43,6 +46,13 @@ class Resident(db.Model):
     @validates("class_year")
     def validate_class_year(self, _key, value):
         if value and value not in self.CLASS_YEARS:
+            logger.warning(
+                "Invalid class_year %r discarded for Resident(id=%r); "
+                "must be one of %s",
+                value,
+                self.id,
+                self.CLASS_YEARS,
+            )
             return None
         return value
 
@@ -93,6 +103,10 @@ class Resident(db.Model):
             "phone": self.phone,
             "abbreviation": self.abbreviation,
             "backup_id": self.backup_id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "lawson_id": self.lawson_id,
+            "hire_date": self.hire_date.isoformat() if self.hire_date else None,
         }
 
         if include_entries:

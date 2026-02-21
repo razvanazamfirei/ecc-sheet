@@ -54,7 +54,7 @@
             <label for="class_year" class="form-label">Class Year</label>
             <select class="form-select" id="class_year" name="class_year">
               <option value="">-- None --</option>
-              {% for cy in ["CA-1", "CA-2", "CA-3", "Fellow", "OMFS"] %}
+              {% for cy in class_years %}
                 <option
                   value="{{ cy }}"
                   {% if resident.class_year == cy %}selected{% endif %}>
@@ -102,10 +102,11 @@
               value="{{ resident.hire_date.isoformat() if resident.hire_date else '' }}" />
           </div>
           <div class="col-md-6">
-            <label class="form-label">EPIC ID</label>
+            <label for="epic_id" class="form-label">EPIC ID</label>
             <input
               type="text"
               class="form-control"
+              id="epic_id"
               value="{{ resident.epic_id or '' }}"
               readonly
               disabled />

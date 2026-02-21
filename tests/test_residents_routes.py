@@ -295,37 +295,6 @@ class TestImportStaff:
             assert b"Error importing staff list" in response.data
 
 
-class TestResidentManagement:
-    """Legacy tests for resident management routes."""
-
-    def test_add_resident_empty_name(self, client):
-        """Test adding resident with empty name fails."""
-        response = client.post(
-            "/residents/add",
-            data={"name": ""},
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
-        assert b"required" in response.data.lower() or b"error" in response.data.lower()
-
-    def test_add_resident_whitespace_name(self, client):
-        """Test adding resident with whitespace-only name fails."""
-        response = client.post(
-            "/residents/add",
-            data={"name": "   "},
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
-        # Should be rejected
-
-    def test_resident_list_shows_all(self, client, app, sample_resident):
-        """Test resident list shows all residents."""
-        with app.app_context():
-            response = client.get("/residents/")
-            assert response.status_code == 200
-            assert sample_resident.name.encode() in response.data
-
-
 # noinspection DuplicatedCode
 class TestResidentExceptionHandling:
     """Tests for exception handling in resident routes."""
@@ -493,7 +462,7 @@ class TestEditResident:
 
             resident = Resident(
                 name="Clear Fields Test",
-                class_year="CA1",
+                class_year="CA-1",
                 email="old@example.com",
                 lawson_id=11111,
                 hire_date=date(2022, 7, 1),
@@ -626,6 +595,7 @@ class TestResidentProfile:
     ):
         """Test that time history section is shown for admin users."""
         with app.app_context():
+            assert sample_time_entry.resident_id == sample_resident.id
             response = client.get(f"/residents/{sample_resident.id}/profile")
             assert response.status_code == 200
             assert b"Recent Time Entries" in response.data

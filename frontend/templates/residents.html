@@ -94,13 +94,16 @@
                     {% if resident.created_at %}
                       <br />
                       <small class="text-muted"
-                        >Added {{ resident.created_at.strftime('%Y-%m-%d') }}</small
+                        >Added
+                        {{ resident.created_at.strftime('%Y-%m-%d') }}</small
                       >
                     {% endif %}
                   </td>
                   <td>
-                    {% if resident.last_name or resident.first_name %}
-                      {{ resident.last_name or '' }}{% if resident.last_name and resident.first_name %},{% endif %}{{ resident.first_name or '' }}
+                    {%- if resident.first_name or resident.last_name -%}
+                      {{- resident.last_name or '' -}}
+                      {{- ', ' if resident.last_name and resident.first_name else '' -}}
+                      {{- resident.first_name or '' -}}
                     {% else %}
                       <span class="text-muted">-</span>
                     {% endif %}

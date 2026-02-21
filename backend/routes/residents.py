@@ -49,9 +49,9 @@ def add():
         db.session.commit()
         flash(f"Resident {name} added successfully", "success")
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        logger.exception("Error adding resident: %s", e)
+        logger.exception("Error adding resident")
         flash("Error adding resident. Check logs for details.", "error")
 
     return redirect(url_for("residents.index"))
@@ -72,9 +72,9 @@ def toggle(resident_id):
         status = "activated" if resident.active else "deactivated"
         flash(f"Resident {resident.name} {status}", "success")
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        logger.exception("Error toggling resident status: %s", e)
+        logger.exception("Error toggling resident status")
         flash("Error updating resident. Check logs for details.", "error")
 
     return redirect(url_for("residents.index"))
@@ -87,7 +87,9 @@ def edit(resident_id):
     resident = db.session.get(Resident, resident_id)
     if resident is None:
         abort(404)
-    return render_template("resident_edit.html", resident=resident)
+    return render_template(
+        "resident_edit.html", resident=resident, class_years=Resident.CLASS_YEARS
+    )
 
 
 @bp.route("/<int:resident_id>/edit", methods=["POST"])
@@ -99,14 +101,24 @@ def edit_save(resident_id):
     if resident is None:
         abort(404)
 
+    before = {
+        "name": resident.name,
+        "first_name": resident.first_name,
+        "last_name": resident.last_name,
+        "class_year": resident.class_year,
+        "email": resident.email,
+        "phone": resident.phone,
+        "abbreviation": resident.abbreviation,
+        "lawson_id": resident.lawson_id,
+        "hire_date": resident.hire_date.isoformat() if resident.hire_date else None,
+    }
+
     resident.name = request.form.get("name", "").strip() or resident.name
     resident.first_name = request.form.get("first_name", "").strip() or None
     resident.last_name = request.form.get("last_name", "").strip() or None
 
     class_year_val = request.form.get("class_year", "").strip()
-    resident.class_year = (
-        class_year_val if class_year_val in Resident.CLASS_YEARS else None
-    )
+    resident.class_year = class_year_val or None
 
     resident.email = request.form.get("email", "").strip() or None
     resident.phone = request.form.get("phone", "").strip() or None
@@ -124,13 +136,30 @@ def edit_save(resident_id):
     else:
         resident.hire_date = None
 
+    after = {
+        "name": resident.name,
+        "first_name": resident.first_name,
+        "last_name": resident.last_name,
+        "class_year": resident.class_year,
+        "email": resident.email,
+        "phone": resident.phone,
+        "abbreviation": resident.abbreviation,
+        "lawson_id": resident.lawson_id,
+        "hire_date": resident.hire_date.isoformat() if resident.hire_date else None,
+    }
+    changes = {
+        field: {"before": before[field], "after": after[field]}
+        for field in before
+        if before[field] != after[field]
+    }
+
     try:
         db.session.commit()
-        log_update("Resident", resident.id, details={"name": resident.name})
+        log_update("Resident", resident.id, changes=changes)
         flash(f"Resident {resident.name} updated successfully.", "success")
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        logger.exception("Error saving resident: %s", e)
+        logger.exception("Error saving resident")
         flash("Error updating resident. Check logs for details.", "error")
 
     return redirect(url_for("residents.index"))

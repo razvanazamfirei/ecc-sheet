@@ -6,6 +6,7 @@ resident information including class year, email, phone, and other details.
 """
 
 import csv
+from typing import Any
 
 import requests
 
@@ -129,10 +130,12 @@ def import_staff_to_database(
 
     for staff in staff_list:
         epic_id = staff["epic_id"]
-        normalized_class_year = CLASS_YEAR_MAP.get(staff["class_year"], staff["class_year"])
+        normalized_class_year = CLASS_YEAR_MAP.get(
+            staff["class_year"], staff["class_year"]
+        )
 
         # Split Amion display name into first/last
-        parts = staff["name"].split(" ", 1)
+        parts = staff["name"].rsplit(" ", 1)
         first_name = parts[0] if parts else None
         last_name = parts[1] if len(parts) > 1 else None
 
@@ -207,9 +210,7 @@ def import_staff_to_database(
     return created, updated, skipped
 
 
-def import_staff_list(
-    schedule_code: str, user: str | None = None
-) -> dict[str, any]:
+def import_staff_list(schedule_code: str, user: str | None = None) -> dict[str, Any]:
     """
     Complete staff list import workflow.
 
