@@ -6,6 +6,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _int_env(name: str) -> int | None:
+    """Parse an integer environment variable; return None if unset or non-numeric."""
+    v = os.getenv(name)
+    if not v:
+        return None
+    try:
+        return int(v)
+    except ValueError:
+        return None
+
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///ecc_sheet.db")
@@ -21,6 +32,16 @@ class Config:
 
     # Amion integration
     AMION_SCHEDULE_CODE = os.getenv("AMION_SCHEDULE_CODE", "upennane")
+
+    # Payroll export defaults (used to seed the DB on first run via PayrollSettings)
+    PAYROLL_PROGRAM = os.getenv("PAYROLL_PROGRAM")
+    PAYROLL_COMPANY = os.getenv("PAYROLL_COMPANY")
+    PAYROLL_BATCH = _int_env("PAYROLL_BATCH")
+    PAYROLL_PAY_CODE = _int_env("PAYROLL_PAY_CODE")
+    PAYROLL_DEPT = _int_env("PAYROLL_DEPT")
+    PAYROLL_EXPENSE = _int_env("PAYROLL_EXPENSE")
+    PAYROLL_ACCT_UNIT = _int_env("PAYROLL_ACCT_UNIT")
+    PAYROLL_LABEL_SUFFIX = os.getenv("PAYROLL_LABEL_SUFFIX")
 
     # Time tracking configuration
     DEFAULT_CUTOFF_HOUR = int(os.getenv("DEFAULT_CUTOFF_HOUR", "17"))

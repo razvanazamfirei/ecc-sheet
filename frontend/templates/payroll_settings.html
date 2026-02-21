@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Payroll Settings{% endblock %}
+{% block content %}
+  <div class="mb-4">
+    <h2 class="mb-0">
+      <i class="bi bi-currency-dollar me-2"></i>Payroll Settings
+    </h2>
+    <p class="text-muted mb-0">Payroll export configuration</p>
+  </div>
+  {% if not can_edit %}
+    <div class="alert alert-info">
+      <i class="bi bi-lock me-2"></i>
+      These settings are read-only. Contact a payroll administrator to make
+      changes.
+    </div>
+  {% endif %}
+  <div class="card">
+    <div class="card-body">
+      <form
+        method="POST"
+        action="{{ url_for('reports.payroll_settings_save') }}"
+        {% if not can_edit %}onsubmit="return false;"{% endif %}>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="program" class="form-label">Program</label>
+            <input
+              type="text"
+              class="form-control"
+              id="program"
+              name="program"
+              value="{{ settings.program or '' }}"
+              placeholder="Program code"
+              {% if not can_edit %}readonly disabled{% endif %} />
+          </div>
+          <div class="col-md-4">
+            <label for="company" class="form-label">Company</label>
+            <input
+              type="text"
+              class="form-control"
+              id="company"
+              name="company"
+              value="{{ settings.company or '' }}"
+              placeholder="Company code"
+              {% if not can_edit %}readonly disabled{% endif %} />
+          </div>
+          <div class="col-md-4">
+            <label for="batch" class="form-label">Batch</label>
+            <input
+              type="number"
+              class="form-control"
+              id="batch"
+              name="batch"
+              min="0"
+              value="{{ settings.batch or '' }}"
+              placeholder="Batch number"
+              {% if not can_edit %}readonly disabled{% endif %} />
+          </div>
+          <div class="col-md-4">
+            <label for="pay_code" class="form-label">Pay Code</label>
+            <input
+              type="number"
+              class="form-control"
+              id="pay_code"
+              name="pay_code"
+              min="0"
+              value="{{ settings.pay_code or '' }}"
+              placeholder="Pay code number"
+              {% if not can_edit %}readonly disabled{% endif %} />
+          </div>
+          <div class="col-md-4">
+            <label for="dept" class="form-label">Dept</label>
+            <input
+              type="number"
+              class="form-control"
+              id="dept"
+              name="dept"
+              min="0"
+              value="{{ settings.dept or '' }}"
+              placeholder="Dept number"
+              {% if not can_edit %}readonly disabled{% endif %} />
+          </div>
+          <div class="col-md-4">
+            <label for="expense" class="form-label">Expense</label>
+            <input
+              type="number"
+              class="form-control"
+              id="expense"
+              name="expense"
+              min="0"
+              value="{{ settings.expense or '' }}"
+              placeholder="Expense number"
+              {% if not can_edit %}readonly disabled{% endif %} />
+          </div>
+          <div class="col-md-4">
+            <label for="acct_unit" class="form-label">Acct Unit</label>
+            <input
+              type="number"
+              class="form-control"
+              id="acct_unit"
+              name="acct_unit"
+              min="0"
+              value="{{ settings.acct_unit or '' }}"
+              placeholder="Account unit number"
+              {% if not can_edit %}readonly disabled{% endif %} />
+          </div>
+          <div class="col-md-4">
+            <label for="label_suffix" class="form-label">Label Suffix</label>
+            <input
+              type="text"
+              class="form-control"
+              id="label_suffix"
+              name="label_suffix"
+              value="{{ settings.label_suffix or '' }}"
+              placeholder="e.g. ECA"
+              {% if not can_edit %}readonly disabled{% endif %} />
+            <div class="form-text">
+              Appended to month abbreviation in col AB (e.g. "JAN ECA")
+            </div>
+          </div>
+        </div>
+        {% if can_edit %}
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-circle me-2"></i>Save Settings
+            </button>
+            <a
+              href="{{ url_for('reports.index') }}"
+              class="btn btn-outline-secondary ms-2">
+              Cancel
+            </a>
+          </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+{% endblock %}
