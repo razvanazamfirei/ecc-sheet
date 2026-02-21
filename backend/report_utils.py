@@ -1,10 +1,12 @@
 """Shared utilities for report generation."""
 
 import csv
+import operator
 from datetime import date
 from io import BytesIO, StringIO
 
 import openpyxl
+from sqlalchemy.orm import joinedload
 
 from .models import Resident, Role, TimeEntry, db
 
@@ -15,11 +17,16 @@ def build_entries_query(
     """Build query for entries within date range, filtered by resident.
 
     Call team roles (is_call_team=True) are excluded from overtime reports.
+    Resident and role relationships are eagerly loaded to avoid N+1 queries.
     """
-    query = TimeEntry.query.join(Role).filter(
-        TimeEntry.date >= start_date,
-        TimeEntry.date <= end_date,
-        Role.is_call_team.isnot(True),
+    query = (
+        TimeEntry.query.join(Role)
+        .options(joinedload(TimeEntry.resident), joinedload(TimeEntry.role))
+        .filter(
+            TimeEntry.date >= start_date,
+            TimeEntry.date <= end_date,
+            Role.is_call_team.isnot(True),
+        )
     )
     if resident_id:
         query = query.filter(TimeEntry.resident_id == resident_id)
@@ -103,7 +110,7 @@ def generate_billing_csv_content(resident_data: dict) -> str:
     writer.writerow(["Resident Name", "Total Overtime Hours"])
 
     # Sort by resident name for consistent output
-    for data in sorted(resident_data.values(), key=lambda d: d["name"]):
+    for data in sorted(resident_data.values(), key=operator.itemgetter("name")):
         writer.writerow([data["name"], f"{data['total_overtime']:.2f}"])
 
     # Add grand total row
@@ -128,7 +135,7 @@ def generate_payroll_xlsx(
     Only residents with a lawson_id are included.
 
     Args:
-        resident_data: Dict from aggregate_entries_by_resident() keyed by name.
+        resident_data: Dict from aggregate_entries_by_resident() keyed by resident_id.
         start_date: Report start date (used for col AB month abbreviation).
         end_date: Report end date (used as Transdate in col N).
         settings: PayrollSettings instance.
@@ -144,7 +151,7 @@ def generate_payroll_xlsx(
         "Program",  # A
         "",  # B (hire date — no header label per spec)
         "Employee",  # C
-        "UPHS",  # D
+        "Company",  # D
         "Batch",  # E
         "Lawson ID #",  # F
         "filter",  # G
@@ -172,16 +179,24 @@ def generate_payroll_xlsx(
     ]
     ws.append(headers)
 
-    month_abbrev = start_date.strftime('%b').upper()
+    month_abbrev = start_date.strftime("%b").upper()  # e.g. 'JAN', 'FEB'
     if settings.label_suffix:
         note = f"{month_abbrev} {settings.label_suffix}"
     else:
         note = month_abbrev
 
+    # Batch-load all residents to avoid N+1 queries inside the loop
+    resident_lookup: dict[int, Resident] = {
+        r.id: r
+        for r in db.session.query(Resident).filter(
+            Resident.id.in_(resident_data.keys())
+        )
+    }
+
     for resident_id, data in sorted(
         resident_data.items(), key=lambda item: item[1]["name"]
     ):
-        resident = db.session.get(Resident, resident_id)
+        resident = resident_lookup.get(resident_id)
         if resident is None or not resident.lawson_id:
             continue
 

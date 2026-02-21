@@ -52,7 +52,8 @@ def _parse_report_params() -> tuple[date, date, str | int | None]:
     if not can_view_all_reports():
         resident_id = get_current_resident_id() or -1
     else:
-        resident_id = request.form.get("resident_id") or None
+        raw = request.form.get("resident_id", "").strip()
+        resident_id = int(raw) if raw else None
 
     return start_date, end_date, resident_id
 

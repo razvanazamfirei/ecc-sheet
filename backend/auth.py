@@ -99,7 +99,7 @@ def payroll_admin_required(f):
             flash(
                 "Payroll admin privileges required to modify these settings.", "error"
             )
-            return redirect(url_for("sheets.index"))
+            return redirect(url_for("reports.payroll_settings"))
         return f(*args, **kwargs)
 
     return decorated_function

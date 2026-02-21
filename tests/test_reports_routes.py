@@ -351,112 +351,86 @@ class TestPayrollSettings:
         assert response.status_code == 200
         assert b"Payroll Settings" in response.data
 
-    def test_payroll_settings_page_read_only_for_non_payroll_admin(self, client):
+    def test_payroll_settings_page_read_only_for_non_payroll_admin(
+        self, client, monkeypatch
+    ):
         """Test that regular admins see read-only view."""
-        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
-        try:
-            os.environ["PAYROLL_ADMIN_USERS"] = "Someone Else"
-            response = client.get("/payroll-settings")
-            assert response.status_code == 200
-            assert b"read-only" in response.data.lower()
-        finally:
-            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "Someone Else")
+        response = client.get("/payroll-settings")
+        assert response.status_code == 200
+        assert b"read-only" in response.data.lower()
 
-    def test_payroll_settings_requires_admin(self, client):
+    def test_payroll_settings_requires_admin(self, client, monkeypatch):
         """Test that payroll settings page requires admin."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        response = client.get("/payroll-settings", follow_redirects=True)
+        assert b"Admin privileges required" in response.data
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            response = client.get("/payroll-settings", follow_redirects=True)
-            assert b"Admin privileges required" in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
-
-    def test_payroll_settings_save_requires_payroll_admin(self, client):
+    def test_payroll_settings_save_requires_payroll_admin(self, client, monkeypatch):
         """Test that non-payroll-admin cannot save settings."""
-        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
-        try:
-            os.environ["PAYROLL_ADMIN_USERS"] = "Someone Else"
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "Someone Else")
+        response = client.post(
+            "/payroll-settings",
+            data={"program": "X"},
+            follow_redirects=True,
+        )
+        assert b"Payroll admin privileges required" in response.data
+
+    def test_payroll_settings_save(self, client, app, monkeypatch):
+        """Test saving payroll settings as payroll admin."""
+        monkeypatch.setenv("USER_NAME", "CI-Test-User")
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "CI-Test-User")
+
+        with app.app_context():
             response = client.post(
                 "/payroll-settings",
-                data={"program": "X"},
+                data={
+                    "program": "M1300",
+                    "company": "UPHS",
+                    "batch": "860",
+                    "pay_code": "101758",
+                    "dept": "102",
+                    "expense": "1003",
+                    "acct_unit": "102000",
+                    "label_suffix": "ECA",
+                },
                 follow_redirects=True,
             )
-            assert b"Payroll admin privileges required" in response.data
-        finally:
-            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+            assert response.status_code == 200
+            assert b"saved successfully" in response.data
 
-    def test_payroll_settings_save(self, client, app):
-        """Test saving payroll settings as payroll admin."""
-        original_user = os.environ.get("USER_NAME", "")
-        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
-        try:
-            os.environ["USER_NAME"] = "CI-Test-User"
-            os.environ["PAYROLL_ADMIN_USERS"] = "CI-Test-User"
+            settings = PayrollSettings.query.first()
+            assert settings.program == "M1300"
+            assert settings.company == "UPHS"
+            assert settings.batch == 860
+            assert settings.label_suffix == "ECA"
 
-            with app.app_context():
-                response = client.post(
-                    "/payroll-settings",
-                    data={
-                        "program": "M1300",
-                        "company": "UPHS",
-                        "batch": "860",
-                        "pay_code": "101758",
-                        "dept": "102",
-                        "expense": "1003",
-                        "acct_unit": "102000",
-                        "label_suffix": "ECA",
-                    },
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
-                assert b"saved successfully" in response.data
-
-                settings = PayrollSettings.query.first()
-                assert settings.program == "M1300"
-                assert settings.company == "UPHS"
-                assert settings.batch == 860
-                assert settings.label_suffix == "ECA"
-        finally:
-            os.environ["USER_NAME"] = original_user
-            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
-
-    def test_payroll_settings_save_empty_values(self, client, app):
+    def test_payroll_settings_save_empty_values(self, client, app, monkeypatch):
         """Test saving empty payroll settings stores None for integer fields."""
-        original_user = os.environ.get("USER_NAME", "")
-        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
-        try:
-            os.environ["USER_NAME"] = "CI-Test-User"
-            os.environ["PAYROLL_ADMIN_USERS"] = "CI-Test-User"
+        monkeypatch.setenv("USER_NAME", "CI-Test-User")
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "CI-Test-User")
 
-            with app.app_context():
-                response = client.post(
-                    "/payroll-settings",
-                    data={
-                        "program": "",
-                        "company": "",
-                        "batch": "",
-                        "pay_code": "",
-                        "dept": "",
-                        "expense": "",
-                        "acct_unit": "",
-                        "label_suffix": "",
-                    },
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
+        with app.app_context():
+            response = client.post(
+                "/payroll-settings",
+                data={
+                    "program": "",
+                    "company": "",
+                    "batch": "",
+                    "pay_code": "",
+                    "dept": "",
+                    "expense": "",
+                    "acct_unit": "",
+                    "label_suffix": "",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
 
-                settings = PayrollSettings.query.first()
-                assert settings.program is None
-                assert settings.batch is None
-        finally:
-            os.environ["USER_NAME"] = original_user
-            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+            settings = PayrollSettings.query.first()
+            assert settings.program is None
+            assert settings.batch is None
 
 
 class TestReportExportPermissions:

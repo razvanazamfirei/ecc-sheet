@@ -256,7 +256,11 @@ class TestGeneratePayrollXlsx:
             db.session.commit()
 
             resident_data = {
-                resident.id: {"name": resident.name, "entries": [], "total_overtime": 3.0}
+                resident.id: {
+                    "name": resident.name,
+                    "entries": [],
+                    "total_overtime": 3.0,
+                }
             }
             result = generate_payroll_xlsx(
                 resident_data,
@@ -284,7 +288,11 @@ class TestGeneratePayrollXlsx:
             db.session.commit()
 
             resident_data = {
-                resident.id: {"name": resident.name, "entries": [], "total_overtime": 2.0}
+                resident.id: {
+                    "name": resident.name,
+                    "entries": [],
+                    "total_overtime": 2.0,
+                }
             }
             result = generate_payroll_xlsx(
                 resident_data,
@@ -295,7 +303,7 @@ class TestGeneratePayrollXlsx:
             wb = openpyxl.load_workbook(io.BytesIO(result))
             ws = wb.active
             assert ws.max_row == 2  # Header + 1 data row
-            assert ws.cell(row=2, column=9).value == 2.0  # Hours
+            assert ws.cell(row=2, column=9).value == 2  # Hours
 
     def test_col_ab_note_format(self, app, sample_resident):
         """Test that col AB contains '{MON} {label_suffix}'."""
@@ -313,7 +321,11 @@ class TestGeneratePayrollXlsx:
             db.session.commit()
 
             resident_data = {
-                resident.id: {"name": resident.name, "entries": [], "total_overtime": 1.5}
+                resident.id: {
+                    "name": resident.name,
+                    "entries": [],
+                    "total_overtime": 1.5,
+                }
             }
             result = generate_payroll_xlsx(
                 resident_data,
@@ -342,7 +354,11 @@ class TestGeneratePayrollXlsx:
 
             end = date(2026, 2, 28)
             resident_data = {
-                resident.id: {"name": resident.name, "entries": [], "total_overtime": 0.5}
+                resident.id: {
+                    "name": resident.name,
+                    "entries": [],
+                    "total_overtime": 0.5,
+                }
             }
             result = generate_payroll_xlsx(
                 resident_data,

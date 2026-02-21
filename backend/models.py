@@ -408,11 +408,10 @@ class PayrollSettings(db.Model):
 
     @classmethod
     def get_or_create(cls):
-        """Return the single settings row, creating it with defaults if it doesn't exist."""
+        """Return the single settings row, creating it with defaults
+        if it doesn't exist."""
         settings = cls.query.first()
         if settings is None:
-            from .config import Config
-
             settings = cls(
                 program=Config.PAYROLL_PROGRAM,
                 company=Config.PAYROLL_COMPANY,
@@ -424,7 +423,7 @@ class PayrollSettings(db.Model):
                 label_suffix=Config.PAYROLL_LABEL_SUFFIX,
             )
             db.session.add(settings)
-            db.session.flush()
+            db.session.commit()
         return settings
 
     def __repr__(self):
