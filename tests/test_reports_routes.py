@@ -3,6 +3,7 @@
 import io
 
 import openpyxl
+import pytest
 
 from backend.models import PayrollSettings, Resident, TimeEntry, db
 
@@ -278,6 +279,7 @@ class TestReportEdgeCases:
             assert response.status_code == 200
 
 
+@pytest.mark.integration
 class TestPayrollXlsxExport:
     """Tests for payroll XLSX export route."""
 
@@ -444,6 +446,7 @@ class TestPayrollSettings:
             assert settings.batch is None
 
 
+@pytest.mark.integration
 class TestReportExportPermissions:
     """Tests that billing CSV and payroll XLSX require can_view_all_reports."""
 
@@ -520,6 +523,7 @@ class TestReportExportPermissions:
         assert b"permission" in response.data.lower()
 
 
+@pytest.mark.integration
 class TestReportRestriction:
     """Tests that non-admin users are restricted to their own reports."""
 
