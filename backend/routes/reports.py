@@ -13,11 +13,11 @@ from flask import (
     url_for,
 )
 
+from ..audit import log_update
 from ..auth import (
     admin_required,
     can_view_all_reports,
     get_current_resident_id,
-    is_admin,
     is_payroll_admin,
     payroll_admin_required,
 )
@@ -50,6 +50,9 @@ def _parse_report_params() -> tuple[date, date, str | int | None]:
     ).date()
 
     if not can_view_all_reports():
+        # -1 is intentional: it is truthy (so build_entries_query applies the
+        # filter) but never matches a real resident_id, returning empty results
+        # for a user whose name has no corresponding Resident record.
         resident_id = get_current_resident_id() or -1
     else:
         raw = request.form.get("resident_id", "").strip()
@@ -144,8 +147,8 @@ def export_billing_csv():
 @bp.route("/api/report/send_email", methods=["POST"])
 def send_email():
     """Send report via email."""
-    if not is_admin():
-        flash("Admin privileges required to send email reports.", "error")
+    if not can_view_all_reports():
+        flash("You do not have permission to send email reports.", "error")
         return redirect(url_for("reports.index"))
     try:
         start_date, end_date, resident_id = _parse_report_params()
@@ -226,7 +229,10 @@ def payroll_settings_save():
 
     def _int_or_none(key):
         val = request.form.get(key, "").strip()
-        return int(val) if val.isdigit() else None
+        try:
+            return int(val) if val else None
+        except ValueError:
+            return None
 
     settings.batch = _int_or_none("batch")
     settings.pay_code = _int_or_none("pay_code")
@@ -236,6 +242,20 @@ def payroll_settings_save():
 
     try:
         db.session.commit()
+        log_update(
+            "PayrollSettings",
+            settings.id,
+            details={
+                "program": settings.program,
+                "company": settings.company,
+                "batch": settings.batch,
+                "pay_code": settings.pay_code,
+                "dept": settings.dept,
+                "expense": settings.expense,
+                "acct_unit": settings.acct_unit,
+                "label_suffix": settings.label_suffix,
+            },
+        )
         flash("Payroll settings saved successfully.", "success")
     except Exception as e:
         db.session.rollback()

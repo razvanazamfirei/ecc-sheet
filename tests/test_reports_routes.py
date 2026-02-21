@@ -1,6 +1,8 @@
 """Tests for report routes."""
 
-import os
+import io
+
+import openpyxl
 
 from backend.models import PayrollSettings, Resident, TimeEntry, db
 
@@ -311,6 +313,15 @@ class TestPayrollXlsxExport:
             assert response.status_code == 200
             assert "spreadsheetml" in response.content_type
 
+            wb = openpyxl.load_workbook(io.BytesIO(response.data))
+            ws = wb.active
+            sheet_values = [
+                ws.cell(row=r, column=c).value
+                for r in range(1, ws.max_row + 1)
+                for c in range(1, ws.max_column + 1)
+            ]
+            assert 55555 in sheet_values
+
             # Cleanup
             resident.lawson_id = None
             db.session.commit()
@@ -445,47 +456,31 @@ class TestReportExportPermissions:
             "PAYROLL_ADMIN_USERS": "",
         }
 
-    def test_billing_csv_blocked_for_regular_user(self, client):
+    def test_billing_csv_blocked_for_regular_user(self, client, monkeypatch):
         """Non-admin/non-payroll user is redirected from billing CSV export."""
-        saved = {
-            k: os.environ.get(k, "")
-            for k in ("USER_NAME", "ADMIN_USERS", "PAYROLL_ADMIN_USERS")
-        }
-        try:
-            for k, v in self._set_non_payroll_env().items():
-                os.environ[k] = v
+        for k, v in self._set_non_payroll_env().items():
+            monkeypatch.setenv(k, v)
 
-            response = client.post(
-                "/api/report/export_billing_csv",
-                data={"start_date": "2026-01-01", "end_date": "2026-01-31"},
-                follow_redirects=True,
-            )
-            assert response.status_code == 200
-            assert b"permission" in response.data.lower()
-        finally:
-            for k, v in saved.items():
-                os.environ[k] = v
+        response = client.post(
+            "/api/report/export_billing_csv",
+            data={"start_date": "2026-01-01", "end_date": "2026-01-31"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"permission" in response.data.lower()
 
-    def test_payroll_xlsx_blocked_for_regular_user(self, client, app):
+    def test_payroll_xlsx_blocked_for_regular_user(self, client, monkeypatch):
         """Non-admin/non-payroll user is redirected from payroll XLSX export."""
-        saved = {
-            k: os.environ.get(k, "")
-            for k in ("USER_NAME", "ADMIN_USERS", "PAYROLL_ADMIN_USERS")
-        }
-        try:
-            for k, v in self._set_non_payroll_env().items():
-                os.environ[k] = v
+        for k, v in self._set_non_payroll_env().items():
+            monkeypatch.setenv(k, v)
 
-            response = client.post(
-                "/api/report/export_payroll_xlsx",
-                data={"start_date": "2026-01-01", "end_date": "2026-01-31"},
-                follow_redirects=True,
-            )
-            assert response.status_code == 200
-            assert b"permission" in response.data.lower()
-        finally:
-            for k, v in saved.items():
-                os.environ[k] = v
+        response = client.post(
+            "/api/report/export_payroll_xlsx",
+            data={"start_date": "2026-01-01", "end_date": "2026-01-31"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"permission" in response.data.lower()
 
     def test_billing_csv_allowed_for_admin(self, client):
         """Admin user can access billing CSV export."""
@@ -505,52 +500,38 @@ class TestReportExportPermissions:
         assert response.status_code == 200
         assert "spreadsheetml" in response.content_type
 
-    def test_send_email_blocked_for_regular_user(self, client, app, sample_time_entry):
-        """Non-admin user is redirected from send email."""
-        saved = {
-            k: os.environ.get(k, "")
-            for k in ("USER_NAME", "ADMIN_USERS", "PAYROLL_ADMIN_USERS")
-        }
-        try:
-            for k, v in self._set_non_payroll_env().items():
-                os.environ[k] = v
+    def test_send_email_blocked_for_regular_user(
+        self, client, app, sample_time_entry, monkeypatch
+    ):
+        """Non-admin/non-payroll user is redirected from send email."""
+        for k, v in self._set_non_payroll_env().items():
+            monkeypatch.setenv(k, v)
 
-            with app.app_context():
-                entry = db.session.get(TimeEntry, sample_time_entry.id)
-                date_str = entry.date.strftime("%Y-%m-%d")
+        with app.app_context():
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            date_str = entry.date.strftime("%Y-%m-%d")
 
-            response = client.post(
-                "/api/report/send_email",
-                data={"start_date": date_str, "end_date": date_str},
-                follow_redirects=True,
-            )
-            assert response.status_code == 200
-            assert b"Admin privileges required" in response.data
-        finally:
-            for k, v in saved.items():
-                os.environ[k] = v
+        response = client.post(
+            "/api/report/send_email",
+            data={"start_date": date_str, "end_date": date_str},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"permission" in response.data.lower()
 
 
 class TestReportRestriction:
     """Tests that non-admin users are restricted to their own reports."""
 
-    def test_restricted_user_sees_self_only_note(self, client):
+    def test_restricted_user_sees_self_only_note(self, client, monkeypatch):
         """Reports page shows 'your entries only' for non-admin."""
-        original_user = os.environ.get("USER_NAME", "")
-        original_admins = os.environ.get("ADMIN_USERS", "")
-        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
-        try:
-            os.environ["USER_NAME"] = "Regular Viewer"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-            os.environ["PAYROLL_ADMIN_USERS"] = ""
+        monkeypatch.setenv("USER_NAME", "Regular Viewer")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "")
 
-            response = client.get("/reports")
-            assert response.status_code == 200
-            assert b"your entries only" in response.data.lower()
-        finally:
-            os.environ["USER_NAME"] = original_user
-            os.environ["ADMIN_USERS"] = original_admins
-            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+        response = client.get("/reports")
+        assert response.status_code == 200
+        assert b"your entries only" in response.data.lower()
 
     def test_admin_sees_resident_filter(self, client):
         """Reports page shows resident dropdown for admin."""
@@ -559,34 +540,26 @@ class TestReportRestriction:
         assert b"All Residents" in response.data
 
     def test_report_generation_forces_resident_id_for_restricted(
-        self, client, app, sample_time_entry, sample_resident
+        self, client, app, sample_time_entry, sample_resident, monkeypatch
     ):
         """Non-admin report POST ignores submitted resident_id and uses own."""
-        original_user = os.environ.get("USER_NAME", "")
-        original_admins = os.environ.get("ADMIN_USERS", "")
-        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
-        try:
-            os.environ["USER_NAME"] = "Regular Viewer"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-            os.environ["PAYROLL_ADMIN_USERS"] = ""
+        monkeypatch.setenv("USER_NAME", "Regular Viewer")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "")
 
-            with app.app_context():
-                entry = db.session.get(TimeEntry, sample_time_entry.id)
-                date_str = entry.date.strftime("%Y-%m-%d")
+        with app.app_context():
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            date_str = entry.date.strftime("%Y-%m-%d")
 
-                # Submit with a specific resident_id — should be overridden
-                response = client.post(
-                    "/api/report",
-                    data={
-                        "start_date": date_str,
-                        "end_date": date_str,
-                        "resident_id": sample_resident.id,
-                    },
-                    follow_redirects=True,
-                )
-                # Should succeed (200) but data shown will reflect restriction
-                assert response.status_code == 200
-        finally:
-            os.environ["USER_NAME"] = original_user
-            os.environ["ADMIN_USERS"] = original_admins
-            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+        # Submit with a specific resident_id — should be overridden
+        response = client.post(
+            "/api/report",
+            data={
+                "start_date": date_str,
+                "end_date": date_str,
+                "resident_id": sample_resident.id,
+            },
+            follow_redirects=True,
+        )
+        # Should succeed (200) but data shown will reflect restriction
+        assert response.status_code == 200

@@ -197,7 +197,7 @@ def generate_payroll_xlsx(
         resident_data.items(), key=lambda item: item[1]["name"]
     ):
         resident = resident_lookup.get(resident_id)
-        if resident is None or not resident.lawson_id:
+        if resident is None or resident.lawson_id is None:
             continue
 
         total_overtime = data["total_overtime"]
@@ -206,7 +206,7 @@ def generate_payroll_xlsx(
         # Build a 28-element row (cols A through AB)
         row = [None] * 28
         row[0] = settings.program  # A
-        row[1] = hire_date_val  # B
+        row[1] = hire_date_val.strftime("%m/%d/%Y") if hire_date_val else None  # B
         row[2] = data["name"]  # C
         row[3] = settings.company  # D
         row[4] = settings.batch  # E
@@ -215,7 +215,7 @@ def generate_payroll_xlsx(
         row[7] = settings.pay_code  # H
         row[8] = round(total_overtime, 2)  # I
         # J-M (indices 9-12) remain None
-        row[13] = end_date  # N
+        row[13] = end_date.strftime("%m/%d/%Y")  # N
         row[14] = settings.dept  # O
         row[15] = settings.expense  # P
         row[16] = settings.acct_unit  # Q

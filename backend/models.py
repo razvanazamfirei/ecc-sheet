@@ -408,11 +408,16 @@ class PayrollSettings(db.Model):
 
     @classmethod
     def get_or_create(cls):
-        """Return the single settings row, creating it with defaults
-        if it doesn't exist."""
-        settings = cls.query.first()
+        """Return the single settings row, creating it with defaults if
+        it doesn't exist.
+
+        The row is always stored with id=1 so that the primary-key constraint
+        enforces the singleton invariant at the database level.
+        """
+        settings = db.session.get(cls, 1)
         if settings is None:
             settings = cls(
+                id=1,
                 program=Config.PAYROLL_PROGRAM,
                 company=Config.PAYROLL_COMPANY,
                 batch=Config.PAYROLL_BATCH,

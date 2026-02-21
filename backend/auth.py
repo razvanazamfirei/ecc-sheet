@@ -5,6 +5,7 @@ Uses username from environment variable to determine admin status
 
 import os
 from functools import wraps
+from typing import Any
 
 from flask import flash, redirect, url_for
 
@@ -81,7 +82,7 @@ def admin_required(f):
     """Decorator to require admin privileges"""
 
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         if not is_admin():
             flash("Admin privileges required to access this page.", "error")
             return redirect(url_for("sheets.index"))
@@ -94,7 +95,7 @@ def payroll_admin_required(f):
     """Decorator to require payroll admin privileges (PAYROLL_ADMIN_USERS)."""
 
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         if not is_payroll_admin():
             flash(
                 "Payroll admin privileges required to modify these settings.", "error"

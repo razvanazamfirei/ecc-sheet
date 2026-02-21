@@ -1,6 +1,9 @@
 """Tests for report utilities."""
 
+import io
 from datetime import date, time
+
+import openpyxl
 
 from backend.models import PayrollSettings, Resident, TimeEntry, db
 from backend.report_utils import (
@@ -190,33 +193,38 @@ class TestGeneratePayrollXlsx:
         """Test that the function returns bytes."""
         with app.app_context():
             settings = PayrollSettings.get_or_create()
-            settings.program = "M1300"
-            settings.company = "UPHS"
-            settings.label_suffix = "ECA"
-            db.session.commit()
+            orig_program = settings.program
+            orig_company = settings.company
+            orig_label_suffix = settings.label_suffix
+            try:
+                settings.program = "M1300"
+                settings.company = "UPHS"
+                settings.label_suffix = "ECA"
+                db.session.commit()
 
-            resident_data = {
-                sample_resident.id: {
-                    "name": sample_resident.name,
-                    "entries": [],
-                    "total_overtime": 2.5,
+                resident_data = {
+                    sample_resident.id: {
+                        "name": sample_resident.name,
+                        "entries": [],
+                        "total_overtime": 2.5,
+                    }
                 }
-            }
-            result = generate_payroll_xlsx(
-                resident_data,
-                date(2026, 1, 1),
-                date(2026, 1, 31),
-                settings,
-            )
-            assert isinstance(result, bytes)
-            assert len(result) > 0
+                result = generate_payroll_xlsx(
+                    resident_data,
+                    date(2026, 1, 1),
+                    date(2026, 1, 31),
+                    settings,
+                )
+                assert isinstance(result, bytes)
+                assert len(result) > 0
+            finally:
+                settings.program = orig_program
+                settings.company = orig_company
+                settings.label_suffix = orig_label_suffix
+                db.session.commit()
 
     def test_xlsx_valid_workbook(self, app, sample_resident):
         """Test that returned bytes form a valid xlsx workbook."""
-        import io
-
-        import openpyxl
-
         with app.app_context():
             settings = PayrollSettings.get_or_create()
             settings.label_suffix = "ECA"
@@ -242,10 +250,6 @@ class TestGeneratePayrollXlsx:
 
     def test_excludes_residents_without_lawson_id(self, app, sample_resident):
         """Test that residents without lawson_id are excluded."""
-        import io
-
-        import openpyxl
-
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
             resident.lawson_id = None
@@ -274,10 +278,6 @@ class TestGeneratePayrollXlsx:
 
     def test_includes_residents_with_lawson_id(self, app, sample_resident):
         """Test that residents with lawson_id appear as data rows."""
-        import io
-
-        import openpyxl
-
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
             resident.lawson_id = 12345
@@ -307,10 +307,6 @@ class TestGeneratePayrollXlsx:
 
     def test_col_ab_note_format(self, app, sample_resident):
         """Test that col AB contains '{MON} {label_suffix}'."""
-        import io
-
-        import openpyxl
-
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
             resident.lawson_id = 99999
@@ -338,11 +334,7 @@ class TestGeneratePayrollXlsx:
             assert ws.cell(row=2, column=28).value == "MAR ECA"
 
     def test_transdate_is_end_date(self, app, sample_resident):
-        """Test that Transdate column (N = col 14) contains end_date."""
-        import io
-
-        import openpyxl
-
+        """Test that Transdate column (N = col 14) contains end_date as MM/DD/YYYY."""
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
             resident.lawson_id = 11111
@@ -368,11 +360,8 @@ class TestGeneratePayrollXlsx:
             )
             wb = openpyxl.load_workbook(io.BytesIO(result))
             ws = wb.active
-            # openpyxl reads date cells back as datetime; compare the date portion
             cell_value = ws.cell(row=2, column=14).value
-            if hasattr(cell_value, "date"):
-                cell_value = cell_value.date()
-            assert cell_value == end
+            assert cell_value == end.strftime("%m/%d/%Y")
 
 
 class TestPayrollSettingsModel:
