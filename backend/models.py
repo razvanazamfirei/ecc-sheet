@@ -45,8 +45,10 @@ class Resident(db.Model):
 
     @validates("class_year")
     def validate_class_year(self, _key, value):
-        value = value.strip() if value else None
-        if value and value not in self.CLASS_YEARS:
+        value = value.strip() if isinstance(value, str) else value
+        if not value:
+            return None
+        if value not in self.CLASS_YEARS:
             logger.warning(
                 "Invalid class_year %r discarded for Resident(id=%r); "
                 "must be one of %s",
@@ -55,7 +57,7 @@ class Resident(db.Model):
                 self.CLASS_YEARS,
             )
             return None
-        return value or None
+        return value
 
     @property
     def display_name(self):

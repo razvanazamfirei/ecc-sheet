@@ -90,7 +90,7 @@
               name="lawson_id"
               inputmode="numeric"
               pattern="[0-9]*"
-              value="{{ resident.lawson_id or '' }}" />
+              value="{{ resident.lawson_id if resident.lawson_id is not none else '' }}" />
           </div>
           <div class="col-md-6">
             <label for="hire_date" class="form-label">Hire Date</label>

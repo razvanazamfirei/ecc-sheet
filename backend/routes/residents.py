@@ -126,7 +126,10 @@ def edit_save(resident_id):
     resident.abbreviation = request.form.get("abbreviation", "").strip() or None
 
     lawson_val = request.form.get("lawson_id", "").strip()
-    resident.lawson_id = int(lawson_val) if lawson_val.isdigit() else None
+    try:
+        resident.lawson_id = int(lawson_val) if lawson_val else None
+    except ValueError:
+        resident.lawson_id = None
 
     hire_date_val = request.form.get("hire_date", "").strip()
     if hire_date_val:

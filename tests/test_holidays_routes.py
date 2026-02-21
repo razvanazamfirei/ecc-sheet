@@ -4,6 +4,8 @@ import os
 from datetime import date, timedelta
 from unittest.mock import patch
 
+import pytest
+
 from backend.models import Holiday, db
 from backend.utils import get_effective_date
 
@@ -108,8 +110,11 @@ class TestAddHoliday:
         with app.app_context():
             # Find a date not already seeded as a federal holiday
             candidate = get_effective_date() + timedelta(days=400)
+            max_candidate = candidate + timedelta(days=365)
             while Holiday.query.filter_by(date=candidate).first():
                 candidate += timedelta(days=1)
+                if candidate > max_candidate:
+                    pytest.fail("Could not find a non-holiday date within search range")
             test_date = candidate
             date_str = test_date.strftime("%Y-%m-%d")
 

@@ -270,6 +270,7 @@ def import_staff_list(schedule_code: str, user: str | None = None) -> dict[str, 
             "total_records": 0,
         }
     except Exception as e:
+        db.session.rollback()
         return {
             "success": False,
             "error": f"Import failed: {e!s}",

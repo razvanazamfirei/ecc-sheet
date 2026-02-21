@@ -126,14 +126,12 @@ class TestResident:
     def test_resident_new_fields_storage(self, app):
         """Test that first_name, last_name, lawson_id, and hire_date are persisted."""
         with app.app_context():
-            from datetime import date as date_type
-
             resident = Resident(
                 name="Fields Storage Test",
                 first_name="Alice",
                 last_name="Smith",
                 lawson_id=12345,
-                hire_date=date_type(2023, 7, 1),
+                hire_date=date(2023, 7, 1),
             )
             db.session.add(resident)
             db.session.commit()
@@ -142,7 +140,7 @@ class TestResident:
             assert fetched.first_name == "Alice"
             assert fetched.last_name == "Smith"
             assert fetched.lawson_id == 12345
-            assert fetched.hire_date == date_type(2023, 7, 1)
+            assert fetched.hire_date == date(2023, 7, 1)
 
             db.session.delete(fetched)
             db.session.commit()

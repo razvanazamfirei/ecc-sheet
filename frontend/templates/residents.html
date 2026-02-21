@@ -129,7 +129,7 @@
                     {% endif %}
                   </td>
                   <td>
-                    {% if resident.lawson_id %}
+                    {% if resident.lawson_id is not none %}
                       {{ resident.lawson_id }}
                     {% else %}
                       <span class="text-muted">-</span>
