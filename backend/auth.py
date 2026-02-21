@@ -7,14 +7,20 @@ import os
 from functools import wraps
 from typing import Any
 
-from flask import flash, redirect, url_for
+from flask import flash, redirect, session, url_for
 
 from .models import Resident, Role, TimeEntry
 from .utils import get_effective_date
 
 
 def get_current_user():
-    """Get current user from environment variable"""
+    """Get current user; when MOCK_USERS_ENABLED is set, use session override."""
+    if os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}:
+        try:
+            if "dev_user" in session:
+                return session["dev_user"]
+        except RuntimeError:
+            pass  # No request context (e.g. CLI or tests without a request)
     return os.getenv("USER_NAME", "Admin")
 
 
