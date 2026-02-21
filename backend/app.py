@@ -106,11 +106,10 @@ def init_db():
                 )
                 db.session.add(role)
             else:
-                # Backfill only unset fields; leave admin-customized values alone
-                if existing_role.is_backup is None:
-                    existing_role.is_backup = role_name in backup_roles
-                if existing_role.is_call_team is None:
-                    existing_role.is_call_team = role_name in call_team_roles
+                # Always correct categorical flags; only backfill display_order
+                # if unset so admin-customized ordering is preserved.
+                existing_role.is_backup = role_name in backup_roles
+                existing_role.is_call_team = role_name in call_team_roles
                 if existing_role.display_order is None:
                     existing_role.display_order = order
 

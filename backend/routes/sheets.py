@@ -21,13 +21,13 @@ def _get_sheet_context(sheet_date):
     """Return call_team_entries, overtime_entries, and overtime_roles for a date."""
     all_entries = (
         TimeEntry.query.filter_by(date=sheet_date)
-        .options(joinedload(TimeEntry.role))
+        .options(joinedload(TimeEntry.role), joinedload(TimeEntry.resident))
         .order_by(TimeEntry.id)
         .all()
     )
     call_team_entries = sorted(
         [e for e in all_entries if e.role and e.role.is_call_team],
-        key=lambda e: e.role.display_order,
+        key=lambda e: e.role.display_order if e.role.display_order is not None else 0,
     )
     overtime_entries = [e for e in all_entries if not (e.role and e.role.is_call_team)]
     overtime_roles = (

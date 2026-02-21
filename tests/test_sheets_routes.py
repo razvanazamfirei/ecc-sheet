@@ -344,6 +344,20 @@ class TestCallTeamFiltering:
             today = get_effective_date()
             date_str = today.strftime("%Y-%m-%d")
 
+            # Remove any leftovers from a previous failed run
+            for name in (
+                "CT Filter Call Role",
+                "CT Filter OT Role",
+                "CT Filter Test Resident",
+            ):
+                existing_role = Role.query.filter_by(name=name).first()
+                if existing_role:
+                    db.session.delete(existing_role)
+                existing_resident = Resident.query.filter_by(name=name).first()
+                if existing_resident:
+                    db.session.delete(existing_resident)
+            db.session.commit()
+
             resident = Resident(name="CT Filter Test Resident", active=True)
             db.session.add(resident)
 
@@ -379,6 +393,18 @@ class TestCallTeamFiltering:
 
             response = client.get(f"/sheets/{date_str}")
             assert response.status_code == 200
+
+            html = response.data.decode()
+            # The call-team section renders each entry as "ROLE_NAME:" (with colon).
+            # Verify the call role appears in that format and the OT role does not.
+            assert "CT Filter Call Role:" in html, (
+                "Call-team role not in call-team section"
+            )
+            assert "CT Filter OT Role:" not in html, (
+                "OT role must not appear in call-team section"
+            )
+            # The OT role should still appear on the page (entries table / dropdown).
+            assert "CT Filter OT Role" in html
 
             # Cleanup
             db.session.delete(db.session.get(TimeEntry, call_entry_id))
