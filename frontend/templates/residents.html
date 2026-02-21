@@ -62,8 +62,10 @@
             <thead class="table-light">
               <tr>
                 <th>Name</th>
+                <th>Last, First</th>
                 <th>Class Year</th>
                 <th>EPIC ID</th>
+                <th>Lawson ID</th>
                 <th>Email</th>
                 <th>Status</th>
                 <th class="text-end">Actions</th>
@@ -74,12 +76,33 @@
                 <tr
                   class="{% if not resident.active %}table-secondary{% endif %}">
                   <td>
-                    <strong>{{ resident.name }}</strong>
+                    <a
+                      href="{{ url_for('residents.profile', resident_id=resident.id) }}"
+                      class="text-decoration-none fw-bold">
+                      {{ resident.name }}
+                    </a>
                     {% if resident.abbreviation %}
                       <br />
                       <small class="text-muted"
                         >{{ resident.abbreviation }}</small
                       >
+                    {% endif %}
+                    {% if resident.phone %}
+                      <br />
+                      <small class="text-muted">{{ resident.phone }}</small>
+                    {% endif %}
+                    {% if resident.created_at %}
+                      <br />
+                      <small class="text-muted"
+                        >Added {{ resident.created_at.strftime('%Y-%m-%d') }}</small
+                      >
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if resident.last_name or resident.first_name %}
+                      {{ resident.last_name or '' }}{% if resident.last_name and resident.first_name %},{% endif %}{{ resident.first_name or '' }}
+                    {% else %}
+                      <span class="text-muted">-</span>
                     {% endif %}
                   </td>
                   <td>
@@ -93,7 +116,18 @@
                   </td>
                   <td>
                     {% if resident.epic_id %}
-                      <code class="text-muted">{{ resident.epic_id }}</code>
+                      <code
+                        class="text-muted"
+                        title="Auto-populated from Amion imports">
+                        {{- resident.epic_id -}}
+                      </code>
+                    {% else %}
+                      <span class="text-muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if resident.lawson_id %}
+                      {{ resident.lawson_id }}
                     {% else %}
                       <span class="text-muted">-</span>
                     {% endif %}
@@ -121,6 +155,11 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
+                    <a
+                      href="{{ url_for('residents.edit', resident_id=resident.id) }}"
+                      class="btn btn-sm btn-outline-secondary me-1">
+                      <i class="bi bi-pencil me-1"></i>Edit
+                    </a>
                     <form
                       method="POST"
                       action="{{ url_for('residents.toggle', resident_id=resident.id) }}"

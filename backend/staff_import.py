@@ -12,6 +12,14 @@ import requests
 from backend.audit import log_import
 from backend.models import Resident, db
 
+CLASS_YEAR_MAP = {
+    "CA1": "CA-1",
+    "CA2": "CA-2",
+    "CA3": "CA-3",
+    "Fellow": "Fellow",
+    "OMFS": "OMFS",
+}
+
 
 def fetch_staff_list(schedule_code: str) -> str:
     """
@@ -121,6 +129,12 @@ def import_staff_to_database(
 
     for staff in staff_list:
         epic_id = staff["epic_id"]
+        normalized_class_year = CLASS_YEAR_MAP.get(staff["class_year"], staff["class_year"])
+
+        # Split Amion display name into first/last
+        parts = staff["name"].split(" ", 1)
+        first_name = parts[0] if parts else None
+        last_name = parts[1] if len(parts) > 1 else None
 
         # Find existing resident by EPIC ID
         resident = Resident.get_by_epic_id(epic_id)
@@ -129,8 +143,8 @@ def import_staff_to_database(
             # Update existing resident
             changed = False
 
-            if resident.class_year != staff["class_year"]:
-                resident.class_year = staff["class_year"]
+            if resident.class_year != normalized_class_year:
+                resident.class_year = normalized_class_year
                 changed = True
 
             if resident.email != staff["email"]:
@@ -154,6 +168,11 @@ def import_staff_to_database(
                 resident.name = staff["name"]
                 changed = True
 
+            if resident.first_name != first_name or resident.last_name != last_name:
+                resident.first_name = first_name
+                resident.last_name = last_name
+                changed = True
+
             if changed:
                 updated += 1
             else:
@@ -162,8 +181,10 @@ def import_staff_to_database(
             # Create new resident
             resident = Resident(
                 name=staff["name"],
+                first_name=first_name,
+                last_name=last_name,
                 epic_id=epic_id,
-                class_year=staff["class_year"],
+                class_year=normalized_class_year,
                 email=staff["email"],
                 phone=staff["phone"],
                 abbreviation=staff["abbreviation"],

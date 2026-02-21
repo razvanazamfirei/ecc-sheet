@@ -1,8 +1,9 @@
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import cast
+from typing import ClassVar, cast
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import validates
 
 from .config import Config
 from .holidays import is_weekend_or_holiday
@@ -13,23 +14,37 @@ db = SQLAlchemy()
 class Resident(db.Model):
     __tablename__ = "residents"
 
+    CLASS_YEARS: ClassVar[list[str]] = ["CA-1", "CA-2", "CA-3", "Fellow", "OMFS"]
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    first_name = db.Column(db.String(100), nullable=True)
+    last_name = db.Column(db.String(100), nullable=True)
     epic_id = db.Column(db.String(50), unique=True, nullable=True)
     active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now(UTC))
 
     # Additional staff information
-    class_year = db.Column(db.String(20), nullable=True)  # CA1, CA2, CA3, Fellow, OMFS
+    class_year = db.Column(
+        db.String(20), nullable=True
+    )  # CA-1, CA-2, CA-3, Fellow, OMFS
     email = db.Column(db.String(255), nullable=True)
     phone = db.Column(db.String(50), nullable=True)
     abbreviation = db.Column(db.String(10), nullable=True)
     backup_id = db.Column(db.String(50), nullable=True)
+    lawson_id = db.Column(db.Integer, nullable=True)
+    hire_date = db.Column(db.Date, nullable=True)
 
     # Relationship to time entries
     time_entries = db.relationship(
         "TimeEntry", back_populates="resident", cascade="all, delete-orphan"
     )
+
+    @validates("class_year")
+    def validate_class_year(self, _key, value):
+        if value and value not in self.CLASS_YEARS:
+            return None
+        return value
 
     @property
     def display_name(self):
