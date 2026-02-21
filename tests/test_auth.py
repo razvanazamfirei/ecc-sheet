@@ -1,8 +1,9 @@
 """Tests for authentication and authorization module."""
 
 import os
+from datetime import date, time
 
-from backend.auth import get_current_user, is_admin
+from backend.auth import get_current_user, is_admin, is_first_call, is_payroll_admin
 
 
 class TestGetCurrentUser:
@@ -147,6 +148,147 @@ class TestIsAdmin:
                 os.environ["USER_NAME"] = original_user
             if original_admins:
                 os.environ["ADMIN_USERS"] = original_admins
+
+
+class TestIsPayrollAdmin:
+    """Tests for is_payroll_admin function."""
+
+    def test_true_when_user_in_payroll_admin_list(self):
+        """Test is_payroll_admin returns True when user is in PAYROLL_ADMIN_USERS."""
+        original_user = os.environ.get("USER_NAME")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS")
+        try:
+            os.environ["USER_NAME"] = "Payroll User"
+            os.environ["PAYROLL_ADMIN_USERS"] = "Payroll User,Another"
+            assert is_payroll_admin() is True
+        finally:
+            if original_user:
+                os.environ["USER_NAME"] = original_user
+            if original_pa:
+                os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+            elif "PAYROLL_ADMIN_USERS" in os.environ:
+                del os.environ["PAYROLL_ADMIN_USERS"]
+
+    def test_false_when_user_not_in_payroll_admin_list(self):
+        """Test is_payroll_admin returns False when user is not listed."""
+        original_user = os.environ.get("USER_NAME")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS")
+        try:
+            os.environ["USER_NAME"] = "Regular Admin"
+            os.environ["PAYROLL_ADMIN_USERS"] = "Payroll User"
+            assert is_payroll_admin() is False
+        finally:
+            if original_user:
+                os.environ["USER_NAME"] = original_user
+            if original_pa:
+                os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+            elif "PAYROLL_ADMIN_USERS" in os.environ:
+                del os.environ["PAYROLL_ADMIN_USERS"]
+
+    def test_false_when_env_var_not_set(self):
+        """Test is_payroll_admin returns False when PAYROLL_ADMIN_USERS is unset."""
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS")
+        try:
+            if "PAYROLL_ADMIN_USERS" in os.environ:
+                del os.environ["PAYROLL_ADMIN_USERS"]
+            assert is_payroll_admin() is False
+        finally:
+            if original_pa:
+                os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+
+    def test_handles_whitespace_around_names(self):
+        """Test is_payroll_admin strips whitespace from list entries."""
+        original_user = os.environ.get("USER_NAME")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS")
+        try:
+            os.environ["USER_NAME"] = "Payroll User"
+            os.environ["PAYROLL_ADMIN_USERS"] = "  Payroll User  , Another"
+            assert is_payroll_admin() is True
+        finally:
+            if original_user:
+                os.environ["USER_NAME"] = original_user
+            if original_pa:
+                os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+            elif "PAYROLL_ADMIN_USERS" in os.environ:
+                del os.environ["PAYROLL_ADMIN_USERS"]
+
+
+class TestIsFirstCall:
+    """Tests for is_first_call function."""
+
+    def test_false_when_no_resident_matches_user(self, app):
+        """Return False when USER_NAME has no matching resident."""
+        with app.app_context():
+            original = os.environ.get("USER_NAME")
+            try:
+                os.environ["USER_NAME"] = "Nonexistent Person 99999"
+                assert is_first_call(date.today()) is False
+            finally:
+                if original:
+                    os.environ["USER_NAME"] = original
+
+    def test_true_when_resident_has_first_call_entry(self, app):
+        """Return True when the current user has a FIRST_CALL_ROLES entry for the date."""
+        from backend.models import Resident, Role, TimeEntry, db
+
+        with app.app_context():
+            # Create a resident matching the user name
+            resident = Resident(name="FC Test User", active=True)
+            role = Role.query.filter_by(name="First Call").first()
+            if role is None:
+                role = Role(
+                    name="First Call",
+                    cutoff_hour=17,
+                    cutoff_minute=30,
+                    is_call_team=True,
+                )
+                db.session.add(role)
+
+            db.session.add(resident)
+            db.session.commit()
+
+            today = date.today()
+            entry = TimeEntry(
+                date=today,
+                resident_id=resident.id,
+                role_id=role.id,
+                exit_time=time(20, 0),
+            )
+            db.session.add(entry)
+            db.session.commit()
+
+            original_user = os.environ.get("USER_NAME")
+            try:
+                os.environ["USER_NAME"] = "FC Test User"
+                assert is_first_call(today) is True
+            finally:
+                if original_user:
+                    os.environ["USER_NAME"] = original_user
+                db.session.delete(entry)
+                db.session.delete(resident)
+                db.session.commit()
+
+    def test_false_when_resident_has_no_first_call_entry(self, app):
+        """Return False when resident exists but not assigned a first-call role."""
+        import os
+        from datetime import date
+
+        from backend.models import Resident, db
+
+        with app.app_context():
+            resident = Resident(name="Non FC User", active=True)
+            db.session.add(resident)
+            db.session.commit()
+
+            original = os.environ.get("USER_NAME")
+            try:
+                os.environ["USER_NAME"] = "Non FC User"
+                assert is_first_call(date.today()) is False
+            finally:
+                if original:
+                    os.environ["USER_NAME"] = original
+                db.session.delete(resident)
+                db.session.commit()
 
 
 class TestAdminRequiredDecorator:

@@ -90,6 +90,85 @@
             {% endif %}
           </ul>
           <ul class="navbar-nav">
+            {% if mock_users_enabled %}
+              <li class="nav-item dropdown me-2">
+                <a
+                  class="nav-link dropdown-toggle text-warning fw-bold"
+                  href="#"
+                  role="button"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false">
+                  <i class="bi bi-person-fill-gear me-1"></i>Dev:
+                  {{ current_user }}
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <h6 class="dropdown-header">Quick Personas</h6>
+                  </li>
+                  {% for p in mock_personas %}
+                    <li>
+                      <form
+                        method="POST"
+                        action="{{ url_for('dev.switch_user') }}"
+                        class="d-inline">
+                        <input
+                          type="hidden"
+                          name="csrf_token"
+                          value="{{ csrf_token() }}" />
+                        <input type="hidden" name="user" value="{{ p.name }}" />
+                        <button
+                          type="submit"
+                          class="dropdown-item {% if current_user == p.name %}active{% endif %}">
+                          {{ p.label }}
+                        </button>
+                      </form>
+                    </li>
+                  {% endfor %}
+                  {% if mock_residents %}
+                    <li><hr class="dropdown-divider" /></li>
+                    <li>
+                      <h6 class="dropdown-header">Residents</h6>
+                    </li>
+                    {% for name in mock_residents %}
+                      <li>
+                        <form
+                          method="POST"
+                          action="{{ url_for('dev.switch_user') }}"
+                          class="d-inline">
+                          <input
+                            type="hidden"
+                            name="csrf_token"
+                            value="{{ csrf_token() }}" />
+                          <input type="hidden" name="user" value="{{ name }}" />
+                          <button
+                            type="submit"
+                            class="dropdown-item {% if current_user == name %}active{% endif %}">
+                            {{ name }}
+                          </button>
+                        </form>
+                      </li>
+                    {% endfor %}
+                  {% endif %}
+                  <li><hr class="dropdown-divider" /></li>
+                  <li>
+                    <form
+                      method="POST"
+                      action="{{ url_for('dev.switch_user') }}"
+                      class="d-inline">
+                      <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token() }}" />
+                      <input type="hidden" name="user" value="" />
+                      <button type="submit" class="dropdown-item text-muted">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+                        to USER_NAME env
+                      </button>
+                    </form>
+                  </li>
+                </ul>
+              </li>
+            {% endif %}
             <li class="nav-item">
               <a class="nav-link" href="#" role="button">
                 <i class="bi bi-person-circle me-1"></i>{{ current_user }}
