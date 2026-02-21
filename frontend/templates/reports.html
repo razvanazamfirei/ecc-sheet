@@ -40,12 +40,27 @@
               required />
           </div>
 
-          <div class="col-md-4">
-            <label for="resident_filter" class="form-label">Resident</label>
-            <select name="resident_id" id="resident_filter" class="form-select">
-              <option value="">All Residents</option>
-            </select>
-          </div>
+          {% if can_view_all %}
+            <div class="col-md-4">
+              <label for="resident_filter" class="form-label">Resident</label>
+              <select
+                name="resident_id"
+                id="resident_filter"
+                class="form-select">
+                <option value="">All Residents</option>
+              </select>
+            </div>
+          {% else %}
+            <input
+              type="hidden"
+              name="resident_id"
+              value="{{ current_resident_id or '' }}" />
+            <div class="col-md-4 d-flex align-items-end">
+              <p class="text-muted mb-0">
+                <i class="bi bi-person-lock me-1"></i>Showing your entries only
+              </p>
+            </div>
+          {% endif %}
         </div>
 
         <div class="mt-3">

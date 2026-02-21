@@ -1,6 +1,8 @@
 """Tests for report routes."""
 
-from backend.models import TimeEntry, db
+import os
+
+from backend.models import PayrollSettings, Resident, TimeEntry, db
 
 
 class TestReportGeneration:
@@ -272,3 +274,345 @@ class TestReportEdgeCases:
                 follow_redirects=True,
             )
             assert response.status_code == 200
+
+
+class TestPayrollXlsxExport:
+    """Tests for payroll XLSX export route."""
+
+    def test_export_payroll_xlsx_empty_returns_xlsx(self, client):
+        """Test that export returns an xlsx file even when no entries match."""
+        response = client.post(
+            "/api/report/export_payroll_xlsx",
+            data={
+                "start_date": "2020-01-01",
+                "end_date": "2020-01-31",
+            },
+        )
+        assert response.status_code == 200
+        assert "spreadsheetml" in response.content_type
+        assert "payroll_" in response.headers.get("Content-Disposition", "")
+
+    def test_export_payroll_xlsx_with_lawson_id(self, client, app, sample_time_entry):
+        """Test xlsx export includes resident with lawson_id set."""
+        with app.app_context():
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            resident = db.session.get(Resident, entry.resident_id)
+            resident.lawson_id = 55555
+            db.session.commit()
+
+            entry_date = entry.date
+            response = client.post(
+                "/api/report/export_payroll_xlsx",
+                data={
+                    "start_date": entry_date.strftime("%Y-%m-%d"),
+                    "end_date": entry_date.strftime("%Y-%m-%d"),
+                },
+            )
+            assert response.status_code == 200
+            assert "spreadsheetml" in response.content_type
+
+            # Cleanup
+            resident.lawson_id = None
+            db.session.commit()
+
+    def test_export_payroll_xlsx_invalid_date(self, client):
+        """Test that invalid date redirects with error."""
+        response = client.post(
+            "/api/report/export_payroll_xlsx",
+            data={
+                "start_date": "not-a-date",
+                "end_date": "2026-01-31",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"error" in response.data.lower()
+
+    def test_export_payroll_xlsx_filename_contains_dates(self, client):
+        """Test that Content-Disposition filename includes date range."""
+        response = client.post(
+            "/api/report/export_payroll_xlsx",
+            data={
+                "start_date": "2026-01-01",
+                "end_date": "2026-01-31",
+            },
+        )
+        disposition = response.headers.get("Content-Disposition", "")
+        assert "2026-01-01" in disposition
+        assert "2026-01-31" in disposition
+
+
+class TestPayrollSettings:
+    """Tests for payroll settings admin routes."""
+
+    def test_payroll_settings_page_loads(self, client):
+        """Test that payroll settings page loads for admin."""
+        response = client.get("/payroll-settings")
+        assert response.status_code == 200
+        assert b"Payroll Settings" in response.data
+
+    def test_payroll_settings_page_read_only_for_non_payroll_admin(self, client):
+        """Test that regular admins see read-only view."""
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
+        try:
+            os.environ["PAYROLL_ADMIN_USERS"] = "Someone Else"
+            response = client.get("/payroll-settings")
+            assert response.status_code == 200
+            assert b"read-only" in response.data.lower()
+        finally:
+            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+
+    def test_payroll_settings_requires_admin(self, client):
+        """Test that payroll settings page requires admin."""
+        original_admin_users = os.environ.get("ADMIN_USERS", "")
+        original_user_name = os.environ.get("USER_NAME", "")
+
+        try:
+            os.environ["USER_NAME"] = "Regular User"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+
+            response = client.get("/payroll-settings", follow_redirects=True)
+            assert b"Admin privileges required" in response.data
+        finally:
+            os.environ["ADMIN_USERS"] = original_admin_users
+            os.environ["USER_NAME"] = original_user_name
+
+    def test_payroll_settings_save_requires_payroll_admin(self, client):
+        """Test that non-payroll-admin cannot save settings."""
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
+        try:
+            os.environ["PAYROLL_ADMIN_USERS"] = "Someone Else"
+            response = client.post(
+                "/payroll-settings",
+                data={"program": "X"},
+                follow_redirects=True,
+            )
+            assert b"Payroll admin privileges required" in response.data
+        finally:
+            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+
+    def test_payroll_settings_save(self, client, app):
+        """Test saving payroll settings as payroll admin."""
+        original_user = os.environ.get("USER_NAME", "")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
+        try:
+            os.environ["USER_NAME"] = "CI-Test-User"
+            os.environ["PAYROLL_ADMIN_USERS"] = "CI-Test-User"
+
+            with app.app_context():
+                response = client.post(
+                    "/payroll-settings",
+                    data={
+                        "program": "M1300",
+                        "company": "UPHS",
+                        "batch": "860",
+                        "pay_code": "101758",
+                        "dept": "102",
+                        "expense": "1003",
+                        "acct_unit": "102000",
+                        "label_suffix": "ECA",
+                    },
+                    follow_redirects=True,
+                )
+                assert response.status_code == 200
+                assert b"saved successfully" in response.data
+
+                settings = PayrollSettings.query.first()
+                assert settings.program == "M1300"
+                assert settings.company == "UPHS"
+                assert settings.batch == 860
+                assert settings.label_suffix == "ECA"
+        finally:
+            os.environ["USER_NAME"] = original_user
+            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+
+    def test_payroll_settings_save_empty_values(self, client, app):
+        """Test saving empty payroll settings stores None for integer fields."""
+        original_user = os.environ.get("USER_NAME", "")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
+        try:
+            os.environ["USER_NAME"] = "CI-Test-User"
+            os.environ["PAYROLL_ADMIN_USERS"] = "CI-Test-User"
+
+            with app.app_context():
+                response = client.post(
+                    "/payroll-settings",
+                    data={
+                        "program": "",
+                        "company": "",
+                        "batch": "",
+                        "pay_code": "",
+                        "dept": "",
+                        "expense": "",
+                        "acct_unit": "",
+                        "label_suffix": "",
+                    },
+                    follow_redirects=True,
+                )
+                assert response.status_code == 200
+
+                settings = PayrollSettings.query.first()
+                assert settings.program is None
+                assert settings.batch is None
+        finally:
+            os.environ["USER_NAME"] = original_user
+            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+
+
+class TestReportExportPermissions:
+    """Tests that billing CSV and payroll XLSX require can_view_all_reports."""
+
+    @staticmethod
+    def _set_non_payroll_env() -> dict[str, str]:
+        """Return env overrides for a non-payroll, non-admin user."""
+        return {
+            "USER_NAME": "Regular Viewer",
+            "ADMIN_USERS": "Admin Only",
+            "PAYROLL_ADMIN_USERS": "",
+        }
+
+    def test_billing_csv_blocked_for_regular_user(self, client):
+        """Non-admin/non-payroll user is redirected from billing CSV export."""
+        saved = {
+            k: os.environ.get(k, "")
+            for k in ("USER_NAME", "ADMIN_USERS", "PAYROLL_ADMIN_USERS")
+        }
+        try:
+            for k, v in self._set_non_payroll_env().items():
+                os.environ[k] = v
+
+            response = client.post(
+                "/api/report/export_billing_csv",
+                data={"start_date": "2026-01-01", "end_date": "2026-01-31"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"permission" in response.data.lower()
+        finally:
+            for k, v in saved.items():
+                os.environ[k] = v
+
+    def test_payroll_xlsx_blocked_for_regular_user(self, client, app):
+        """Non-admin/non-payroll user is redirected from payroll XLSX export."""
+        saved = {
+            k: os.environ.get(k, "")
+            for k in ("USER_NAME", "ADMIN_USERS", "PAYROLL_ADMIN_USERS")
+        }
+        try:
+            for k, v in self._set_non_payroll_env().items():
+                os.environ[k] = v
+
+            response = client.post(
+                "/api/report/export_payroll_xlsx",
+                data={"start_date": "2026-01-01", "end_date": "2026-01-31"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"permission" in response.data.lower()
+        finally:
+            for k, v in saved.items():
+                os.environ[k] = v
+
+    def test_billing_csv_allowed_for_admin(self, client):
+        """Admin user can access billing CSV export."""
+        response = client.post(
+            "/api/report/export_billing_csv",
+            data={"start_date": "2020-01-01", "end_date": "2020-01-31"},
+        )
+        assert response.status_code == 200
+        assert "text/csv" in response.content_type
+
+    def test_payroll_xlsx_allowed_for_admin(self, client):
+        """Admin user can access payroll XLSX export."""
+        response = client.post(
+            "/api/report/export_payroll_xlsx",
+            data={"start_date": "2020-01-01", "end_date": "2020-01-31"},
+        )
+        assert response.status_code == 200
+        assert "spreadsheetml" in response.content_type
+
+    def test_send_email_blocked_for_regular_user(self, client, app, sample_time_entry):
+        """Non-admin user is redirected from send email."""
+        saved = {
+            k: os.environ.get(k, "")
+            for k in ("USER_NAME", "ADMIN_USERS", "PAYROLL_ADMIN_USERS")
+        }
+        try:
+            for k, v in self._set_non_payroll_env().items():
+                os.environ[k] = v
+
+            with app.app_context():
+                entry = db.session.get(TimeEntry, sample_time_entry.id)
+                date_str = entry.date.strftime("%Y-%m-%d")
+
+            response = client.post(
+                "/api/report/send_email",
+                data={"start_date": date_str, "end_date": date_str},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"Admin privileges required" in response.data
+        finally:
+            for k, v in saved.items():
+                os.environ[k] = v
+
+
+class TestReportRestriction:
+    """Tests that non-admin users are restricted to their own reports."""
+
+    def test_restricted_user_sees_self_only_note(self, client):
+        """Reports page shows 'your entries only' for non-admin."""
+        original_user = os.environ.get("USER_NAME", "")
+        original_admins = os.environ.get("ADMIN_USERS", "")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
+        try:
+            os.environ["USER_NAME"] = "Regular Viewer"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+            os.environ["PAYROLL_ADMIN_USERS"] = ""
+
+            response = client.get("/reports")
+            assert response.status_code == 200
+            assert b"your entries only" in response.data.lower()
+        finally:
+            os.environ["USER_NAME"] = original_user
+            os.environ["ADMIN_USERS"] = original_admins
+            os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+
+    def test_admin_sees_resident_filter(self, client):
+        """Reports page shows resident dropdown for admin."""
+        response = client.get("/reports")
+        assert response.status_code == 200
+        assert b"All Residents" in response.data
+
+    def test_report_generation_forces_resident_id_for_restricted(
+        self, client, app, sample_time_entry, sample_resident
+    ):
+        """Non-admin report POST ignores submitted resident_id and uses own."""
+        original_user = os.environ.get("USER_NAME", "")
+        original_admins = os.environ.get("ADMIN_USERS", "")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS", "")
+        try:
+            os.environ["USER_NAME"] = "Regular Viewer"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+            os.environ["PAYROLL_ADMIN_USERS"] = ""
+
+            with app.app_context():
+                entry = db.session.get(TimeEntry, sample_time_entry.id)
+                date_str = entry.date.strftime("%Y-%m-%d")
+
+                # Submit with a specific resident_id — should be overridden
+                response = client.post(
+                    "/api/report",
+                    data={
+                        "start_date": date_str,
+                        "end_date": date_str,
+                        "resident_id": sample_resident.id,
+                    },
+                    follow_redirects=True,
+                )
+                # Should succeed (200) but data shown will reflect restriction
+                assert response.status_code == 200
+        finally:
+            os.environ["USER_NAME"] = original_user
+            os.environ["ADMIN_USERS"] = original_admins
+            os.environ["PAYROLL_ADMIN_USERS"] = original_pa

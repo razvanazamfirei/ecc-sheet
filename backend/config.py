@@ -22,6 +22,16 @@ class Config:
     # Amion integration
     AMION_SCHEDULE_CODE = os.getenv("AMION_SCHEDULE_CODE", "upennane")
 
+    # Payroll export defaults (used to seed the DB on first run via PayrollSettings)
+    PAYROLL_PROGRAM = os.getenv("PAYROLL_PROGRAM")
+    PAYROLL_COMPANY = os.getenv("PAYROLL_COMPANY")
+    PAYROLL_BATCH = int(_v) if (_v := os.getenv("PAYROLL_BATCH")) else None
+    PAYROLL_PAY_CODE = int(_v) if (_v := os.getenv("PAYROLL_PAY_CODE")) else None
+    PAYROLL_DEPT = int(_v) if (_v := os.getenv("PAYROLL_DEPT")) else None
+    PAYROLL_EXPENSE = int(_v) if (_v := os.getenv("PAYROLL_EXPENSE")) else None
+    PAYROLL_ACCT_UNIT = int(_v) if (_v := os.getenv("PAYROLL_ACCT_UNIT")) else None
+    PAYROLL_LABEL_SUFFIX = os.getenv("PAYROLL_LABEL_SUFFIX")
+
     # Time tracking configuration
     DEFAULT_CUTOFF_HOUR = int(os.getenv("DEFAULT_CUTOFF_HOUR", "17"))
     DEFAULT_CUTOFF_MINUTE = int(os.getenv("DEFAULT_CUTOFF_MINUTE", "30"))

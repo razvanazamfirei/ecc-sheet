@@ -2,11 +2,12 @@
 
 from datetime import date, time
 
-from backend.models import TimeEntry, db
+from backend.models import PayrollSettings, Resident, TimeEntry, db
 from backend.report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
     generate_csv_content,
+    generate_payroll_xlsx,
     get_resident_name,
 )
 
@@ -74,9 +75,11 @@ class TestAggregateEntriesByResident:
             result = aggregate_entries_by_resident([entry])
 
             assert len(result) == 1
-            assert entry.resident.name in result
-            assert len(result[entry.resident.name]["entries"]) == 1
-            assert result[entry.resident.name]["total_overtime"] >= 0
+            assert entry.resident_id in result
+            data = result[entry.resident_id]
+            assert data["name"] == entry.resident.name
+            assert len(data["entries"]) == 1
+            assert data["total_overtime"] >= 0
 
     def test_multiple_entries_same_resident(self, app, sample_resident, sample_role):
         """Test aggregation with multiple entries for same resident."""
@@ -102,8 +105,8 @@ class TestAggregateEntriesByResident:
             result = aggregate_entries_by_resident(entries)
 
             assert len(result) == 1
-            assert sample_resident.name in result
-            assert len(result[sample_resident.name]["entries"]) == len(entries)
+            assert sample_resident.id in result
+            assert len(result[sample_resident.id]["entries"]) == len(entries)
 
             # Cleanup
             for entry in entries:
@@ -127,7 +130,7 @@ class TestAggregateEntriesByResident:
 
             assert len(result) == 1
             # Exit time should be empty string
-            assert not result[sample_resident.name]["entries"][0]["exit_time"]
+            assert not result[sample_resident.id]["entries"][0]["exit_time"]
 
             db.session.delete(entry)
             db.session.commit()
@@ -177,4 +180,221 @@ class TestGenerateCsvContent:
             assert len(lines) == 2
 
             db.session.delete(entry)
+            db.session.commit()
+
+
+class TestGeneratePayrollXlsx:
+    """Tests for generate_payroll_xlsx function."""
+
+    def test_returns_bytes(self, app, sample_resident):
+        """Test that the function returns bytes."""
+        with app.app_context():
+            settings = PayrollSettings.get_or_create()
+            settings.program = "M1300"
+            settings.company = "UPHS"
+            settings.label_suffix = "ECA"
+            db.session.commit()
+
+            resident_data = {
+                sample_resident.id: {
+                    "name": sample_resident.name,
+                    "entries": [],
+                    "total_overtime": 2.5,
+                }
+            }
+            result = generate_payroll_xlsx(
+                resident_data,
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                settings,
+            )
+            assert isinstance(result, bytes)
+            assert len(result) > 0
+
+    def test_xlsx_valid_workbook(self, app, sample_resident):
+        """Test that returned bytes form a valid xlsx workbook."""
+        import io
+
+        import openpyxl
+
+        with app.app_context():
+            settings = PayrollSettings.get_or_create()
+            settings.label_suffix = "ECA"
+            db.session.commit()
+
+            resident_data = {
+                sample_resident.id: {
+                    "name": sample_resident.name,
+                    "entries": [],
+                    "total_overtime": 1.0,
+                }
+            }
+            result = generate_payroll_xlsx(
+                resident_data,
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                settings,
+            )
+            wb = openpyxl.load_workbook(io.BytesIO(result))
+            ws = wb.active
+            assert ws.cell(row=1, column=1).value == "Program"
+            assert ws.cell(row=1, column=9).value == "Hours"
+
+    def test_excludes_residents_without_lawson_id(self, app, sample_resident):
+        """Test that residents without lawson_id are excluded."""
+        import io
+
+        import openpyxl
+
+        with app.app_context():
+            resident = db.session.get(Resident, sample_resident.id)
+            resident.lawson_id = None
+            db.session.commit()
+
+            settings = PayrollSettings.get_or_create()
+            settings.label_suffix = "ECA"
+            db.session.commit()
+
+            resident_data = {
+                resident.id: {"name": resident.name, "entries": [], "total_overtime": 3.0}
+            }
+            result = generate_payroll_xlsx(
+                resident_data,
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                settings,
+            )
+            wb = openpyxl.load_workbook(io.BytesIO(result))
+            ws = wb.active
+            assert ws.max_row == 1  # Only header
+
+    def test_includes_residents_with_lawson_id(self, app, sample_resident):
+        """Test that residents with lawson_id appear as data rows."""
+        import io
+
+        import openpyxl
+
+        with app.app_context():
+            resident = db.session.get(Resident, sample_resident.id)
+            resident.lawson_id = 12345
+            db.session.commit()
+
+            settings = PayrollSettings.get_or_create()
+            settings.label_suffix = "ECA"
+            db.session.commit()
+
+            resident_data = {
+                resident.id: {"name": resident.name, "entries": [], "total_overtime": 2.0}
+            }
+            result = generate_payroll_xlsx(
+                resident_data,
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                settings,
+            )
+            wb = openpyxl.load_workbook(io.BytesIO(result))
+            ws = wb.active
+            assert ws.max_row == 2  # Header + 1 data row
+            assert ws.cell(row=2, column=9).value == 2.0  # Hours
+
+    def test_col_ab_note_format(self, app, sample_resident):
+        """Test that col AB contains '{MON} {label_suffix}'."""
+        import io
+
+        import openpyxl
+
+        with app.app_context():
+            resident = db.session.get(Resident, sample_resident.id)
+            resident.lawson_id = 99999
+            db.session.commit()
+
+            settings = PayrollSettings.get_or_create()
+            settings.label_suffix = "ECA"
+            db.session.commit()
+
+            resident_data = {
+                resident.id: {"name": resident.name, "entries": [], "total_overtime": 1.5}
+            }
+            result = generate_payroll_xlsx(
+                resident_data,
+                date(2026, 3, 1),
+                date(2026, 3, 31),
+                settings,
+            )
+            wb = openpyxl.load_workbook(io.BytesIO(result))
+            ws = wb.active
+            assert ws.cell(row=2, column=28).value == "MAR ECA"
+
+    def test_transdate_is_end_date(self, app, sample_resident):
+        """Test that Transdate column (N = col 14) contains end_date."""
+        import io
+
+        import openpyxl
+
+        with app.app_context():
+            resident = db.session.get(Resident, sample_resident.id)
+            resident.lawson_id = 11111
+            db.session.commit()
+
+            settings = PayrollSettings.get_or_create()
+            settings.label_suffix = "ECA"
+            db.session.commit()
+
+            end = date(2026, 2, 28)
+            resident_data = {
+                resident.id: {"name": resident.name, "entries": [], "total_overtime": 0.5}
+            }
+            result = generate_payroll_xlsx(
+                resident_data,
+                date(2026, 2, 1),
+                end,
+                settings,
+            )
+            wb = openpyxl.load_workbook(io.BytesIO(result))
+            ws = wb.active
+            # openpyxl reads date cells back as datetime; compare the date portion
+            cell_value = ws.cell(row=2, column=14).value
+            if hasattr(cell_value, "date"):
+                cell_value = cell_value.date()
+            assert cell_value == end
+
+
+class TestPayrollSettingsModel:
+    """Tests for PayrollSettings model."""
+
+    def test_get_or_create_returns_instance(self, app):
+        """Test that get_or_create always returns a settings object."""
+        with app.app_context():
+            settings = PayrollSettings.get_or_create()
+            assert settings is not None
+            assert settings.id is not None
+
+    def test_get_or_create_idempotent(self, app):
+        """Test that calling get_or_create twice returns the same row."""
+        with app.app_context():
+            s1 = PayrollSettings.get_or_create()
+            s2 = PayrollSettings.get_or_create()
+            assert s1.id == s2.id
+
+    def test_fields_persist(self, app):
+        """Test that settings fields can be saved and retrieved."""
+        with app.app_context():
+            settings = PayrollSettings.get_or_create()
+            settings.program = "M9999"
+            settings.company = "TEST"
+            settings.batch = 42
+            settings.label_suffix = "XYZ"
+            db.session.commit()
+
+            reloaded = PayrollSettings.query.first()
+            assert reloaded.program == "M9999"
+            assert reloaded.company == "TEST"
+            assert reloaded.batch == 42
+            assert reloaded.label_suffix == "XYZ"
+
+            # Reset to avoid affecting other tests
+            settings.program = None
+            settings.company = None
+            settings.batch = None
+            settings.label_suffix = None
             db.session.commit()

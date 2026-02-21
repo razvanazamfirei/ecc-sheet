@@ -350,3 +350,43 @@ class Holiday(db.Model):
 
     def __repr__(self):
         return f"<Holiday {self.date} - {self.name}>"
+
+
+class PayrollSettings(db.Model):
+    """Institutional payroll export settings (single-row config table)."""
+
+    __tablename__ = "payroll_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    program = db.Column(db.String(50), nullable=True)
+    company = db.Column(db.String(50), nullable=True)
+    batch = db.Column(db.Integer, nullable=True)
+    pay_code = db.Column(db.Integer, nullable=True)
+    dept = db.Column(db.Integer, nullable=True)
+    expense = db.Column(db.Integer, nullable=True)
+    acct_unit = db.Column(db.Integer, nullable=True)
+    label_suffix = db.Column(db.String(50), nullable=True)
+
+    @classmethod
+    def get_or_create(cls):
+        """Return the single settings row, creating it with defaults if it doesn't exist."""
+        settings = cls.query.first()
+        if settings is None:
+            from .config import Config
+
+            settings = cls(
+                program=Config.PAYROLL_PROGRAM,
+                company=Config.PAYROLL_COMPANY,
+                batch=Config.PAYROLL_BATCH,
+                pay_code=Config.PAYROLL_PAY_CODE,
+                dept=Config.PAYROLL_DEPT,
+                expense=Config.PAYROLL_EXPENSE,
+                acct_unit=Config.PAYROLL_ACCT_UNIT,
+                label_suffix=Config.PAYROLL_LABEL_SUFFIX,
+            )
+            db.session.add(settings)
+            db.session.flush()
+        return settings
+
+    def __repr__(self):
+        return f"<PayrollSettings program={self.program}>"
