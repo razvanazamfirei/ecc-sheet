@@ -106,7 +106,11 @@ class TestAddHoliday:
     def test_add_holiday_duplicate_date(self, client, app):
         """Test adding holiday with duplicate date fails."""
         with app.app_context():
-            test_date = get_effective_date() + timedelta(days=500)
+            # Find a date not already seeded as a federal holiday
+            candidate = get_effective_date() + timedelta(days=400)
+            while Holiday.query.filter_by(date=candidate).first():
+                candidate += timedelta(days=1)
+            test_date = candidate
             date_str = test_date.strftime("%Y-%m-%d")
 
             # Add first holiday
