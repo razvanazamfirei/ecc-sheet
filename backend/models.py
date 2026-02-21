@@ -1,11 +1,15 @@
+import logging
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import cast
+from typing import ClassVar, cast
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import validates
 
 from .config import Config
 from .holidays import is_weekend_or_holiday
+
+logger = logging.getLogger(__name__)
 
 db = SQLAlchemy()
 
@@ -13,23 +17,47 @@ db = SQLAlchemy()
 class Resident(db.Model):
     __tablename__ = "residents"
 
+    CLASS_YEARS: ClassVar[list[str]] = ["CA-1", "CA-2", "CA-3", "Fellow", "OMFS"]
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    first_name = db.Column(db.String(100), nullable=True)
+    last_name = db.Column(db.String(100), nullable=True)
     epic_id = db.Column(db.String(50), unique=True, nullable=True)
     active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now(UTC))
 
     # Additional staff information
-    class_year = db.Column(db.String(20), nullable=True)  # CA1, CA2, CA3, Fellow, OMFS
+    class_year = db.Column(
+        db.String(20), nullable=True
+    )  # CA-1, CA-2, CA-3, Fellow, OMFS
     email = db.Column(db.String(255), nullable=True)
     phone = db.Column(db.String(50), nullable=True)
     abbreviation = db.Column(db.String(10), nullable=True)
     backup_id = db.Column(db.String(50), nullable=True)
+    lawson_id = db.Column(db.Integer, nullable=True)
+    hire_date = db.Column(db.Date, nullable=True)
 
     # Relationship to time entries
     time_entries = db.relationship(
         "TimeEntry", back_populates="resident", cascade="all, delete-orphan"
     )
+
+    @validates("class_year")
+    def validate_class_year(self, _key, value):
+        value = value.strip() if isinstance(value, str) else value
+        if not value:
+            return None
+        if value not in self.CLASS_YEARS:
+            logger.warning(
+                "Invalid class_year %r discarded for Resident(id=%r); "
+                "must be one of %s",
+                value,
+                self.id,
+                self.CLASS_YEARS,
+            )
+            return None
+        return value
 
     @property
     def display_name(self):
@@ -78,6 +106,10 @@ class Resident(db.Model):
             "phone": self.phone,
             "abbreviation": self.abbreviation,
             "backup_id": self.backup_id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "lawson_id": self.lawson_id,
+            "hire_date": self.hire_date.isoformat() if self.hire_date else None,
         }
 
         if include_entries:

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytz
 from flask import flash, redirect, url_for
+from werkzeug.exceptions import HTTPException
 
 from .config import Config
 from .models import db
@@ -74,6 +75,8 @@ def handle_db_error(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error("Database error in %s: %s", func.__name__, e)
             db.session.rollback()

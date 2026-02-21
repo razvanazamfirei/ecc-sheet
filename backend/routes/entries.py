@@ -65,8 +65,8 @@ def add():
                 "date": sheet_date_str,
                 "resident": entry.resident.name,
                 "role": entry.role.name,
-                "exit_time": exit_time_str if exit_time_str else None,
-                "start_time": start_time_str if start_time_str else None,
+                "exit_time": exit_time_str or None,
+                "start_time": start_time_str or None,
             },
         )
 
@@ -99,7 +99,9 @@ def update(entry_id):
 
         # Store old values for audit
         old_exit_time = entry.exit_time.strftime("%H:%M") if entry.exit_time else None
-        old_start_time = entry.start_time.strftime("%H:%M") if entry.start_time else None
+        old_start_time = (
+            entry.start_time.strftime("%H:%M") if entry.start_time else None
+        )
 
         exit_time_str = request.form.get("exit_time")
         if exit_time_str:
@@ -117,7 +119,10 @@ def update(entry_id):
             if start_time_str:
                 entry.start_time = datetime.strptime(start_time_str, "%H:%M").time()  # noqa: DTZ007
                 if old_start_time != start_time_str:
-                    changes["start_time"] = {"old": old_start_time, "new": start_time_str}
+                    changes["start_time"] = {
+                        "old": old_start_time,
+                        "new": start_time_str,
+                    }
             else:
                 entry.start_time = None
                 if old_start_time is not None:
@@ -175,8 +180,12 @@ def delete(entry_id):
                 "date": str(entry.date),
                 "resident": entry.resident.name,
                 "role": entry.role.name,
-                "exit_time": entry.exit_time.strftime("%H:%M") if entry.exit_time else None,
-                "start_time": entry.start_time.strftime("%H:%M") if entry.start_time else None,
+                "exit_time": entry.exit_time.strftime("%H:%M")
+                if entry.exit_time
+                else None,
+                "start_time": entry.start_time.strftime("%H:%M")
+                if entry.start_time
+                else None,
             },
         )
 
