@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, flash, redirect, render_template, url_for
+from sqlalchemy.orm import joinedload
 
 from ..audit import log_lock
 from ..auth import is_admin, is_first_call
@@ -19,13 +20,16 @@ bp = Blueprint(
 def _get_sheet_context(sheet_date):
     """Return call_team_entries, overtime_entries, and overtime_roles for a date."""
     all_entries = (
-        TimeEntry.query.filter_by(date=sheet_date).order_by(TimeEntry.id).all()
+        TimeEntry.query.filter_by(date=sheet_date)
+        .options(joinedload(TimeEntry.role))
+        .order_by(TimeEntry.id)
+        .all()
     )
     call_team_entries = sorted(
-        [e for e in all_entries if e.role.is_call_team],
+        [e for e in all_entries if e.role and e.role.is_call_team],
         key=lambda e: e.role.display_order,
     )
-    overtime_entries = [e for e in all_entries if not e.role.is_call_team]
+    overtime_entries = [e for e in all_entries if not (e.role and e.role.is_call_team)]
     overtime_roles = (
         Role.query.filter(Role.is_call_team.isnot(True))
         .order_by(Role.display_order)

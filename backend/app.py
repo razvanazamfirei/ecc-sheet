@@ -106,10 +106,13 @@ def init_db():
                 )
                 db.session.add(role)
             else:
-                # Backfill flags and corrected display_order for existing roles
-                existing_role.is_backup = role_name in backup_roles
-                existing_role.is_call_team = role_name in call_team_roles
-                existing_role.display_order = order
+                # Backfill only unset fields; leave admin-customized values alone
+                if existing_role.is_backup is None:
+                    existing_role.is_backup = role_name in backup_roles
+                if existing_role.is_call_team is None:
+                    existing_role.is_call_team = role_name in call_team_roles
+                if existing_role.display_order is None:
+                    existing_role.display_order = order
 
         # Initialize federal holidays for current and next year
         current_year = get_effective_date().year
