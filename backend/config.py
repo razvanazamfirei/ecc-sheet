@@ -18,20 +18,24 @@ def _int_env(name: str) -> int | None:
 
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///ecc_sheet.db")
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    USER_NAME = os.getenv("USER_NAME", "Admin")
+    SECRET_KEY: ClassVar[str] = os.getenv(
+        "SECRET_KEY", "dev-secret-key-change-in-production"
+    )
+    SQLALCHEMY_DATABASE_URI: ClassVar[str] = os.getenv(
+        "DATABASE_URL", "sqlite:///ecc_sheet.db"
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS: ClassVar[bool] = False
+    USER_NAME: ClassVar[str] = os.getenv("USER_NAME", "Admin")
 
     # Email configuration
     EMAIL_HOST: ClassVar[str] = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
-    EMAIL_USERNAME = os.getenv("EMAIL_USERNAME")
-    EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-    EMAIL_RECIPIENT = os.getenv("EMAIL_RECIPIENT")
+    EMAIL_PORT: ClassVar[int] = int(os.getenv("EMAIL_PORT", "587"))
+    EMAIL_USERNAME: ClassVar[str | None] = os.getenv("EMAIL_USERNAME")
+    EMAIL_PASSWORD: ClassVar[str | None] = os.getenv("EMAIL_PASSWORD")
+    EMAIL_RECIPIENT: ClassVar[str | None] = os.getenv("EMAIL_RECIPIENT")
 
     # Amion integration
-    AMION_SCHEDULE_CODE = os.getenv("AMION_SCHEDULE_CODE", "upennane")
+    AMION_SCHEDULE_CODE: ClassVar[str] = os.getenv("AMION_SCHEDULE_CODE", "upennane")
 
     # Payroll export defaults (used to seed the DB on first run via PayrollSettings)
     PAYROLL_PROGRAM = os.getenv("PAYROLL_PROGRAM")
@@ -44,10 +48,14 @@ class Config:
     PAYROLL_LABEL_SUFFIX = os.getenv("PAYROLL_LABEL_SUFFIX")
 
     # Time tracking configuration
-    DEFAULT_CUTOFF_HOUR = int(os.getenv("DEFAULT_CUTOFF_HOUR", "17"))
-    DEFAULT_CUTOFF_MINUTE = int(os.getenv("DEFAULT_CUTOFF_MINUTE", "30"))
-    TIMEZONE = os.getenv("TIMEZONE", "America/New_York")  # Philadelphia time
-    DAY_RESET_HOUR = int(os.getenv("DAY_RESET_HOUR", "8"))  # Day resets at 8 AM
+    DEFAULT_CUTOFF_HOUR: ClassVar[int] = int(os.getenv("DEFAULT_CUTOFF_HOUR", "17"))
+    DEFAULT_CUTOFF_MINUTE: ClassVar[int] = int(os.getenv("DEFAULT_CUTOFF_MINUTE", "30"))
+    TIMEZONE: ClassVar[str] = os.getenv(
+        "TIMEZONE", "America/New_York"
+    )  # Philadelphia time
+    DAY_RESET_HOUR: ClassVar[int] = int(
+        os.getenv("DAY_RESET_HOUR", "8")
+    )  # Day resets at 8 AM
 
     # Role-specific cutoff times (can be customized per role)
     # Format: (hour, minute) for 17:30 cutoff

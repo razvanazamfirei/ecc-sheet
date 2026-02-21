@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, datetime
+from logging import Logger
 
 from flask import (
     Blueprint,
@@ -32,21 +33,22 @@ from ..report_utils import (
     get_resident_name,
 )
 
-bp = Blueprint("reports", __name__)
-logger = logging.getLogger(__name__)
+bp: Blueprint = Blueprint("reports", __name__)
+logger: Logger = logging.getLogger(__name__)
 
 
-def _parse_report_params() -> tuple[date, date, str | int | None]:
-    """Parse common report parameters from form data.
+def _parse_report_params() -> tuple[date, date, str | None]:
+    """Parse common report parameters from form data."""
+    start_date_raw = request.form.get("start_date")
+    end_date_raw = request.form.get("end_date")
+    if not start_date_raw or not end_date_raw:
+        raise ValueError("Start date and end date are required")
 
-    If the current user cannot view all reports, the resident_id is forced
-    to their own resident record regardless of what was submitted.
-    """
     start_date = datetime.strptime(  # noqa: DTZ007
-        request.form.get("start_date"), "%Y-%m-%d"
+        start_date_raw, "%Y-%m-%d"
     ).date()
     end_date = datetime.strptime(  # noqa: DTZ007
-        request.form.get("end_date"), "%Y-%m-%d"
+        end_date_raw, "%Y-%m-%d"
     ).date()
 
     if not can_view_all_reports():

@@ -83,6 +83,7 @@ class TestRolesUpdate:
 
             # Verify the update
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.cutoff_hour == 18
             assert updated_role.cutoff_minute == 45
 
@@ -97,6 +98,7 @@ class TestRolesUpdate:
             assert response.status_code == 200
 
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.is_backup is True
 
     def test_update_role_disable_backup(self, client, app, sample_role):
@@ -115,6 +117,7 @@ class TestRolesUpdate:
             assert response.status_code == 200
 
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.is_backup is False
 
     def test_update_role_invalid_hour_too_high(self, client, app, sample_role):
@@ -188,6 +191,7 @@ class TestRolesUpdate:
             assert response.status_code == 200
 
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.cutoff_hour == 17  # Default
             assert updated_role.cutoff_minute == 30  # Default
 
@@ -202,6 +206,7 @@ class TestRolesUpdate:
             )
             assert response.status_code == 200
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.cutoff_hour == 0
             assert updated_role.cutoff_minute == 0
 
@@ -213,6 +218,7 @@ class TestRolesUpdate:
             )
             assert response.status_code == 200
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.cutoff_hour == 23
             assert updated_role.cutoff_minute == 59
 

@@ -4,6 +4,7 @@ Uses username from environment variable to determine admin status
 """
 
 import os
+from datetime import date
 from functools import wraps
 from typing import Any
 
@@ -13,7 +14,7 @@ from .models import Resident, Role, TimeEntry
 from .utils import get_effective_date
 
 
-def get_current_user():
+def get_current_user() -> str:
     """Get current user; when MOCK_USERS_ENABLED is set, use session override."""
     if os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}:
         try:
@@ -24,21 +25,23 @@ def get_current_user():
     return os.getenv("USER_NAME", "Admin")
 
 
-def is_admin():
+def is_admin() -> bool:
     """Check if current user is admin based on env var"""
     admin_users = os.getenv("ADMIN_USERS", "Admin").split(",")
     admin_users = [user.strip() for user in admin_users]
     return get_current_user() in admin_users
 
 
-def get_current_resident_id():
+def get_current_resident_id() -> int | None:
     """Return the resident ID for the current user by name match, or None."""
 
-    resident = Resident.query.filter_by(name=get_current_user()).first()
+    resident: Resident | None = Resident.query.filter_by(
+        name=get_current_user()
+    ).first()
     return resident.id if resident else None
 
 
-def is_first_call(check_date=None):
+def is_first_call(check_date: date | None = None) -> bool:
     """
     Return True if the current user is assigned to a first-call role on check_date.
 

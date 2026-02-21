@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify
 
 from ..models import Resident, Role
 
-bp = Blueprint("api", __name__, url_prefix="/api")
+bp: Blueprint = Blueprint("api", __name__, url_prefix="/api")
 
 
 @bp.route("/residents/active")

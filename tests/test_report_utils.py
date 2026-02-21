@@ -75,6 +75,7 @@ class TestAggregateEntriesByResident:
         with app.app_context():
             # Reload entry in current session
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             result = aggregate_entries_by_resident([entry])
 
             assert len(result) == 1
@@ -128,7 +129,9 @@ class TestAggregateEntriesByResident:
             db.session.add(entry)
             db.session.commit()
 
-            entries = [db.session.get(TimeEntry, entry.id)]
+            imported_entry = db.session.get(TimeEntry, entry.id)
+            assert imported_entry is not None
+            entries = [imported_entry]
             result = aggregate_entries_by_resident(entries)
 
             assert len(result) == 1
@@ -155,6 +158,7 @@ class TestGenerateCsvContent:
         """Test CSV generation with single entry."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             csv_content = generate_csv_content([entry])
 
             lines = csv_content.strip().split("\n")
@@ -174,7 +178,9 @@ class TestGenerateCsvContent:
             db.session.add(entry)
             db.session.commit()
 
-            entries = [db.session.get(TimeEntry, entry.id)]
+            imported_entry = db.session.get(TimeEntry, entry.id)
+            assert imported_entry is not None
+            entries = [imported_entry]
             csv_content = generate_csv_content(entries)
 
             # Should not raise error

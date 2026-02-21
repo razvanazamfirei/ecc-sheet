@@ -4,6 +4,7 @@ import csv
 import logging
 from datetime import date, datetime
 from io import StringIO
+from logging import Logger
 
 import requests
 from flask import Blueprint, current_app, flash, redirect, url_for
@@ -11,8 +12,8 @@ from flask import Blueprint, current_app, flash, redirect, url_for
 from ..audit import log_import
 from ..models import DailySheet, Resident, Role, TimeEntry, db
 
-bp = Blueprint("schedule", __name__, url_prefix="/schedule")
-logger = logging.getLogger(__name__)
+bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
+logger: Logger = logging.getLogger(__name__)
 
 
 @bp.route("/<date_str>/import", methods=["POST"])

@@ -19,6 +19,9 @@ def add():
     sheet_date_str = ""
     try:
         sheet_date_str = request.form.get("date")
+        if not sheet_date_str:
+            flash("Date is required", "error")
+            return redirect(url_for("sheets.index"))
         sheet_date = datetime.strptime(sheet_date_str, "%Y-%m-%d").date()  # noqa: DTZ007
 
         if not (is_admin() or is_first_call(sheet_date)):
@@ -31,14 +34,20 @@ def add():
             flash("Cannot add entry - sheet is locked", "error")
             return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
-        resident_id = request.form.get("resident_id")
-        role_id = request.form.get("role_id")
+        resident_id_raw = request.form.get("resident_id")
+        role_id_raw = request.form.get("role_id")
         exit_time_str = request.form.get("exit_time")
         start_time_str = request.form.get("start_time")
 
         # Validate required fields
-        if not resident_id:
-            flash("Resident is required", "error")
+        if not resident_id_raw or not role_id_raw:
+            flash("Resident and role are required", "error")
+            return redirect(url_for("sheets.view", date_str=sheet_date_str))
+        try:
+            resident_id = int(resident_id_raw)
+            role_id = int(role_id_raw)
+        except ValueError:
+            flash("Resident and role must be valid IDs", "error")
             return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
         # Parse exit time
@@ -63,13 +72,17 @@ def add():
         db.session.commit()
 
         # Log the action
+        resident_name = (
+            entry.resident.name if entry.resident else str(entry.resident_id)
+        )
+        role_name = entry.role.name if entry.role else str(entry.role_id)
         log_create(
             "TimeEntry",
             entry.id,
             {
                 "date": sheet_date_str,
-                "resident": entry.resident.name,
-                "role": entry.role.name,
+                "resident": resident_name,
+                "role": role_name,
                 "exit_time": exit_time_str or None,
                 "start_time": start_time_str or None,
             },
@@ -143,14 +156,18 @@ def update(entry_id):
 
         # Log the action with enhanced details
         if changes:
+            resident_name = (
+                entry.resident.name if entry.resident else str(entry.resident_id)
+            )
+            role_name = entry.role.name if entry.role else str(entry.role_id)
             log_update(
                 "TimeEntry",
                 entry.id,
                 changes=changes,
                 details={
                     "entry_id": entry.id,
-                    "resident": entry.resident.name,
-                    "role": entry.role.name,
+                    "resident": resident_name,
+                    "role": role_name,
                     "date": entry.date.strftime("%Y-%m-%d"),
                 },
             )
@@ -189,14 +206,18 @@ def delete(entry_id):
 
     try:
         # Log before deleting
+        resident_name = (
+            entry.resident.name if entry.resident else str(entry.resident_id)
+        )
+        role_name = entry.role.name if entry.role else str(entry.role_id)
         log_delete(
             "TimeEntry",
             entry.id,
             {
                 "entry_id": entry.id,
                 "date": str(entry.date),
-                "resident": entry.resident.name,
-                "role": entry.role.name,
+                "resident": resident_name,
+                "role": role_name,
                 "exit_time": entry.exit_time.strftime("%H:%M")
                 if entry.exit_time
                 else None,

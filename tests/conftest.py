@@ -5,29 +5,34 @@ Pytest fixtures and configuration for test suite
 import os
 import pathlib
 import tempfile
+from collections.abc import Iterator
 from datetime import time
 
 import pytest
+from flask import Flask
+from flask.testing import FlaskClient, FlaskCliRunner
+from sqlalchemy.orm import Session
 
-from backend.app import app as flask_app
-from backend.app import init_db
-from backend.models import DailySheet, Resident, Role, TimeEntry, db
-from backend.utils import get_effective_date
+# Configure a dedicated temporary database before importing the Flask app.
+_TEST_DB_FD, _TEST_DB_PATH = tempfile.mkstemp(prefix="ecc-sheet-tests-", suffix=".db")
+os.close(_TEST_DB_FD)
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
+os.environ["USER_NAME"] = "Admin"
+os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
+
+from backend.app import app as flask_app  # noqa: E402
+from backend.app import init_db  # noqa: E402
+from backend.models import DailySheet, Resident, Role, TimeEntry, db  # noqa: E402
+from backend.utils import get_effective_date  # noqa: E402
 
 
 @pytest.fixture(scope="session")
-def app():
+def app() -> Iterator[Flask]:
     """Create application for testing"""
-    # Create a temporary database
-    db_fd, db_path = tempfile.mkstemp()
-
-    # Set environment variables for admin access in tests
-    os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
-
     flask_app.config.update(
         {
             "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": f"sqlite:///{db_path}",
+            "SQLALCHEMY_DATABASE_URI": os.environ["DATABASE_URL"],
             "WTF_CSRF_ENABLED": False,  # Disable CSRF for testing
             "SECRET_KEY": "test-secret-key",
         }
@@ -40,6 +45,7 @@ def app():
     db.init_app(flask_app)
 
     with flask_app.app_context():
+        db.drop_all()
         init_db()
 
     yield flask_app
@@ -49,24 +55,23 @@ def app():
         db.session.remove()
         db.engine.dispose()
 
-    os.close(db_fd)
-    pathlib.Path(db_path).unlink()
+    pathlib.Path(_TEST_DB_PATH).unlink(missing_ok=True)
 
 
 @pytest.fixture
-def client(app):
+def client(app: Flask) -> FlaskClient:
     """Create test client"""
     return app.test_client()
 
 
 @pytest.fixture
-def runner(app):
+def runner(app: Flask) -> FlaskCliRunner:
     """Create CLI test runner"""
     return app.test_cli_runner()
 
 
 @pytest.fixture
-def db_session(app):
+def db_session(app: Flask) -> Iterator[Session]:
     """Create a database session for testing"""
     with app.app_context():
         yield db.session
@@ -75,15 +80,16 @@ def db_session(app):
 
 # noinspection PyBroadException
 @pytest.fixture
-def sample_resident(app):
+def sample_resident(app: Flask) -> Iterator[Resident]:
     """Create a sample resident for testing"""
     with app.app_context():
         # Check if resident already exists
         resident = Resident.query.filter_by(name="Test Resident").first()
-        if not resident:
+        if resident is None:
             resident = Resident(name="Test Resident", active=True)
             db.session.add(resident)
             db.session.commit()
+        assert resident is not None
 
         yield resident
 
@@ -97,17 +103,18 @@ def sample_resident(app):
 
 # noinspection PyBroadException
 @pytest.fixture
-def sample_role(app):
+def sample_role(app: Flask) -> Iterator[Role]:
     """Create a sample role for testing"""
     with app.app_context():
         # Check if role already exists
         role = Role.query.filter_by(name="Test Role").first()
-        if not role:
+        if role is None:
             role = Role(
                 name="Test Role", cutoff_hour=17, cutoff_minute=30, display_order=99
             )
             db.session.add(role)
             db.session.commit()
+        assert role is not None
 
         yield role
 
@@ -121,7 +128,9 @@ def sample_role(app):
 
 # noinspection PyBroadException
 @pytest.fixture
-def sample_time_entry(app, sample_resident, sample_role):
+def sample_time_entry(
+    app: Flask, sample_resident: Resident, sample_role: Role
+) -> Iterator[TimeEntry]:
     """Create a sample time entry for testing"""
     with app.app_context():
         entry = TimeEntry(
@@ -145,7 +154,7 @@ def sample_time_entry(app, sample_resident, sample_role):
 
 # noinspection PyBroadException
 @pytest.fixture
-def sample_daily_sheet(app):
+def sample_daily_sheet(app: Flask) -> Iterator[DailySheet]:
     """Create a sample daily sheet for testing"""
     with app.app_context():
         today = get_effective_date()
@@ -166,7 +175,7 @@ def sample_daily_sheet(app):
 
 
 @pytest.fixture
-def clean_database(app):
+def clean_database(app: Flask) -> Iterator[None]:
     """Clean database before and after test"""
     with app.app_context():
         today = get_effective_date()

@@ -167,6 +167,7 @@ class TestToggleResident:
             assert b"deactivated" in response.data
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.active is False
 
             # Cleanup
@@ -190,6 +191,7 @@ class TestToggleResident:
             assert b"activated" in response.data
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.active is True
 
             # Cleanup
@@ -400,12 +402,14 @@ class TestEditResident:
             assert b"updated successfully" in response.data
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.name == "Updated Name"
             assert updated.first_name == "Updated"
             assert updated.last_name == "Name"
             assert updated.class_year == "CA-2"
             assert updated.email == "updated@example.com"
             assert updated.lawson_id == 98765
+            assert updated.hire_date is not None
             assert updated.hire_date.isoformat() == "2023-07-01"
 
             db.session.delete(updated)
@@ -429,6 +433,7 @@ class TestEditResident:
             )
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.class_year is None
 
             db.session.delete(updated)
@@ -450,6 +455,7 @@ class TestEditResident:
                 )
 
                 updated = db.session.get(Resident, resident_id)
+                assert updated is not None
                 assert updated.class_year == cy
 
                 db.session.delete(updated)
@@ -487,6 +493,7 @@ class TestEditResident:
             )
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.class_year is None
             assert updated.email is None
             assert updated.lawson_id is None

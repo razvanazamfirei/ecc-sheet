@@ -146,6 +146,7 @@ class TestSheetsLock:
 
             # Verify locked
             sheet = DailySheet.query.filter_by(date=today).first()
+            assert sheet is not None
             assert sheet.locked is True
 
             # Cleanup - unlock
@@ -176,6 +177,7 @@ class TestSheetsLock:
 
             # Verify unlocked
             sheet = DailySheet.query.filter_by(date=today).first()
+            assert sheet is not None
             assert sheet.locked is False
 
     def test_lock_records_user_and_time(self, client, app):
@@ -196,6 +198,7 @@ class TestSheetsLock:
 
             # Verify lock info
             sheet = DailySheet.query.filter_by(date=today).first()
+            assert sheet is not None
             assert sheet.locked is True
             assert sheet.locked_by is not None
             assert sheet.locked_at is not None
@@ -224,6 +227,7 @@ class TestSheetsLock:
 
             # Verify lock info cleared
             sheet = DailySheet.query.filter_by(date=today).first()
+            assert sheet is not None
             assert sheet.locked is False
             assert sheet.locked_by is None
             assert sheet.locked_at is None

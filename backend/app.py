@@ -1,3 +1,4 @@
+from logging import Logger
 from pathlib import Path
 
 from flask import Flask, session
@@ -12,9 +13,9 @@ from .routes import register_blueprints
 from .utils import get_effective_date, setup_logging
 
 # Get the project root directory (parent of backend/)
-project_root = Path(__file__).parent.parent
+project_root: Path = Path(__file__).parent.parent
 
-app = Flask(
+app: Flask = Flask(
     __name__,
     template_folder=str(project_root / "frontend" / "templates"),
     static_folder=str(project_root / "frontend" / "static"),
@@ -23,13 +24,13 @@ app.config.from_object(Config)
 db.init_app(app)
 
 # Initialize Flask-Migrate for database migrations
-migrate = Migrate(app, db)
+migrate: Migrate = Migrate(app, db)
 
 # Enable CSRF protection
-csrf = CSRFProtect(app)
+csrf: CSRFProtect = CSRFProtect(app)
 
 # Setup logging
-logger = setup_logging()
+logger: Logger = setup_logging()
 
 # Register all route blueprints
 register_blueprints(app)

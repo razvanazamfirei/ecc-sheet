@@ -10,7 +10,7 @@ from ..holidays import get_federal_holidays
 from ..models import Holiday, db
 from ..utils import get_effective_date
 
-bp = Blueprint("holidays", __name__)
+bp: Blueprint = Blueprint("holidays", __name__)
 
 
 @bp.route("/holidays")

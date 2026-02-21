@@ -226,6 +226,7 @@ class TestLockSheet:
 
             # Verify sheet is unlocked
             sheet = DailySheet.query.filter_by(date=get_effective_date()).first()
+            assert sheet is not None
             assert sheet.locked is False
 
 
@@ -359,6 +360,7 @@ class TestManageResidents:
 
             # Verify status was toggled
             resident = db.session.get(Resident, resident_id)
+            assert resident is not None
             assert resident.active != original_status
 
 
@@ -392,6 +394,7 @@ class TestManageRoles:
 
             # Verify role was updated
             role = db.session.get(Role, role_id)
+            assert role is not None
             assert role.cutoff_hour == 20
             assert role.cutoff_minute == 30
 
@@ -434,6 +437,7 @@ class TestWorkflowIntegration:
         # 4. Verify locked
         with app.app_context():
             sheet = DailySheet.query.filter_by(date=today).first()
+            assert sheet is not None
             assert sheet.locked is True
 
         # 5. Generate report

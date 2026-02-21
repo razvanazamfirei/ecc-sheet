@@ -16,6 +16,7 @@ from .report_utils import (
     build_entries_query,
     generate_csv_content,
 )
+from .type_defs import ResidentData, TimeEntries
 
 logger = logging.getLogger("ecc_sheet")
 
@@ -53,9 +54,11 @@ def send_report_email(
 
         # Get entries and generate content
         query = build_entries_query(start_date, end_date, resident_id)
-        entries = query.order_by(TimeEntry.date, TimeEntry.resident_id).all()
-        csv_content = generate_csv_content(entries)
-        resident_data = aggregate_entries_by_resident(entries)
+        entries: TimeEntries = query.order_by(
+            TimeEntry.date, TimeEntry.resident_id
+        ).all()
+        csv_content: str = generate_csv_content(entries)
+        resident_data: ResidentData = aggregate_entries_by_resident(entries)
         total_overtime = sum(data["total_overtime"] for data in resident_data.values())
 
         # Build HTML content

@@ -247,7 +247,6 @@ class TestResidentModel:
                 date=date(2024, 7, 1),
                 exit_time=time(18, 0),
             )
-            entry.role = None  # Explicitly set to None before adding to relationship
 
             # Add to resident's time_entries without persisting
             resident.time_entries.append(entry)
@@ -683,7 +682,6 @@ class TestTimeEntryModel:
                 date=get_effective_date(),
                 exit_time=time(20, 0),
             )
-            entry.role = None
 
             assert isclose(entry.overtime_hours, 0.0, abs_tol=0.01)
 
@@ -691,6 +689,7 @@ class TestTimeEntryModel:
         """Test overtime_hours property."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             # Exit time 20:00, cutoff 17:30 -> 2.5 hours overtime
             assert isclose(entry.overtime_hours, 2.5, abs_tol=0.01)
 
@@ -720,7 +719,6 @@ class TestTimeEntryModel:
                 date=date(2024, 5, 16),
                 exit_time=time(18, 0),
             )
-            entry.resident = None
 
             assert repr(entry) == "<TimeEntry 2024-05-16 - Unknown>"
 

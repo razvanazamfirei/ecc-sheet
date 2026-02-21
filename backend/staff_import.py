@@ -5,21 +5,28 @@ Fetches and parses the staff list (Report 706) from Amion to populate
 resident information including class year, email, phone, and other details.
 """
 
+from __future__ import annotations
+
 import csv
-from typing import Any
+from collections.abc import Sequence
 
 import requests
 
 from backend.audit import log_import
 from backend.models import Resident, db
+from backend.type_defs import ImportResult, StaffList, StaffRecord
 
-CLASS_YEAR_MAP = {
+CLASS_YEAR_MAP: dict[str, str] = {
     "CA1": "CA-1",
     "CA2": "CA-2",
     "CA3": "CA-3",
     "Fellow": "Fellow",
     "OMFS": "OMFS",
 }
+
+
+def _clean_cell(value: str | None) -> str:
+    return value.strip() if value else ""
 
 
 def fetch_staff_list(schedule_code: str) -> str:
@@ -42,7 +49,7 @@ def fetch_staff_list(schedule_code: str) -> str:
     return response.text
 
 
-def parse_staff_list(csv_content: str) -> list[dict[str, str]]:
+def parse_staff_list(csv_content: str) -> StaffList:
     """
     Parse staff list CSV content.
 
@@ -56,7 +63,7 @@ def parse_staff_list(csv_content: str) -> list[dict[str, str]]:
     Returns:
         List of dictionaries with staff information
     """
-    staff_list = []
+    staff_list: StaffList = []
 
     # Split content into lines and find the header
     lines = csv_content.strip().split("\n")
@@ -78,39 +85,39 @@ def parse_staff_list(csv_content: str) -> list[dict[str, str]]:
 
     for row in csv_reader:
         # Skip empty rows or placeholders
-        if not row.get("Name") or not row["Name"].strip():
+        name = _clean_cell(row.get("Name"))
+        if not name:
             continue
 
         # Skip placeholder entries
-        if "placeholder" in row["Name"].lower():
+        if "placeholder" in name.lower():
             continue
 
         # Extract EPIC ID from "Unique ID" field (format: "EPICID:R######")
-        unique_id = row.get("Unique ID", "")
-        epic_id = None
-        if unique_id.startswith("EPICID:"):
-            epic_id = unique_id.replace("EPICID:", "")
+        unique_id = _clean_cell(row.get("Unique ID"))
+        if not unique_id.startswith("EPICID:"):
+            continue
+        epic_id = unique_id.removeprefix("EPICID:")
 
         # Only include staff with valid EPIC IDs
         if epic_id:
             staff_list.append(
-                {
-                    "name": row["Name"].strip(),
-                    "epic_id": epic_id,
-                    "class_year": row.get("Staff type", "").strip(),
-                    "backup_id": row.get("Backup ID", "").strip(),
-                    "abbreviation": row.get("Abbreviation", "").strip(),
-                    "phone": row.get("Pager", "").strip()
-                    or row.get("Tel.", "").strip(),
-                    "email": row.get("Email", "").strip(),
-                }
+                StaffRecord(
+                    name=name,
+                    epic_id=epic_id,
+                    class_year=_clean_cell(row.get("Staff type")),
+                    backup_id=_clean_cell(row.get("Backup ID")),
+                    abbreviation=_clean_cell(row.get("Abbreviation")),
+                    phone=_clean_cell(row.get("Pager")) or _clean_cell(row.get("Tel.")),
+                    email=_clean_cell(row.get("Email")),
+                )
             )
 
     return staff_list
 
 
 def import_staff_to_database(
-    staff_list: list[dict[str, str]], user: str | None = None
+    staff_list: Sequence[StaffRecord], user: str | None = None
 ) -> tuple[int, int, int]:
     """
     Import staff list into database.
@@ -210,7 +217,7 @@ def import_staff_to_database(
     return created, updated, skipped
 
 
-def import_staff_list(schedule_code: str, user: str | None = None) -> dict[str, Any]:
+def import_staff_list(schedule_code: str, user: str | None = None) -> ImportResult:
     """
     Complete staff list import workflow.
 
@@ -239,43 +246,43 @@ def import_staff_list(schedule_code: str, user: str | None = None) -> dict[str, 
         staff_list = parse_staff_list(csv_content)
 
         if not staff_list:
-            return {
-                "success": False,
-                "error": "No staff records found in import",
-                "created": 0,
-                "updated": 0,
-                "skipped": 0,
-                "total_records": 0,
-            }
+            return ImportResult(
+                success=False,
+                error="No staff records found in import",
+                created=0,
+                updated=0,
+                skipped=0,
+                total_records=0,
+            )
 
         # Import to database
         created, updated, skipped = import_staff_to_database(staff_list, user)
 
-        return {
-            "success": True,
-            "created": created,
-            "updated": updated,
-            "skipped": skipped,
-            "total_records": len(staff_list),
-            "error": None,
-        }
+        return ImportResult(
+            success=True,
+            created=created,
+            updated=updated,
+            skipped=skipped,
+            total_records=len(staff_list),
+            error=None,
+        )
 
     except requests.RequestException as e:
-        return {
-            "success": False,
-            "error": f"Failed to fetch staff list from Amion: {e!s}",
-            "created": 0,
-            "updated": 0,
-            "skipped": 0,
-            "total_records": 0,
-        }
+        return ImportResult(
+            success=False,
+            error=f"Failed to fetch staff list from Amion: {e!s}",
+            created=0,
+            updated=0,
+            skipped=0,
+            total_records=0,
+        )
     except Exception as e:
         db.session.rollback()
-        return {
-            "success": False,
-            "error": f"Import failed: {e!s}",
-            "created": 0,
-            "updated": 0,
-            "skipped": 0,
-            "total_records": 0,
-        }
+        return ImportResult(
+            success=False,
+            error=f"Import failed: {e!s}",
+            created=0,
+            updated=0,
+            skipped=0,
+            total_records=0,
+        )

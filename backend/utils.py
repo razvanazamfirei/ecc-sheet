@@ -4,7 +4,7 @@ Utility functions for logging, validation, and error handling
 
 import logging
 import shutil
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from functools import wraps
 from pathlib import Path
 
@@ -18,14 +18,14 @@ from .models import db
 logger = logging.getLogger("ecc_sheet")
 
 
-def setup_logging():
+def setup_logging() -> logging.Logger:
     """Configure application logging"""
-    log_dir = Path("logs")
+    log_dir: Path = Path("logs")
     if not log_dir.exists():
         log_dir.mkdir(parents=True, exist_ok=True)
 
     tz = pytz.timezone(Config.TIMEZONE)
-    log_file = log_dir / f"ecc_sheet_{datetime.now(tz=tz).strftime('%Y%m%d')}.log"
+    log_file: Path = log_dir / f"ecc_sheet_{datetime.now(tz=tz).strftime('%Y%m%d')}.log"
 
     logging.basicConfig(
         level=logging.INFO,
@@ -36,11 +36,14 @@ def setup_logging():
     return logging.getLogger("ecc_sheet")
 
 
-def backup_database(db_path: Path = "ecc_sheet.db", backup_dir: Path = "backups"):
+def backup_database(
+    db_path: str | Path = Path("ecc_sheet.db"),
+    backup_dir: str | Path = Path("backups"),
+) -> bool:
     """Create a backup of the database"""
     try:
-        backup_dir = Path(backup_dir)
-        db_path = Path(db_path)
+        backup_dir: Path = Path(backup_dir)
+        db_path: Path = Path(db_path)
 
         if not backup_dir.exists():
             backup_dir.mkdir(parents=True, exist_ok=True)
@@ -48,9 +51,9 @@ def backup_database(db_path: Path = "ecc_sheet.db", backup_dir: Path = "backups"
         if not db_path.exists():
             return False
 
-        tz = pytz.timezone(Config.TIMEZONE)
-        timestamp = datetime.now(tz=tz).strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_dir / f"ecc_sheet_{timestamp}.db"
+        tz: tzinfo = pytz.timezone(Config.TIMEZONE)
+        timestamp: str = datetime.now(tz=tz).strftime("%Y%m%d_%H%M%S")
+        backup_path: Path = backup_dir / f"ecc_sheet_{timestamp}.db"
 
         shutil.copy2(db_path, backup_path)
 
@@ -78,7 +81,8 @@ def handle_db_error(func):
         except HTTPException:
             raise
         except Exception as e:
-            logger.error("Database error in %s: %s", func.__name__, e)
+            function_name = getattr(func, "__name__", func.__class__.__name__)
+            logger.error("Database error in %s: %s", function_name, e)
             db.session.rollback()
             flash(f"An error occurred: {e!s}", "error")
             return redirect(url_for("index"))
@@ -86,13 +90,13 @@ def handle_db_error(func):
     return wrapper
 
 
-def get_philadelphia_time():
-    """Get current time in Philadelphia timezone"""
-    philly_tz = pytz.timezone(Config.TIMEZONE)
+def get_philadelphia_time() -> datetime:
+    """Get current time in Philadelphia timezone."""
+    philly_tz: tzinfo = pytz.timezone(Config.TIMEZONE)
     return datetime.now(philly_tz)
 
 
-def get_effective_date(dt=None):
+def get_effective_date(dt: datetime | None = None) -> date:
     """
     Get the effective date for a given datetime in Philadelphia time.
     Day resets at 8 AM - times before 8 AM belong to the previous calendar day.
@@ -104,17 +108,17 @@ def get_effective_date(dt=None):
         date object representing the effective day
     """
     if dt is None:
-        dt = get_philadelphia_time()
+        dt: datetime = get_philadelphia_time()
 
     # Ensure datetime is in Philadelphia timezone
-    philly_tz = pytz.timezone(Config.TIMEZONE)
+    philly_tz: tzinfo = pytz.timezone(Config.TIMEZONE)
     if dt.tzinfo is None:
-        dt = philly_tz.localize(dt)
+        dt: datetime = philly_tz.localize(dt)
     elif dt.tzinfo != philly_tz:
-        dt = dt.astimezone(philly_tz)
+        dt: datetime = dt.astimezone(philly_tz)
 
     # If before 8 AM, use previous day
-    reset_hour = Config.DAY_RESET_HOUR
+    reset_hour: int = Config.DAY_RESET_HOUR
     if dt.hour < reset_hour:
         return (dt - timedelta(days=1)).date()
 

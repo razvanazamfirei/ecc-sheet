@@ -12,6 +12,7 @@ from backend.staff_import import (
     import_staff_to_database,
     parse_staff_list,
 )
+from backend.type_defs import StaffRecord
 
 
 class TestFetchStaffList:
@@ -193,7 +194,7 @@ class TestImportStaffToDatabase:
             Resident.query.filter(Resident.epic_id.like("TEST_%")).delete()
             db.session.commit()
 
-            staff_list = [
+            staff_list: list[StaffRecord] = [
                 {
                     "name": "New Test Resident",
                     "epic_id": "TEST_NEW_001",
@@ -247,7 +248,7 @@ class TestImportStaffToDatabase:
             db.session.add(existing)
             db.session.commit()
 
-            staff_list = [
+            staff_list: list[StaffRecord] = [
                 {
                     "name": "Updated Name",
                     "epic_id": "TEST_UPDATE_001",
@@ -269,6 +270,7 @@ class TestImportStaffToDatabase:
 
             # Verify resident was updated
             resident = Resident.get_by_epic_id("TEST_UPDATE_001")
+            assert resident is not None
             assert resident.name == "Updated Name"
             assert resident.class_year == "CA-2"
             assert resident.email == "updated@test.com"
@@ -301,7 +303,7 @@ class TestImportStaffToDatabase:
             db.session.commit()
 
             # Import with same data using Amion-style class_year (maps to "CA-1")
-            staff_list = [
+            staff_list: list[StaffRecord] = [
                 {
                     "name": "Same Name",
                     "epic_id": "TEST_SKIP_001",
@@ -361,7 +363,7 @@ class TestImportStaffToDatabase:
             db.session.add_all([existing_unchanged, existing_to_update])
             db.session.commit()
 
-            staff_list = [
+            staff_list: list[StaffRecord] = [
                 {
                     "name": "Unchanged",
                     "epic_id": "TEST_MIX_001",
@@ -423,7 +425,7 @@ class TestImportStaffToDatabase:
             db.session.commit()
 
             # Change only the email; class_year "CA1" maps to "CA-1" (no change)
-            staff_list = [
+            staff_list: list[StaffRecord] = [
                 {
                     "name": "Test Person",
                     "epic_id": "TEST_PARTIAL_001",
@@ -445,6 +447,7 @@ class TestImportStaffToDatabase:
 
             # Verify only email changed; class_year remains "CA-1"
             resident = Resident.get_by_epic_id("TEST_PARTIAL_001")
+            assert resident is not None
             assert resident.email == "newemail@test.com"
             assert resident.class_year == "CA-1"  # Unchanged (CA1 → CA-1)
 
@@ -509,8 +512,10 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
             result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
-            assert "Failed to fetch staff list from Amion" in result["error"]
-            assert "Connection failed" in result["error"]
+            error = result["error"]
+            assert error is not None
+            assert "Failed to fetch staff list from Amion" in error
+            assert "Connection failed" in error
             assert result["created"] == 0
             assert result["total_records"] == 0
 
@@ -523,8 +528,10 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
             result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
-            assert "Import failed" in result["error"]
-            assert "Could not find header" in result["error"]
+            error = result["error"]
+            assert error is not None
+            assert "Import failed" in error
+            assert "Could not find header" in error
             assert result["created"] == 0
             assert result["total_records"] == 0
 
@@ -561,8 +568,10 @@ CA1\tTest Person\tEPICID:R12345
             result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
-            assert "Import failed" in result["error"]
-            assert "Database connection lost" in result["error"]
+            error = result["error"]
+            assert error is not None
+            assert "Import failed" in error
+            assert "Database connection lost" in error
 
 
 class TestImportStaffRoute:
