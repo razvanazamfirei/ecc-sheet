@@ -136,8 +136,8 @@ def import_staff_to_database(
 
         # Split Amion display name into first/last
         parts = staff["name"].rsplit(" ", 1)
-        first_name = parts[0] if parts else None
-        last_name = parts[1] if len(parts) > 1 else None
+        first_name = parts[0].strip() if parts else None
+        last_name = parts[1].strip() if len(parts) > 1 else None
 
         # Find existing resident by EPIC ID
         resident = Resident.get_by_epic_id(epic_id)

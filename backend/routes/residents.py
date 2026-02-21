@@ -13,6 +13,7 @@ from flask import (
     request,
     url_for,
 )
+from sqlalchemy.orm import selectinload
 
 from ..audit import log_update
 from ..auth import admin_required, get_current_user, is_admin, is_first_call
@@ -153,6 +154,10 @@ def edit_save(resident_id):
         if before[field] != after[field]
     }
 
+    if not changes:
+        flash("No changes to save.", "info")
+        return redirect(url_for("residents.index"))
+
     try:
         db.session.commit()
         log_update("Resident", resident.id, changes=changes)
@@ -177,6 +182,7 @@ def profile(resident_id):
 
     recent_entries = (
         TimeEntry.query.filter_by(resident_id=resident_id)
+        .options(selectinload(TimeEntry.role))
         .order_by(TimeEntry.date.desc())
         .limit(50)
         .all()
