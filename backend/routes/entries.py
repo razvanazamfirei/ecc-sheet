@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import Blueprint, abort, flash, redirect, request, url_for
 
 from ..audit import log_create, log_delete, log_update
+from ..auth import is_admin, is_first_call
 from ..models import DailySheet, TimeEntry, db
 from ..utils import handle_db_error
 
@@ -19,6 +20,10 @@ def add():
     try:
         sheet_date_str = request.form.get("date")
         sheet_date = datetime.strptime(sheet_date_str, "%Y-%m-%d").date()  # noqa: DTZ007
+
+        if not (is_admin() or is_first_call(sheet_date)):
+            flash("Only the first call resident or an admin can add entries.", "error")
+            return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
         # Check if sheet is locked
         daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
@@ -86,6 +91,12 @@ def update(entry_id):
     entry = db.session.get(TimeEntry, entry_id)
     if entry is None:
         abort(404)
+
+    if not (is_admin() or is_first_call(entry.date)):
+        flash("Only the first call resident or an admin can update entries.", "error")
+        return redirect(
+            url_for("sheets.view", date_str=entry.date.strftime("%Y-%m-%d"))
+        )
 
     # Check if sheet is locked
     daily_sheet = DailySheet.query.filter_by(date=entry.date).first()
@@ -161,6 +172,12 @@ def delete(entry_id):
     if entry is None:
         abort(404)
     sheet_date = entry.date
+
+    if not (is_admin() or is_first_call(sheet_date)):
+        flash("Only the first call resident or an admin can delete entries.", "error")
+        return redirect(
+            url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d"))
+        )
 
     # Check if sheet is locked
     daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()

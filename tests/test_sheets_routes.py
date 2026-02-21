@@ -3,7 +3,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 
-from backend.models import DailySheet, TimeEntry, db
+from backend.models import DailySheet, Resident, Role, TimeEntry, db
 from backend.utils import get_effective_date
 
 
@@ -302,3 +302,132 @@ class TestSheetsExceptionHandling:
                 )
                 assert response.status_code == 200
                 assert b"error" in response.data.lower()
+
+
+class TestSheetLockPermissions:
+    """Tests that lock/unlock requires first call or admin."""
+
+    def test_lock_blocked_for_non_first_call(self, client, app, monkeypatch):
+        """Non-admin, non-first-call user cannot lock/unlock the sheet."""
+        monkeypatch.setenv("USER_NAME", "Regular Viewer")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            sheet = DailySheet.query.filter_by(date=today).first()
+            if not sheet:
+                sheet = DailySheet(date=today, locked=False)
+                db.session.add(sheet)
+                db.session.commit()
+            original_locked = sheet.locked
+
+            response = client.post(
+                f"/sheets/{date_str}/lock",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"first call" in response.data.lower()
+
+            # Sheet state should be unchanged
+            db.session.refresh(sheet)
+            assert sheet.locked == original_locked
+
+
+class TestCallTeamFiltering:
+    """Tests for call-team role separation in the sheet context."""
+
+    def test_call_team_entries_separated_from_overtime(self, client, app):
+        """Call-team entries appear in call_team_entries, not overtime_entries."""
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            # Remove any leftovers from a previous failed run
+            for name in (
+                "CT Filter Call Role",
+                "CT Filter OT Role",
+                "CT Filter Test Resident",
+            ):
+                existing_role = Role.query.filter_by(name=name).first()
+                if existing_role:
+                    db.session.delete(existing_role)
+                existing_resident = Resident.query.filter_by(name=name).first()
+                if existing_resident:
+                    db.session.delete(existing_resident)
+            db.session.commit()
+
+            resident = Resident(name="CT Filter Test Resident", active=True)
+            db.session.add(resident)
+
+            call_role = Role(
+                name="CT Filter Call Role",
+                is_call_team=True,
+                display_order=99,
+            )
+            ot_role = Role(
+                name="CT Filter OT Role",
+                is_call_team=False,
+                display_order=100,
+            )
+            db.session.add_all([call_role, ot_role])
+            db.session.commit()
+
+            call_entry = TimeEntry(
+                date=today,
+                resident_id=resident.id,
+                role_id=call_role.id,
+                exit_time=None,
+            )
+            ot_entry = TimeEntry(
+                date=today,
+                resident_id=resident.id,
+                role_id=ot_role.id,
+                exit_time=None,
+            )
+            db.session.add_all([call_entry, ot_entry])
+            db.session.commit()
+            call_entry_id = call_entry.id
+            ot_entry_id = ot_entry.id
+
+            response = client.get(f"/sheets/{date_str}")
+            assert response.status_code == 200
+
+            html = response.data.decode()
+            # The call-team section renders each entry as "ROLE_NAME:" (with colon).
+            # Verify the call role appears in that format and the OT role does not.
+            assert "CT Filter Call Role:" in html, (
+                "Call-team role not in call-team section"
+            )
+            assert "CT Filter OT Role:" not in html, (
+                "OT role must not appear in call-team section"
+            )
+            # The OT role should still appear on the page (entries table / dropdown).
+            assert "CT Filter OT Role" in html
+
+            # Cleanup
+            db.session.delete(db.session.get(TimeEntry, call_entry_id))
+            db.session.delete(db.session.get(TimeEntry, ot_entry_id))
+            db.session.delete(call_role)
+            db.session.delete(ot_role)
+            db.session.delete(resident)
+            db.session.commit()
+
+    def test_call_team_roles_absent_from_overtime_roles(self, client, app):
+        """Call-team roles must not appear in the overtime roles dropdown."""
+        with app.app_context():
+            call_role = Role(
+                name="CT Dropdown Call Role",
+                is_call_team=True,
+                display_order=98,
+            )
+            db.session.add(call_role)
+            db.session.commit()
+
+            response = client.get("/")
+            assert response.status_code == 200
+            assert b"CT Dropdown Call Role" not in response.data
+
+            db.session.delete(call_role)
+            db.session.commit()
