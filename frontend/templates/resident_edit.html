@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Edit Resident{% endblock %}
+{% block content %}
+  <div class="mb-4">
+    <h2 class="mb-0"><i class="bi bi-person-gear me-2"></i>Edit Resident</h2>
+    <p class="text-muted mb-0">{{ resident.name }}</p>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form
+        method="POST"
+        action="{{ url_for('residents.edit_save', resident_id=resident.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="name" class="form-label">Display Name (Amion)</label>
+            <input
+              type="text"
+              class="form-control"
+              id="name"
+              name="name"
+              value="{{ resident.name }}"
+              required />
+          </div>
+          <div class="col-md-6">
+            <label for="abbreviation" class="form-label">Abbreviation</label>
+            <input
+              type="text"
+              class="form-control"
+              id="abbreviation"
+              name="abbreviation"
+              value="{{ resident.abbreviation or '' }}" />
+          </div>
+          <div class="col-md-6">
+            <label for="first_name" class="form-label">First Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="first_name"
+              name="first_name"
+              value="{{ resident.first_name or '' }}" />
+          </div>
+          <div class="col-md-6">
+            <label for="last_name" class="form-label">Last Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="last_name"
+              name="last_name"
+              value="{{ resident.last_name or '' }}" />
+          </div>
+          <div class="col-md-6">
+            <label for="class_year" class="form-label">Class Year</label>
+            <select class="form-select" id="class_year" name="class_year">
+              <option value="">-- None --</option>
+              {% for cy in class_years %}
+                <option
+                  value="{{ cy }}"
+                  {% if resident.class_year == cy %}selected{% endif %}>
+                  {{ cy }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="email" class="form-label">Email</label>
+            <input
+              type="email"
+              class="form-control"
+              id="email"
+              name="email"
+              value="{{ resident.email or '' }}" />
+          </div>
+          <div class="col-md-6">
+            <label for="phone" class="form-label">Phone</label>
+            <input
+              type="text"
+              class="form-control"
+              id="phone"
+              name="phone"
+              value="{{ resident.phone or '' }}" />
+          </div>
+          <div class="col-md-6">
+            <label for="lawson_id" class="form-label">Lawson ID</label>
+            <input
+              type="text"
+              class="form-control"
+              id="lawson_id"
+              name="lawson_id"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              value="{{ resident.lawson_id if resident.lawson_id is not none else '' }}" />
+          </div>
+          <div class="col-md-6">
+            <label for="hire_date" class="form-label">Hire Date</label>
+            <input
+              type="date"
+              class="form-control"
+              id="hire_date"
+              name="hire_date"
+              value="{{ resident.hire_date.isoformat() if resident.hire_date else '' }}" />
+          </div>
+          <div class="col-md-6">
+            <label for="epic_id" class="form-label">EPIC ID</label>
+            <input
+              type="text"
+              class="form-control"
+              id="epic_id"
+              value="{{ resident.epic_id or '' }}"
+              readonly
+              disabled />
+            <div class="form-text">
+              Auto-populated from Amion import; not editable.
+            </div>
+          </div>
+        </div>
+        <div class="mt-4">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-2"></i>Save Changes
+          </button>
+          <a
+            href="{{ url_for('residents.index') }}"
+            class="btn btn-outline-secondary ms-2">
+            <i class="bi bi-arrow-left me-1"></i>Back
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}
