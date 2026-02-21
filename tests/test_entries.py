@@ -3,6 +3,8 @@
 from datetime import time
 from unittest.mock import patch
 
+import pytest
+
 from backend.models import DailySheet, TimeEntry, db
 from backend.utils import get_effective_date
 
@@ -317,6 +319,58 @@ class TestEntryEdgeCases:
                 b"required" in response.data.lower()
                 or b"error" in response.data.lower()
             )
+
+
+class TestEntryPermissions:
+    """Tests that non-first-call, non-admin users cannot modify entries."""
+
+    @pytest.fixture(autouse=True)
+    def _restrict_user(self, monkeypatch):
+        monkeypatch.setenv("USER_NAME", "Regular Viewer")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+
+    def test_add_blocked_for_non_first_call(
+        self, client, app, sample_resident, sample_role
+    ):
+        """Non-admin, non-first-call user cannot add entries."""
+        with app.app_context():
+            response = client.post(
+                "/entries/add",
+                data={
+                    "date": get_effective_date().strftime("%Y-%m-%d"),
+                    "resident_id": sample_resident.id,
+                    "role_id": sample_role.id,
+                    "exit_time": "20:00",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"first call" in response.data.lower()
+
+    def test_update_blocked_for_non_first_call(self, client, app, sample_time_entry):
+        """Non-admin, non-first-call user cannot update entries."""
+        with app.app_context():
+            response = client.post(
+                f"/entries/{sample_time_entry.id}/update",
+                data={"exit_time": "21:00"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"first call" in response.data.lower()
+
+    def test_delete_blocked_for_non_first_call(self, client, app, sample_time_entry):
+        """Non-admin, non-first-call user cannot delete entries."""
+        with app.app_context():
+            response = client.post(
+                f"/entries/{sample_time_entry.id}/delete",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"first call" in response.data.lower()
+
+            # Entry should still exist
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
 
 
 class TestEntryExceptionHandling:

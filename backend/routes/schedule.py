@@ -50,8 +50,15 @@ def import_schedule(date_str):
             line for line in lines if len(line) >= 9 and not line[0].startswith("Field")
         ]
 
+        logger.debug("Parsed %d schedule rows from Amion", len(data_lines))
+
         # Relevant role names to import
         role_mapping = {
+            "First Call": "First Call",
+            "Second Call": "Second Call",
+            "Third Call": "Third Call",
+            "OB Flex": "OB Flex",
+            "Cardiac Call": "Cardiac Call",
             "ECC 1": "ECC 1",
             "ECC 2": "ECC 2",
             "ECC 3": "ECC 3",

@@ -327,6 +327,35 @@ class TestOvertimeCalculation:
 
             assert isclose(entry.overtime_hours, 0.75, abs_tol=0.01)
 
+    def test_call_team_role_returns_zero_overtime(self, app, sample_resident):
+        """Test that is_call_team roles always return 0.0 overtime hours."""
+        with app.app_context():
+            role = Role(
+                name="Call Team OT Test",
+                cutoff_hour=17,
+                cutoff_minute=30,
+                is_call_team=True,
+                display_order=200,
+            )
+            db.session.add(role)
+            db.session.commit()
+
+            # Even with an exit time well after cutoff, overtime must be 0
+            entry = TimeEntry(
+                date=get_effective_date(),
+                resident_id=sample_resident.id,
+                role_id=role.id,
+                exit_time=time(22, 0),
+            )
+            db.session.add(entry)
+            db.session.commit()
+
+            assert entry.overtime_hours == 0
+
+            db.session.delete(entry)
+            db.session.delete(role)
+            db.session.commit()
+
 
 @pytest.mark.unit
 class TestTimeEntry:
