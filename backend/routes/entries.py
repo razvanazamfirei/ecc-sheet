@@ -9,6 +9,8 @@ from ..auth import is_admin, is_first_call
 from ..models import DailySheet, TimeEntry, db
 from ..utils import handle_db_error
 
+_EDIT_DENIED_MSG = "Only the first call resident or an admin can modify entries."
+
 bp = Blueprint("entries", __name__, url_prefix="/entries")
 
 
