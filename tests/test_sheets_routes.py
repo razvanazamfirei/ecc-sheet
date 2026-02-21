@@ -1,5 +1,6 @@
 """Tests for sheet routes."""
 
+import os
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -302,3 +303,41 @@ class TestSheetsExceptionHandling:
                 )
                 assert response.status_code == 200
                 assert b"error" in response.data.lower()
+
+
+class TestSheetLockPermissions:
+    """Tests that lock/unlock requires first call or admin."""
+
+    def test_lock_blocked_for_non_first_call(self, client, app):
+        """Non-admin, non-first-call user cannot lock/unlock the sheet."""
+
+        original_user = os.environ.get("USER_NAME", "")
+        original_admins = os.environ.get("ADMIN_USERS", "")
+        try:
+            os.environ["USER_NAME"] = "Regular Viewer"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+
+            with app.app_context():
+                today = get_effective_date()
+                date_str = today.strftime("%Y-%m-%d")
+
+                sheet = DailySheet.query.filter_by(date=today).first()
+                if not sheet:
+                    sheet = DailySheet(date=today, locked=False)
+                    db.session.add(sheet)
+                    db.session.commit()
+                original_locked = sheet.locked
+
+                response = client.post(
+                    f"/sheets/{date_str}/lock",
+                    follow_redirects=True,
+                )
+                assert response.status_code == 200
+                assert b"first call" in response.data.lower()
+
+                # Sheet state should be unchanged
+                db.session.refresh(sheet)
+                assert sheet.locked == original_locked
+        finally:
+            os.environ["USER_NAME"] = original_user
+            os.environ["ADMIN_USERS"] = original_admins

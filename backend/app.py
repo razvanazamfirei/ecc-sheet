@@ -50,6 +50,15 @@ def init_db():
         # Backup role names
         backup_roles = {"Backup", "Cardiac Backup", "Moonlighting"}
 
+        # Call team roles: displayed on sheet but never generate overtime
+        call_team_roles = {
+            "First Call",
+            "Second Call",
+            "Third Call",
+            "OB Flex",
+            "Cardiac Call",
+        }
+
         # Create default roles if they don't exist
         default_roles = [
             ("ECA 1", 1),
@@ -71,6 +80,11 @@ def init_db():
             ("Backup", 17),
             ("Cardiac Backup", 18),
             ("Moonlighting", 19),
+            ("First Call", 20),
+            ("Second Call", 21),
+            ("Third Call", 22),
+            ("Cardiac Call", 23),
+            ("OB Flex", 24),
         ]
 
         for role_name, order in default_roles:
@@ -88,11 +102,14 @@ def init_db():
                     cutoff_minute=cutoff_minute,
                     display_order=order,
                     is_backup=(role_name in backup_roles),
+                    is_call_team=(role_name in call_team_roles),
                 )
                 db.session.add(role)
-            elif role_name in backup_roles and not existing_role.is_backup:
-                # Update existing backup roles to set is_backup=True
-                existing_role.is_backup = True
+            else:
+                # Backfill flags and corrected display_order for existing roles
+                existing_role.is_backup = role_name in backup_roles
+                existing_role.is_call_team = role_name in call_team_roles
+                existing_role.display_order = order
 
         # Initialize federal holidays for current and next year
         current_year = get_effective_date().year

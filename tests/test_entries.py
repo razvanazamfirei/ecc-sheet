@@ -1,5 +1,6 @@
 """Tests for entry routes."""
 
+import os
 from datetime import time
 from unittest.mock import patch
 
@@ -317,6 +318,77 @@ class TestEntryEdgeCases:
                 b"required" in response.data.lower()
                 or b"error" in response.data.lower()
             )
+
+
+class TestEntryPermissions:
+    """Tests that non-first-call, non-admin users cannot modify entries."""
+
+    def test_add_blocked_for_non_first_call(
+        self, client, app, sample_resident, sample_role
+    ):
+        """Non-admin, non-first-call user cannot add entries."""
+        original = {k: os.environ.get(k, "") for k in ("USER_NAME", "ADMIN_USERS")}
+        try:
+            os.environ["USER_NAME"] = "Regular Viewer"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+
+            with app.app_context():
+                response = client.post(
+                    "/entries/add",
+                    data={
+                        "date": get_effective_date().strftime("%Y-%m-%d"),
+                        "resident_id": sample_resident.id,
+                        "role_id": sample_role.id,
+                        "exit_time": "20:00",
+                    },
+                    follow_redirects=True,
+                )
+                assert response.status_code == 200
+                assert b"first call" in response.data.lower()
+        finally:
+            for k, v in original.items():
+                os.environ[k] = v
+
+    def test_update_blocked_for_non_first_call(self, client, app, sample_time_entry):
+        """Non-admin, non-first-call user cannot update entries."""
+        original = {k: os.environ.get(k, "") for k in ("USER_NAME", "ADMIN_USERS")}
+        try:
+            os.environ["USER_NAME"] = "Regular Viewer"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+
+            with app.app_context():
+                response = client.post(
+                    f"/entries/{sample_time_entry.id}/update",
+                    data={"exit_time": "21:00"},
+                    follow_redirects=True,
+                )
+                assert response.status_code == 200
+                assert b"first call" in response.data.lower()
+        finally:
+            for k, v in original.items():
+                os.environ[k] = v
+
+    def test_delete_blocked_for_non_first_call(self, client, app, sample_time_entry):
+        """Non-admin, non-first-call user cannot delete entries."""
+        original = {k: os.environ.get(k, "") for k in ("USER_NAME", "ADMIN_USERS")}
+        try:
+            os.environ["USER_NAME"] = "Regular Viewer"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+
+            with app.app_context():
+                response = client.post(
+                    f"/entries/{sample_time_entry.id}/delete",
+                    follow_redirects=True,
+                )
+                assert response.status_code == 200
+                assert b"first call" in response.data.lower()
+
+                # Entry should still exist
+                entry = db.session.get(TimeEntry, sample_time_entry.id)
+                assert entry is not None
+        finally:
+            for k, v in original.items():
+                os.environ[k] = v
 
 
 class TestEntryExceptionHandling:

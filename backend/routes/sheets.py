@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, current_app, flash, redirect, render_template, url_for
 
 from ..audit import log_lock
+from ..auth import is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Role, TimeEntry, db
 from ..utils import get_effective_date, get_philadelphia_time, handle_db_error
@@ -13,6 +14,24 @@ bp = Blueprint(
     "sheets",
     __name__,
 )
+
+
+def _get_sheet_context(sheet_date):
+    """Return call_team_entries, overtime_entries, and overtime_roles for a date."""
+    all_entries = (
+        TimeEntry.query.filter_by(date=sheet_date).order_by(TimeEntry.id).all()
+    )
+    call_team_entries = sorted(
+        [e for e in all_entries if e.role.is_call_team],
+        key=lambda e: e.role.display_order,
+    )
+    overtime_entries = [e for e in all_entries if not e.role.is_call_team]
+    overtime_roles = (
+        Role.query.filter(Role.is_call_team.isnot(True))
+        .order_by(Role.display_order)
+        .all()
+    )
+    return call_team_entries, overtime_entries, overtime_roles
 
 
 @bp.route("/")
@@ -26,11 +45,7 @@ def index():
         db.session.add(daily_sheet)
         db.session.commit()
 
-    # Get all time entries for today
-    time_entries = TimeEntry.query.filter_by(date=today).order_by(TimeEntry.id).all()
-
-    # Get all roles ordered
-    roles = Role.query.order_by(Role.display_order).all()
+    call_team_entries, overtime_entries, overtime_roles = _get_sheet_context(today)
 
     # Calculate previous and next dates
     prev_date = today - timedelta(days=1)
@@ -39,13 +54,15 @@ def index():
     return render_template(
         "index.html",
         daily_sheet=daily_sheet,
-        time_entries=time_entries,
-        roles=roles,
+        overtime_entries=overtime_entries,
+        call_team_entries=call_team_entries,
+        overtime_roles=overtime_roles,
         today=today,
         prev_date=prev_date,
         next_date=next_date,
         current_time=get_philadelphia_time(),
         is_weekend_or_holiday=is_weekend_or_holiday(today),
+        can_edit=is_admin() or is_first_call(today),
     )
 
 
@@ -65,10 +82,7 @@ def view(date_str):
         db.session.add(daily_sheet)
         db.session.commit()
 
-    time_entries = (
-        TimeEntry.query.filter_by(date=sheet_date).order_by(TimeEntry.id).all()
-    )
-    roles = Role.query.order_by(Role.display_order).all()
+    call_team_entries, overtime_entries, overtime_roles = _get_sheet_context(sheet_date)
 
     # Calculate previous and next dates
     prev_date = sheet_date - timedelta(days=1)
@@ -77,13 +91,15 @@ def view(date_str):
     return render_template(
         "index.html",
         daily_sheet=daily_sheet,
-        time_entries=time_entries,
-        roles=roles,
+        overtime_entries=overtime_entries,
+        call_team_entries=call_team_entries,
+        overtime_roles=overtime_roles,
         today=sheet_date,
         prev_date=prev_date,
         next_date=next_date,
         current_time=get_philadelphia_time(),
         is_weekend_or_holiday=is_weekend_or_holiday(sheet_date),
+        can_edit=is_admin() or is_first_call(sheet_date),
     )
 
 
@@ -93,6 +109,13 @@ def lock(date_str):
     """Lock/unlock a daily sheet."""
     try:
         sheet_date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
+
+        if not (is_admin() or is_first_call(sheet_date)):
+            flash(
+                "Only the first call resident or an admin can lock/unlock the sheet.",
+                "error",
+            )
+            return redirect(url_for("sheets.view", date_str=date_str))
         daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
 
         if not daily_sheet:

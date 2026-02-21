@@ -177,6 +177,9 @@ class Role(db.Model):
     is_backup = db.Column(
         db.Boolean, default=False
     )  # Backup roles get full overtime on weekends/holidays
+    is_call_team = db.Column(
+        db.Boolean, default=False
+    )  # Call team roles: shown on sheet but never generate overtime
 
     # Relationship to time entries
     time_entries = db.relationship(
@@ -236,6 +239,10 @@ class TimeEntry(db.Model):
         - Backup role on Saturday, start: 09:00, exit: 17:00 -> 8.0 hours overtime
         """
         if not self.exit_time or not self.role:
+            return 0.0
+
+        # Call team roles are displayed but never generate overtime
+        if self.role.is_call_team:
             return 0.0
 
         # Check if backup role on weekend/holiday - all time from start is overtime

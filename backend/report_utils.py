@@ -4,15 +4,20 @@ import csv
 from datetime import date
 from io import StringIO
 
-from .models import Resident, TimeEntry, db
+from .models import Resident, Role, TimeEntry, db
 
 
 def build_entries_query(
     start_date: date, end_date: date, resident_id: str | int | None
 ):
-    """Build query for entries within date range, filtered by resident."""
-    query = TimeEntry.query.filter(
-        TimeEntry.date >= start_date, TimeEntry.date <= end_date
+    """Build query for entries within date range, filtered by resident.
+
+    Call team roles (is_call_team=True) are excluded from overtime reports.
+    """
+    query = TimeEntry.query.join(Role).filter(
+        TimeEntry.date >= start_date,
+        TimeEntry.date <= end_date,
+        Role.is_call_team.isnot(True),
     )
     if resident_id:
         query = query.filter(TimeEntry.resident_id == resident_id)
