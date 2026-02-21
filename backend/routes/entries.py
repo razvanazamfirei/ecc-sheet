@@ -5,8 +5,11 @@ from datetime import datetime
 from flask import Blueprint, abort, flash, redirect, request, url_for
 
 from ..audit import log_create, log_delete, log_update
+from ..auth import is_admin, is_first_call
 from ..models import DailySheet, TimeEntry, db
 from ..utils import handle_db_error
+
+_EDIT_DENIED_MSG = "Only the first call resident or an admin can modify entries."
 
 bp = Blueprint("entries", __name__, url_prefix="/entries")
 
@@ -19,6 +22,10 @@ def add():
     try:
         sheet_date_str = request.form.get("date")
         sheet_date = datetime.strptime(sheet_date_str, "%Y-%m-%d").date()  # noqa: DTZ007
+
+        if not (is_admin() or is_first_call(sheet_date)):
+            flash(_EDIT_DENIED_MSG, "error")
+            return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
         # Check if sheet is locked
         daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
@@ -65,8 +72,8 @@ def add():
                 "date": sheet_date_str,
                 "resident": entry.resident.name,
                 "role": entry.role.name,
-                "exit_time": exit_time_str if exit_time_str else None,
-                "start_time": start_time_str if start_time_str else None,
+                "exit_time": exit_time_str or None,
+                "start_time": start_time_str or None,
             },
         )
 
@@ -87,6 +94,12 @@ def update(entry_id):
     if entry is None:
         abort(404)
 
+    if not (is_admin() or is_first_call(entry.date)):
+        flash(_EDIT_DENIED_MSG, "error")
+        return redirect(
+            url_for("sheets.view", date_str=entry.date.strftime("%Y-%m-%d"))
+        )
+
     # Check if sheet is locked
     daily_sheet = DailySheet.query.filter_by(date=entry.date).first()
     if daily_sheet and daily_sheet.locked:
@@ -99,7 +112,9 @@ def update(entry_id):
 
         # Store old values for audit
         old_exit_time = entry.exit_time.strftime("%H:%M") if entry.exit_time else None
-        old_start_time = entry.start_time.strftime("%H:%M") if entry.start_time else None
+        old_start_time = (
+            entry.start_time.strftime("%H:%M") if entry.start_time else None
+        )
 
         exit_time_str = request.form.get("exit_time")
         if exit_time_str:
@@ -117,7 +132,10 @@ def update(entry_id):
             if start_time_str:
                 entry.start_time = datetime.strptime(start_time_str, "%H:%M").time()  # noqa: DTZ007
                 if old_start_time != start_time_str:
-                    changes["start_time"] = {"old": old_start_time, "new": start_time_str}
+                    changes["start_time"] = {
+                        "old": old_start_time,
+                        "new": start_time_str,
+                    }
             else:
                 entry.start_time = None
                 if old_start_time is not None:
@@ -157,6 +175,12 @@ def delete(entry_id):
         abort(404)
     sheet_date = entry.date
 
+    if not (is_admin() or is_first_call(sheet_date)):
+        flash(_EDIT_DENIED_MSG, "error")
+        return redirect(
+            url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d"))
+        )
+
     # Check if sheet is locked
     daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
     if daily_sheet and daily_sheet.locked:
@@ -175,8 +199,12 @@ def delete(entry_id):
                 "date": str(entry.date),
                 "resident": entry.resident.name,
                 "role": entry.role.name,
-                "exit_time": entry.exit_time.strftime("%H:%M") if entry.exit_time else None,
-                "start_time": entry.start_time.strftime("%H:%M") if entry.start_time else None,
+                "exit_time": entry.exit_time.strftime("%H:%M")
+                if entry.exit_time
+                else None,
+                "start_time": entry.start_time.strftime("%H:%M")
+                if entry.start_time
+                else None,
             },
         )
 
