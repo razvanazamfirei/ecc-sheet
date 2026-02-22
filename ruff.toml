@@ -43,12 +43,18 @@ select = [
   "PLC0415", # Imports in test functions is acceptable
   "DTZ001",  # Naive datetime in tests is acceptable (using pytz.localize)
 ]
+"tests/conftest.py" = [
+  "E402", # Imports after env-var setup (intentional: env vars must precede Flask import)
+]
 "scripts/*.py" = [
   "S104", # Binding to all interfaces acceptable in scripts
   "S201", # Debug mode acceptable in scripts
 ]
 "backend/holidays.py" = [
   "PLC0415", # Deferred import to break models ↔ holidays circular import
+]
+".claude/hooks/*.py" = [
+  "PLR0913",
 ]
 [format]
 indent-style = "space"

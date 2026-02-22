@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, time
-from datetime import date as dt_date
+from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from email_validator import EmailNotValidError
@@ -62,7 +61,7 @@ class Resident(ModelBase):
     abbreviation: Mapped[str | None] = mapped_column(String(10), nullable=True)
     backup_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     lawson_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    hire_date: Mapped[dt_date | None] = mapped_column(Date, nullable=True)
+    hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Relationship to time entries
     time_entries: Mapped[list[TimeEntry]] = relationship(
         "TimeEntry", back_populates="resident", cascade="all, delete-orphan"
@@ -198,7 +197,7 @@ class Resident(ModelBase):
         return resident, True
 
     def get_entries_for_period(
-        self, start_date: dt_date, end_date: dt_date
+        self, start_date: date, end_date: date
     ) -> list[TimeEntry]:
         """
         Get time entries for this resident within a date range.
@@ -217,7 +216,7 @@ class Resident(ModelBase):
         ).all()
 
     def get_total_overtime(
-        self, start_date: dt_date | None = None, end_date: dt_date | None = None
+        self, start_date: date | None = None, end_date: date | None = None
     ) -> float:
         """
         Calculate total overtime hours for this resident.
@@ -277,7 +276,7 @@ class TimeEntry(ModelBase):
     __tablename__ = "time_entries"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    date: Mapped[dt_date] = mapped_column(Date, nullable=False, index=True)
+    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     resident_id: Mapped[int] = mapped_column(ForeignKey("residents.id"), nullable=False)
     role_id: Mapped[int | None] = mapped_column(
         ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
@@ -367,15 +366,14 @@ class TimeEntry(ModelBase):
 
     @override
     def __repr__(self) -> str:
-        resident_name = self.resident.name if self.resident else "Unknown"
-        return f"<TimeEntry {self.date} - {resident_name}>"
+        return f"<TimeEntry {self.date} - resident_id={self.resident_id}>"
 
 
 class DailySheet(ModelBase):
     __tablename__ = "daily_sheets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    date: Mapped[dt_date] = mapped_column(Date, unique=True, nullable=False, index=True)
+    date: Mapped[date] = mapped_column(Date, unique=True, nullable=False, index=True)
     locked: Mapped[bool] = mapped_column(Boolean, default=False)
     locked_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     locked_at: Mapped[datetime | None] = mapped_column(
@@ -440,7 +438,7 @@ class Holiday(ModelBase):
     __tablename__ = "holidays"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    date: Mapped[dt_date] = mapped_column(Date, nullable=False, unique=True, index=True)
+    date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_federal: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -448,7 +446,7 @@ class Holiday(ModelBase):
     )
 
     @classmethod
-    def is_holiday(cls, check_date: dt_date) -> bool:
+    def is_holiday(cls, check_date: date) -> bool:
         """Check if a date is a holiday."""
         return cls.query.filter_by(date=check_date).first() is not None
 
@@ -503,7 +501,7 @@ class PayrollSettings(ModelBase):
                 label_suffix=Config.PAYROLL_LABEL_SUFFIX,
             )
             db.session.add(settings)
-            db.session.flush()
+            db.session.commit()
         return settings
 
     @override

@@ -164,6 +164,7 @@ class TestGenerateCsvContent:
             lines = csv_content.strip().split("\n")
             assert len(lines) == 2  # Header + 1 entry
             assert entry.resident.name in lines[1]
+            assert entry.role is not None
             assert entry.role.name in lines[1]
 
     def test_entry_without_exit_time(self, app, sample_resident, sample_role):

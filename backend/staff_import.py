@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import logging
 from collections.abc import Sequence
+from typing import Any
 
 import requests
 from email_validator import EmailNotValidError, validate_email
@@ -107,7 +108,9 @@ def parse_staff_list(csv_content: str) -> StaffList:
         # Only include staff with valid EPIC IDs
         if epic_id:
             raw_email = _clean_cell(row.get("Email"))
-            validated_email: str | None = None
+            # Use "" to signal "source had no email → clear the field".
+            # None means "validation failed → leave existing value alone".
+            validated_email: str | None
             if raw_email:
                 try:
                     validated_email = validate_email(
@@ -119,6 +122,9 @@ def parse_staff_list(csv_content: str) -> StaffList:
                         raw_email,
                         name,
                     )
+                    validated_email = None  # skip update; preserve existing email
+            else:
+                validated_email = ""  # blank in source → clear existing email
 
             staff_list.append(
                 StaffRecord(
@@ -141,9 +147,9 @@ def _update_resident_fields(
     normalized_class_year: str,
     first_name: str | None,
     last_name: str | None,
-) -> dict:
+) -> dict[str, dict[str, Any]]:
     """Apply staff record fields to an existing resident; return change map."""
-    changes: dict = {}
+    changes: dict[str, dict[str, Any]] = {}
     for attr, new_val in [
         ("class_year", normalized_class_year),
         ("email", staff["email"]),
@@ -189,7 +195,7 @@ def import_staff_to_database(
 
     # Track residents to audit-log after commit (id is not yet available for new ones)
     created_residents: list[Resident] = []
-    updated_residents: list[tuple[Resident, dict]] = []
+    updated_residents: list[tuple[Resident, dict[str, Any]]] = []
 
     for staff in staff_list:
         epic_id = staff["epic_id"]

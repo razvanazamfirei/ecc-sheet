@@ -704,8 +704,7 @@ class TestTimeEntryModel:
             )
             db.session.add(entry)
             db.session.commit()
-
-            expected = f"<TimeEntry 2024-05-15 - {sample_resident.name}>"
+            expected = f"<TimeEntry 2024-05-15 - resident_id={sample_resident.id}>"
             assert repr(entry) == expected
 
             db.session.delete(entry)
@@ -720,7 +719,7 @@ class TestTimeEntryModel:
                 exit_time=time(18, 0),
             )
 
-            assert repr(entry) == "<TimeEntry 2024-05-16 - Unknown>"
+            assert repr(entry) == "<TimeEntry 2024-05-16 - resident_id=None>"
 
 
 class TestDailySheetModel:

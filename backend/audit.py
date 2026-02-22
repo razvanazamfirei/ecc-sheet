@@ -8,19 +8,13 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-from flask import current_app, has_request_context, request
+from flask import has_request_context, request
 
+from .auth import get_current_user
 from .models import AuditLog, db
 from .type_defs import AuditLogs
 
 logger = logging.getLogger(__name__)
-
-
-def get_current_user() -> str:
-    """Get the current user from session or config"""
-    # In a real app, you'd get this from session/auth
-    # For now, use the config value
-    return current_app.config.get("USER_NAME", "System")
 
 
 def get_client_ip() -> str | None:
@@ -67,11 +61,11 @@ def log_action(
             ip_address=get_client_ip(),
         )
         db.session.add(audit_entry)
-        db.session.commit()
+        db.session.flush()
     except Exception:
-        # Don't let audit logging break the main flow
+        # Don't let audit logging break the main flow; the caller's transaction
+        # controls commit/rollback.
         logger.exception("Audit logging failed")
-        db.session.rollback()
 
 
 def log_create(

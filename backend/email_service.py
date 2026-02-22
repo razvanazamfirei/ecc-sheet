@@ -48,6 +48,10 @@ def send_report_email(
             logger.error("Email credentials not configured")
             return False
 
+        # Bind to locals so static type checkers can narrow str | None → str.
+        username: str = Config.EMAIL_USERNAME
+        password: str = Config.EMAIL_PASSWORD
+
         recipient = recipient_email or Config.EMAIL_RECIPIENT
         if not recipient:
             logger.error("No email recipient configured")
@@ -55,7 +59,7 @@ def send_report_email(
 
         # Validate sender and recipient email addresses
         try:
-            validate_email(Config.EMAIL_USERNAME, check_deliverability=False)
+            validate_email(username, check_deliverability=False)
             validate_email(recipient, check_deliverability=False)
         except EmailNotValidError:
             logger.exception("Invalid email address in configuration")
@@ -87,7 +91,7 @@ def send_report_email(
             subject += f" - {resident_name}"
 
         msg["Subject"] = subject
-        msg["From"] = Config.EMAIL_USERNAME
+        msg["From"] = username
         msg["To"] = recipient
 
         # Attach HTML body
@@ -111,7 +115,7 @@ def send_report_email(
         # Send email
         with smtplib.SMTP(Config.EMAIL_HOST, Config.EMAIL_PORT, timeout=30) as server:
             server.starttls()
-            server.login(Config.EMAIL_USERNAME, Config.EMAIL_PASSWORD)
+            server.login(username, password)
             server.send_message(msg)
 
         logger.info("Report email sent successfully to %s", recipient)

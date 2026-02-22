@@ -69,8 +69,8 @@ type ResidentData = dict[int, ResidentSummaryDict]
 
 type ResidentID = int | str | None
 
-type AuditLogs = list["AuditLog"]
+type AuditLogs = list[AuditLog]
 
-type TimeEntries = Sequence["TimeEntry"]
+type TimeEntries = Sequence[TimeEntry]
 
 type StaffList = list[StaffRecord]

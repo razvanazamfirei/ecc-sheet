@@ -240,10 +240,14 @@ class TestDeleteHoliday:
                 )
                 assert b"Admin privileges required" in response.data
             finally:
-                if original_user:
+                if original_user is not None:
                     os.environ["USER_NAME"] = original_user
-                if original_admins:
+                else:
+                    os.environ.pop("USER_NAME", None)
+                if original_admins is not None:
                     os.environ["ADMIN_USERS"] = original_admins
+                else:
+                    os.environ.pop("ADMIN_USERS", None)
 
             # Cleanup
             holiday = db.session.get(Holiday, holiday_id)

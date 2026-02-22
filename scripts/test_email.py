@@ -20,10 +20,10 @@ def _validate_address(address: str, label: str) -> bool:
     """Return True if address is valid, False and print error if not."""
     try:
         validate_email(address, check_deliverability=False)
-        return True
     except EmailNotValidError as e:
         print(f"Invalid {label} email address: {e}")
         return False
+    return True
 
 
 def test_email():

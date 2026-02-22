@@ -24,7 +24,10 @@ def build_entries_query(
 ) -> Query:
     """Build query for entries within date range, filtered by resident.
 
-    Call team roles (is_call_team=True) are excluded from overtime reports.
+    Uses an inner join on Role, so entries whose role was deleted (role_id set
+    to NULL by the ON DELETE SET NULL constraint) are intentionally excluded —
+    they carry no role context and cannot contribute to overtime calculations.
+    Call team roles (is_call_team=True) are also excluded.
     Resident and role relationships are eagerly loaded to avoid N+1 queries.
     """
     query = (
@@ -60,7 +63,7 @@ def aggregate_entries_by_resident(entries: TimeEntries) -> ResidentData:
     resident_data: ResidentData = {}
     for entry in entries:
         resident: Resident = entry.resident
-        role: Role | None = entry.role
+        role: Role = entry.role  # type: ignore[assignment]  # inner join guarantees non-null
         res_id: int = resident.id
         if res_id not in resident_data:
             resident_data[res_id] = ResidentSummaryDict(
@@ -73,7 +76,7 @@ def aggregate_entries_by_resident(entries: TimeEntries) -> ResidentData:
         resident_data[res_id]["entries"].append(
             ResidentEntryDict(
                 date=entry.date.strftime("%Y-%m-%d"),
-                role=role.name if role else "",
+                role=role.name,
                 exit_time=entry.exit_time.strftime("%H:%M") if entry.exit_time else "",
                 overtime=overtime,
             )
@@ -91,12 +94,12 @@ def generate_csv_content(entries: TimeEntries) -> str:
 
     for entry in entries:
         resident: Resident = entry.resident
-        role: Role | None = entry.role
+        role: Role = entry.role  # type: ignore[assignment]  # inner join guarantees non-null
         writer.writerow(
             [
                 entry.date.strftime("%Y-%m-%d"),
                 resident.name,
-                role.name if role else "",
+                role.name,
                 entry.exit_time.strftime("%H:%M") if entry.exit_time else "",
                 f"{entry.overtime_hours:.2f}",
             ]

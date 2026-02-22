@@ -40,7 +40,9 @@ def _entry_names(entry: "TimeEntry") -> tuple[str, str]:
     """Return (resident_name, role_name), falling back to IDs if unloaded."""
     return (
         entry.resident.name if entry.resident else str(entry.resident_id),
-        entry.role.name if entry.role else str(entry.role_id),
+        entry.role.name
+        if entry.role
+        else (str(entry.role_id) if entry.role_id else ""),
     )
 
 
@@ -172,21 +174,25 @@ def update(entry_id):
             )
 
         db.session.commit()
+        flash("Entry updated successfully", "success")
 
         # Log the action with enhanced details
         if changes:
-            resident_name, role_name = _entry_names(entry)
-            log_update(
-                "TimeEntry",
-                entry.id,
-                changes=changes,
-                details={
-                    "entry_id": entry.id,
-                    "resident": resident_name,
-                    "role": role_name,
-                    "date": entry.date.strftime("%Y-%m-%d"),
-                },
-            )
+            try:
+                resident_name, role_name = _entry_names(entry)
+                log_update(
+                    "TimeEntry",
+                    entry.id,
+                    changes=changes,
+                    details={
+                        "entry_id": entry.id,
+                        "resident": resident_name,
+                        "role": role_name,
+                        "date": entry.date.strftime("%Y-%m-%d"),
+                    },
+                )
+            except Exception:
+                logger.warning("Audit log failed for entry %s", entry.id, exc_info=True)
 
         flash("Entry updated successfully", "success")
 

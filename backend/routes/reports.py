@@ -182,6 +182,9 @@ def send_email():
         else:
             flash("Failed to send email. Check email configuration and logs.", "error")
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         flash(f"Error sending email: {e!s}", "error")
         logger.error("Error in send_report_email_route: %s", e)

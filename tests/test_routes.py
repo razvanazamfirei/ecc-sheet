@@ -10,6 +10,7 @@ from backend.models import DailySheet, Resident, Role, TimeEntry, db
 from backend.utils import get_effective_date
 
 
+# noinspection PyUnusedLocal
 @pytest.mark.integration
 class TestIndexRoute:
     """Test main index/daily sheet view"""
@@ -62,6 +63,7 @@ class TestViewSheet:
 class TestAddEntry:
     """Test adding time entries"""
 
+    # noinspection PyUnusedLocal
     def test_add_entry_success(
         self, client, app, sample_resident, sample_role, clean_database
     ):
@@ -90,6 +92,7 @@ class TestAddEntry:
             assert entry is not None
             assert entry.exit_time == time(20, 0)
 
+    # noinspection PyUnusedLocal
     def test_add_entry_without_exit_time(
         self, client, app, sample_resident, sample_role, clean_database
     ):
@@ -234,6 +237,7 @@ class TestLockSheet:
 class TestAPIEndpoints:
     """Test API endpoints"""
 
+    # noinspection PyUnusedLocal
     def test_api_active_residents(self, client, app, sample_resident):
         """Test API endpoint for active residents"""
         with app.app_context():
@@ -289,6 +293,7 @@ class TestReportsPage:
         assert response.status_code == 200
         assert b"Generate Report" in response.data
 
+    # noinspection PyUnusedLocal
     def test_generate_report(self, client, clean_database, sample_time_entry):
         """Test generating a report"""
         start_date = (get_effective_date() - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -305,6 +310,7 @@ class TestReportsPage:
         assert b"Test Role" in response.data
         assert b"2.50" in response.data  # Overtime hours
 
+    # noinspection PyUnusedLocal
     def test_generate_empty_report(self, client, clean_database):
         """Test generating report with no data"""
         future_date = (get_effective_date() + timedelta(days=30)).strftime("%Y-%m-%d")
@@ -403,6 +409,7 @@ class TestManageRoles:
 class TestWorkflowIntegration:
     """Test complete workflows end-to-end"""
 
+    # noinspection PyUnusedLocal
     def test_complete_daily_workflow(
         self, client, app, clean_database, sample_resident, sample_role
     ):
@@ -453,6 +460,7 @@ class TestWorkflowIntegration:
         assert b"Test Role" in response.data
         assert b"5.00" in response.data  # 22:30 - 17:30 = 5 hours
 
+    # noinspection PyUnusedLocal
     def test_overnight_shift_workflow(
         self, client, clean_database, sample_resident, sample_role
     ):

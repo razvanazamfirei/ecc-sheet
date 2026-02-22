@@ -8,6 +8,15 @@ import tempfile
 from collections.abc import Iterator
 from datetime import time
 
+# Set the test database URL before importing the Flask app so that Config
+# reads the test URI at module-import time (backend.app calls db.init_app
+# during import, which reads DATABASE_URL from the environment).
+_TEST_DB_FD, _TEST_DB_PATH = tempfile.mkstemp(prefix="ecc-sheet-tests-", suffix=".db")
+os.close(_TEST_DB_FD)
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
+os.environ["USER_NAME"] = "Admin"
+os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
+
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient, FlaskCliRunner
@@ -17,13 +26,6 @@ from backend.app import app as flask_app
 from backend.app import init_db
 from backend.models import DailySheet, Resident, Role, TimeEntry, db
 from backend.utils import get_effective_date
-
-# Configure a dedicated temporary database before importing the Flask app.
-_TEST_DB_FD, _TEST_DB_PATH = tempfile.mkstemp(prefix="ecc-sheet-tests-", suffix=".db")
-os.close(_TEST_DB_FD)
-os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
-os.environ["USER_NAME"] = "Admin"
-os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
 
 
 @pytest.fixture(scope="session")
