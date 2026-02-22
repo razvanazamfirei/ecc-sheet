@@ -17,7 +17,7 @@ from flask import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
-from ..audit import log_update
+from ..audit import log_create, log_update
 from ..auth import admin_required, get_current_user, is_admin, is_first_call
 from ..models import AuditLog, Resident, TimeEntry, db
 from ..staff_import import import_staff_list
@@ -50,6 +50,7 @@ def add():
         resident = Resident(name=name)
         db.session.add(resident)
         db.session.commit()
+        log_create("Resident", resident.id, {"name": name})
         flash(f"Resident {name} added successfully", "success")
 
     except SQLAlchemyError:
@@ -70,9 +71,15 @@ def toggle(resident_id):
         abort(404)
 
     try:
+        previous_active = resident.active
         resident.active = not resident.active
         db.session.commit()
         status = "activated" if resident.active else "deactivated"
+        log_update(
+            "Resident",
+            resident.id,
+            changes={"active": {"before": previous_active, "after": resident.active}},
+        )
         flash(f"Resident {resident.name} {status}", "success")
 
     except SQLAlchemyError:

@@ -470,7 +470,10 @@ class PayrollExportLayout:
             if self.headers:
                 raise PayrollLayoutError("Layout has headers but no column mappings.")
             return
-        max_index = max(self.columns.values())
+        values = list(self.columns.values())
+        if len(set(values)) != len(values):
+            raise PayrollLayoutError("Duplicate column indices in layout.")
+        max_index = max(values)
         if len(self.headers) != max_index + 1:
             raise PayrollLayoutError(
                 f"Layout mismatch: len(headers)={len(self.headers)} "
@@ -596,6 +599,7 @@ class PayrollSettings(ModelBase):
                 c["dept"],
                 c["expense"],
                 c["acct_unit"],
+                c["employee"],
                 c["note"],
             }
         )
