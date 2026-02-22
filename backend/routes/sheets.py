@@ -38,54 +38,7 @@ def _get_sheet_context(sheet_date):
     return call_team_entries, overtime_entries, overtime_roles
 
 
-@bp.route("/")
-def index():
-    """Dashboard showing today's sheet."""
-    today = get_effective_date()
-    daily_sheet = DailySheet.query.filter_by(date=today).first()
-
-    if not daily_sheet:
-        daily_sheet = DailySheet(date=today)
-        db.session.add(daily_sheet)
-        db.session.commit()
-
-    call_team_entries, overtime_entries, overtime_roles = _get_sheet_context(today)
-
-    # Calculate previous and next dates
-    prev_date = today - timedelta(days=1)
-    next_date = today + timedelta(days=1)
-
-    return render_template(
-        "index.html",
-        daily_sheet=daily_sheet,
-        overtime_entries=overtime_entries,
-        call_team_entries=call_team_entries,
-        overtime_roles=overtime_roles,
-        today=today,
-        prev_date=prev_date,
-        next_date=next_date,
-        current_time=get_philadelphia_time(),
-        is_weekend_or_holiday=is_weekend_or_holiday(today),
-        can_edit=is_admin() or is_first_call(today),
-    )
-
-
-@bp.route("/sheets/<date_str>")
-def view(date_str):
-    """View sheet for a specific date."""
-    try:
-        sheet_date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
-    except ValueError:
-        flash("Invalid date format", "error")
-        return redirect(url_for("sheets.index"))
-
-    daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
-
-    if not daily_sheet:
-        daily_sheet = DailySheet(date=sheet_date)
-        db.session.add(daily_sheet)
-        db.session.commit()
-
+def _render_sheet(daily_sheet: DailySheet | None, sheet_date: date) -> str:
     call_team_entries, overtime_entries, overtime_roles = _get_sheet_context(sheet_date)
 
     # Calculate previous and next dates
@@ -105,6 +58,37 @@ def view(date_str):
         is_weekend_or_holiday=is_weekend_or_holiday(sheet_date),
         can_edit=is_admin() or is_first_call(sheet_date),
     )
+
+
+@bp.route("/")
+def index():
+    """Dashboard showing today's sheet."""
+    today = get_effective_date()
+    daily_sheet: DailySheet | None = DailySheet.query.filter_by(date=today).first()
+    if not daily_sheet:
+        daily_sheet = DailySheet(date=today)
+        db.session.add(daily_sheet)
+        db.session.commit()
+
+    return _render_sheet(daily_sheet, today)
+
+
+@bp.route("/sheets/<date_str>")
+def view(date_str):
+    """View sheet for a specific date."""
+    try:
+        sheet_date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
+    except ValueError:
+        flash("Invalid date format", "error")
+        return redirect(url_for("sheets.index"))
+
+    daily_sheet: DailySheet | None = DailySheet.query.filter_by(date=sheet_date).first()
+    if not daily_sheet:
+        daily_sheet = DailySheet(date=sheet_date)
+        db.session.add(daily_sheet)
+        db.session.commit()
+
+    return _render_sheet(daily_sheet, sheet_date)
 
 
 @bp.route("/sheets/<date_str>/lock", methods=["POST"])

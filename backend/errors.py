@@ -42,7 +42,7 @@ class NotFoundError(APIError):
         super().__init__(message, status_code=404, payload=payload)
 
 
-class PermissionError(APIError):
+class NotAllowedError(APIError):
     """Permission denied error"""
 
     def __init__(self, message, payload=None):

@@ -332,7 +332,7 @@ class TestPayrollXlsxExport:
                 for r in range(1, ws.max_row + 1)
                 for c in range(1, ws.max_column + 1)
             ]
-            assert 55555 in sheet_values
+            assert "55555" in sheet_values
 
             # Cleanup
             resident.lawson_id = None

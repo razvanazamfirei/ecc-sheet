@@ -4,6 +4,7 @@ from pathlib import Path
 from flask import Flask, session
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
+from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import get_current_user, is_admin
 from .config import Config
@@ -86,7 +87,7 @@ def inject_dev():
     try:
         residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
         resident_names = [r.name for r in residents]
-    except Exception:
+    except SQLAlchemyError:
         app.logger.exception("Failed to query residents for dev mock context")
         resident_names = []
 

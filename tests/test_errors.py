@@ -9,8 +9,8 @@ from backend.errors import (
     APIError,
     ConflictError,
     DatabaseError,
+    NotAllowedError,
     NotFoundError,
-    PermissionError,
     ValidationError,
     register_error_handlers,
 )
@@ -91,20 +91,20 @@ class TestNotFoundError:
         assert result["type"] == "NotFoundError"
 
 
-class TestPermissionError:
-    """Tests for PermissionError."""
+class TestNotAllowedError:
+    """Tests for NotAllowedError."""
 
-    def test_permission_error_initialization(self):
-        """Test PermissionError initialization."""
-        error = PermissionError("Access denied")
+    def test_not_allowed_error_initialization(self):
+        """Test NotAllowedError initialization."""
+        error = NotAllowedError("Access denied")
         assert error.message == "Access denied"
         assert error.status_code == 403
 
-    def test_permission_error_to_dict(self):
-        """Test PermissionError to_dict."""
-        error = PermissionError("Access denied")
+    def test_not_allowed_error_to_dict(self):
+        """Test NotAllowedError to_dict."""
+        error = NotAllowedError("Access denied")
         result = error.to_dict()
-        assert result["type"] == "PermissionError"
+        assert result["type"] == "NotAllowedError"
 
 
 class TestConflictError:
@@ -164,7 +164,7 @@ def error_test_app():
 
     @app.route("/test-permission-error")
     def raise_permission_error():
-        raise PermissionError("Not authorized")
+        raise NotAllowedError("Access denied")
 
     @app.route("/test-error-payload")
     def raise_error_with_payload():
@@ -227,11 +227,11 @@ class TestErrorHandlers:
         assert data["type"] == "NotFoundError"
 
     def test_permission_error_handler(self, error_test_client):
-        """Test PermissionError handler."""
+        """Test NotAllowedError handler."""
         response = error_test_client.get("/test-permission-error")
         assert response.status_code == 403
         data = json.loads(response.data)
-        assert data["type"] == "PermissionError"
+        assert data["type"] == "NotAllowedError"
 
     def test_conflict_error_handler(self, error_test_client):
         """Test ConflictError handler."""

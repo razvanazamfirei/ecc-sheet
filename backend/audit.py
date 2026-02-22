@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from flask import has_request_context, request
+from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import get_current_user
 from .models import AuditLog, db
@@ -62,7 +63,7 @@ def log_action(
         )
         db.session.add(audit_entry)
         db.session.flush()
-    except Exception:
+    except SQLAlchemyError:
         # Don't let audit logging break the main flow; the caller's transaction
         # controls commit/rollback.
         logger.exception("Audit logging failed")
