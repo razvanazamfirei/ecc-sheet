@@ -94,13 +94,13 @@ class TestNotFoundError:
 class TestNotAllowedError:
     """Tests for NotAllowedError."""
 
-    def test_permission_error_initialization(self):
+    def test_not_allowed_error_initialization(self):
         """Test NotAllowedError initialization."""
         error = NotAllowedError("Access denied")
         assert error.message == "Access denied"
         assert error.status_code == 403
 
-    def test_permission_error_to_dict(self):
+    def test_not_allowed_error_to_dict(self):
         """Test NotAllowedError to_dict."""
         error = NotAllowedError("Access denied")
         result = error.to_dict()
@@ -164,7 +164,7 @@ def error_test_app():
 
     @app.route("/test-permission-error")
     def raise_permission_error():
-        raise NotAllowedError("Not authorized")
+        raise NotAllowedError("Access denied")
 
     @app.route("/test-error-payload")
     def raise_error_with_payload():

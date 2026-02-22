@@ -36,5 +36,6 @@ packages = ["backend"]
 [tool.ty.src]
 exclude = [
     ".claude/*",
+    ".claude/**",
     "tests/*",
 ]

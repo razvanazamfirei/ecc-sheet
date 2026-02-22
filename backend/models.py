@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from datetime import date as dt_date
+from types import MappingProxyType
 from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from email_validator import EmailNotValidError
@@ -463,7 +463,7 @@ class PayrollLayoutError(ValueError):
 @dataclass(frozen=True)
 class PayrollExportLayout:
     headers: tuple[str, ...]
-    columns: Mapping[str, int]  # semantic name -> 0-based index
+    columns: MappingProxyType[str, int]  # semantic name -> 0-based index
 
     def __post_init__(self) -> None:
         if not self.columns:
@@ -482,7 +482,7 @@ class PayrollExportLayout:
         return len(self.headers)
 
 
-PayrollLayout: Final = PayrollExportLayout(
+PAYROLL_LAYOUT: Final = PayrollExportLayout(
     headers=(
         "Program",  # A (0)
         "",  # B (1)
@@ -513,21 +513,23 @@ PayrollLayout: Final = PayrollExportLayout(
         "",  # R..AA (10 empties: 17..26)
         "",  # AB header blank (27)
     ),
-    columns={
-        "program": 0,
-        "hire_date": 1,
-        "employee": 2,
-        "company": 3,
-        "batch": 4,
-        "lawson_id": 5,
-        "pay_code": 7,
-        "hours": 8,
-        "transdate": 13,
-        "dept": 14,
-        "expense": 15,
-        "acct_unit": 16,
-        "note": 27,
-    },
+    columns=MappingProxyType(
+        {
+            "program": 0,
+            "hire_date": 1,
+            "employee": 2,
+            "company": 3,
+            "batch": 4,
+            "lawson_id": 5,
+            "pay_code": 7,
+            "hours": 8,
+            "transdate": 13,
+            "dept": 14,
+            "expense": 15,
+            "acct_unit": 16,
+            "note": 27,
+        }
+    ),
 )
 
 
@@ -545,7 +547,7 @@ class PayrollSettings(ModelBase):
     expense: Mapped[int | None] = mapped_column(Integer, nullable=True)
     acct_unit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     label_suffix: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    layout: ClassVar[PayrollExportLayout] = PayrollLayout
+    layout: ClassVar[PayrollExportLayout] = PAYROLL_LAYOUT
 
     @property
     def text_format(self) -> str:

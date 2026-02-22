@@ -379,6 +379,7 @@ class TestGeneratePayrollXlsx:
             ws = wb.active
             assert ws is not None
             cell_value = ws.cell(row=2, column=14).value
+            assert cell_value is not None, "Transdate cell (row 2, col 14) is empty"
             assert cell_value.date() == end
 
 

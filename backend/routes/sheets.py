@@ -39,11 +39,6 @@ def _get_sheet_context(sheet_date):
 
 
 def _render_sheet(daily_sheet: DailySheet | None, sheet_date: date) -> str:
-    if not daily_sheet:
-        daily_sheet = DailySheet(date=sheet_date)
-        db.session.add(daily_sheet)
-        db.session.commit()
-
     call_team_entries, overtime_entries, overtime_roles = _get_sheet_context(sheet_date)
 
     # Calculate previous and next dates
@@ -70,6 +65,10 @@ def index():
     """Dashboard showing today's sheet."""
     today = get_effective_date()
     daily_sheet: DailySheet | None = DailySheet.query.filter_by(date=today).first()
+    if not daily_sheet:
+        daily_sheet = DailySheet(date=today)
+        db.session.add(daily_sheet)
+        db.session.commit()
 
     return _render_sheet(daily_sheet, today)
 
@@ -84,6 +83,11 @@ def view(date_str):
         return redirect(url_for("sheets.index"))
 
     daily_sheet: DailySheet | None = DailySheet.query.filter_by(date=sheet_date).first()
+    if not daily_sheet:
+        daily_sheet = DailySheet(date=sheet_date)
+        db.session.add(daily_sheet)
+        db.session.commit()
+
     return _render_sheet(daily_sheet, sheet_date)
 
 
