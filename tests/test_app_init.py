@@ -3,6 +3,8 @@
 import os
 from unittest.mock import patch
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from backend.models import Holiday, Role, db
 
 
@@ -238,7 +240,7 @@ class TestContextProcessor:
         try:
             os.environ["MOCK_USERS_ENABLED"] = "true"
             with app.app_context(), patch.object(Resident, "query") as mock_query:
-                mock_query.filter_by.side_effect = Exception("DB error")
+                mock_query.filter_by.side_effect = SQLAlchemyError("DB error")
                 response = client.get("/")
             assert response.status_code == 200
         finally:

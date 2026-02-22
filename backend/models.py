@@ -456,6 +456,10 @@ class Holiday(ModelBase):
         return f"<Holiday {self.date} - {self.name}>"
 
 
+class PayrollLayoutError(ValueError):
+    """Raised when a PayrollExportLayout is misconfigured."""
+
+
 @dataclass(frozen=True)
 class PayrollExportLayout:
     headers: tuple[str, ...]
@@ -464,14 +468,13 @@ class PayrollExportLayout:
     def __post_init__(self) -> None:
         if not self.columns:
             if self.headers:
-                raise ValueError("Layout has headers but no column mappings.")
+                raise PayrollLayoutError("Layout has headers but no column mappings.")
             return
         max_index = max(self.columns.values())
         if len(self.headers) != max_index + 1:
-            raise ValueError(
+            raise PayrollLayoutError(
                 f"Layout mismatch: len(headers)={len(self.headers)} "
-                f"but max(columns)+1={max_index + 1}. "
-                "Fix headers/col to cover the same A..?? span."
+                f"but max(columns)+1={max_index + 1}."
             )
 
     @property

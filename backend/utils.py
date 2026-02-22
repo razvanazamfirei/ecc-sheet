@@ -13,7 +13,6 @@ from flask import flash, redirect, url_for
 from werkzeug.exceptions import HTTPException
 
 from .config import Config
-from .errors import DataBaseOperationError
 from .models import db
 
 logger = logging.getLogger("ecc_sheet")
@@ -67,7 +66,7 @@ def backup_database(
                 old_backup.unlink()
 
         return True
-    except DataBaseOperationError:
+    except OSError:
         logger.exception("Database backup failed")
         return False
 
@@ -86,7 +85,7 @@ def handle_db_error(func):
             logger.exception("Database error in %s", function_name)
             db.session.rollback()
             flash(f"An error occurred: {e!s}", "error")
-            return redirect(url_for("index"))
+            return redirect(url_for("sheets.index"))
 
     return wrapper
 

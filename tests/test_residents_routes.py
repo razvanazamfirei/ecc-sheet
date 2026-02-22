@@ -3,6 +3,8 @@
 import os
 from unittest.mock import patch
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from backend.models import Resident, db
 
 
@@ -304,7 +306,7 @@ class TestResidentExceptionHandling:
     def test_add_resident_db_error(self, client, app):
         """Test add handles database errors gracefully."""
         with app.app_context(), patch.object(db.session, "commit") as mock_commit:
-            mock_commit.side_effect = Exception("Database error")
+            mock_commit.side_effect = SQLAlchemyError("Database error")
 
             response = client.post(
                 "/residents/add",
@@ -325,7 +327,7 @@ class TestResidentExceptionHandling:
 
             # Mock commit to raise an exception
             with patch.object(db.session, "commit") as mock_commit:
-                mock_commit.side_effect = Exception("Database error")
+                mock_commit.side_effect = SQLAlchemyError("Database error")
 
                 response = client.post(
                     f"/residents/{resident_id}/toggle",

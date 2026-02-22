@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from backend.audit import (
     get_audit_trail,
     get_client_ip,
@@ -297,7 +299,7 @@ class TestLogActionExceptionHandling:
     def test_log_action_handles_db_error(self, app):
         """Test that log_action handles database errors gracefully."""
         with app.app_context(), patch.object(db.session, "flush") as mock_flush:
-            mock_flush.side_effect = Exception("Database error")
+            mock_flush.side_effect = SQLAlchemyError("Database error")
 
             # Should not raise an exception
             log_action("TEST", "TestEntity", entity_id=1, details={})
@@ -310,7 +312,7 @@ class TestLogActionExceptionHandling:
             patch.object(db.session, "flush") as mock_flush,
             patch.object(db.session, "rollback") as mock_rollback,
         ):
-            mock_flush.side_effect = Exception("Database error")
+            mock_flush.side_effect = SQLAlchemyError("Database error")
 
             log_action("TEST", "TestEntity", entity_id=1, details={})
 

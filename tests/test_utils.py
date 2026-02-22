@@ -404,7 +404,7 @@ class TestBackupDatabaseExceptionHandling:
             db_path = app.config["SQLALCHEMY_DATABASE_URI"].replace("sqlite:///", "")
 
             # Mock shutil.copy2 to raise an exception where it's used
-            def mock_copy2():
+            def mock_copy2(*_args):
                 raise OSError("Permission denied")
 
             monkeypatch.setattr("backend.utils.shutil.copy2", mock_copy2)

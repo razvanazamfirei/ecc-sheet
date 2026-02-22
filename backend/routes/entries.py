@@ -7,7 +7,6 @@ from flask import Blueprint, Response, abort, flash, redirect, request, url_for
 
 from ..audit import log_create, log_delete, log_update
 from ..auth import is_admin, is_first_call
-from ..errors import AuditLogError
 from ..models import DailySheet, TimeEntry, db
 from ..utils import handle_db_error
 
@@ -126,7 +125,7 @@ def add():
                     "start_time": start_time_str or None,
                 },
             )
-        except AuditLogError:
+        except Exception:
             logger.warning("Audit log failed for entry %s", entry.id, exc_info=True)
 
         flash("Entry added successfully", "success")
@@ -192,7 +191,7 @@ def update(entry_id):
                         "date": entry.date.strftime("%Y-%m-%d"),
                     },
                 )
-            except AuditLogError:
+            except Exception:
                 logger.warning("Audit log failed for entry %s", entry.id, exc_info=True)
 
         flash("Entry updated successfully", "success")
@@ -250,7 +249,7 @@ def delete(entry_id):
 
     try:
         log_delete("TimeEntry", saved_entry_id, log_details)
-    except AuditLogError:
+    except Exception:
         logger.warning("Audit log failed for entry %s", saved_entry_id, exc_info=True)
 
     return redirect(url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d")))
