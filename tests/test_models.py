@@ -137,6 +137,7 @@ class TestResident:
             db.session.commit()
 
             fetched = db.session.get(Resident, resident.id)
+            assert fetched is not None
             assert fetched.first_name == "Alice"
             assert fetched.last_name == "Smith"
             assert fetched.lawson_id == 12345
@@ -153,6 +154,7 @@ class TestResident:
             db.session.commit()
 
             fetched = db.session.get(Resident, resident.id)
+            assert fetched is not None
             assert fetched.first_name is None
             assert fetched.last_name is None
             assert fetched.lawson_id is None

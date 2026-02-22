@@ -6,17 +6,28 @@ from datetime import date
 from io import BytesIO, StringIO
 
 import openpyxl
+from flask_sqlalchemy.query import Query
 from sqlalchemy.orm import joinedload
 
-from .models import Resident, Role, TimeEntry, db
+from .models import PayrollSettings, Resident, Role, TimeEntry, db
+from .type_defs import (
+    ResidentData,
+    ResidentEntryDict,
+    ResidentID,
+    ResidentSummaryDict,
+    TimeEntries,
+)
 
 
 def build_entries_query(
-    start_date: date, end_date: date, resident_id: str | int | None
-):
+    start_date: date, end_date: date, resident_id: ResidentID
+) -> Query:
     """Build query for entries within date range, filtered by resident.
 
-    Call team roles (is_call_team=True) are excluded from overtime reports.
+    Uses an inner join on Role, so entries whose role was deleted (role_id set
+    to NULL by the ON DELETE SET NULL constraint) are intentionally excluded —
+    they carry no role context and cannot contribute to overtime calculations.
+    Call team roles (is_call_team=True) are also excluded.
     Resident and role relationships are eagerly loaded to avoid N+1 queries.
     """
     query = (
@@ -33,7 +44,7 @@ def build_entries_query(
     return query
 
 
-def get_resident_name(resident_id: str | int | None) -> str | None:
+def get_resident_name(resident_id: ResidentID) -> str | None:
     """Look up resident name by ID."""
     if not resident_id:
         return None
@@ -41,7 +52,7 @@ def get_resident_name(resident_id: str | int | None) -> str | None:
     return resident.name if resident else None
 
 
-def aggregate_entries_by_resident(entries) -> dict:
+def aggregate_entries_by_resident(entries: TimeEntries) -> ResidentData:
     """
     Aggregate time entries by resident.
 
@@ -49,44 +60,46 @@ def aggregate_entries_by_resident(entries) -> dict:
         Dictionary mapping resident_id (int) to their entries and total overtime.
         Example: {42: {"name": "John Doe", "entries": [...], "total_overtime": 2.5}}
     """
-    resident_data = {}
+    resident_data: ResidentData = {}
     for entry in entries:
-        res_id = entry.resident_id
+        resident: Resident = entry.resident
+        role: Role = entry.role  # type: ignore[assignment]  # inner join guarantees non-null
+        res_id: int = resident.id
         if res_id not in resident_data:
-            resident_data[res_id] = {
-                "name": entry.resident.name,
-                "entries": [],
-                "total_overtime": 0.0,
-            }
+            resident_data[res_id] = ResidentSummaryDict(
+                name=resident.name,
+                entries=[],
+                total_overtime=0.0,
+            )
 
         overtime = entry.overtime_hours
         resident_data[res_id]["entries"].append(
-            {
-                "date": entry.date.strftime("%Y-%m-%d"),
-                "role": entry.role.name,
-                "exit_time": entry.exit_time.strftime("%H:%M")
-                if entry.exit_time
-                else "",
-                "overtime": overtime,
-            }
+            ResidentEntryDict(
+                date=entry.date.strftime("%Y-%m-%d"),
+                role=role.name,
+                exit_time=entry.exit_time.strftime("%H:%M") if entry.exit_time else "",
+                overtime=overtime,
+            )
         )
         resident_data[res_id]["total_overtime"] += overtime
 
     return resident_data
 
 
-def generate_csv_content(entries) -> str:
+def generate_csv_content(entries: TimeEntries) -> str:
     """Generate detailed CSV content from time entries."""
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(["Date", "Resident", "Role", "Exit Time", "Overtime Hours"])
 
     for entry in entries:
+        resident: Resident = entry.resident
+        role: Role = entry.role  # type: ignore[assignment]  # inner join guarantees non-null
         writer.writerow(
             [
                 entry.date.strftime("%Y-%m-%d"),
-                entry.resident.name,
-                entry.role.name,
+                resident.name,
+                role.name,
                 entry.exit_time.strftime("%H:%M") if entry.exit_time else "",
                 f"{entry.overtime_hours:.2f}",
             ]
@@ -95,7 +108,7 @@ def generate_csv_content(entries) -> str:
     return output.getvalue()
 
 
-def generate_billing_csv_content(resident_data: dict) -> str:
+def generate_billing_csv_content(resident_data: ResidentData) -> str:
     """
     Generate billing/payroll CSV content from aggregated resident data.
 

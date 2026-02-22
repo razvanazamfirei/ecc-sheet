@@ -20,6 +20,7 @@ class TestReportGeneration:
         """Test generating a report with entries."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             response = client.post(
@@ -39,6 +40,7 @@ class TestReportGeneration:
         """Test generating a report filtered by resident."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             response = client.post(
@@ -86,6 +88,7 @@ class TestReportExport:
         """Test exporting report with entries as CSV."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             response = client.post(
@@ -106,6 +109,7 @@ class TestReportExport:
         """Test exporting filtered report as CSV."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             response = client.post(
@@ -143,6 +147,7 @@ class TestReportEmail:
 
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             with patch("backend.routes.reports.send_report_email", return_value=True):
@@ -164,6 +169,7 @@ class TestReportEmail:
 
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             with patch("backend.routes.reports.send_report_email", return_value=False):
@@ -185,6 +191,7 @@ class TestReportEmail:
 
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             with patch(
@@ -211,6 +218,7 @@ class TestReportEmail:
 
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             with patch("backend.routes.reports.send_report_email", return_value=True):
@@ -232,6 +240,7 @@ class TestReportEmail:
 
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
 
             with patch("backend.routes.reports.send_report_email", return_value=True):
@@ -249,7 +258,7 @@ class TestReportEmail:
 class TestReportEdgeCases:
     """Edge case tests for reports."""
 
-    def test_generate_report_date_range(self, client, app):
+    def test_generate_report_date_range(self, client):
         """Test report with wide date range."""
         response = client.post(
             "/api/report",
@@ -265,6 +274,7 @@ class TestReportEdgeCases:
         """Test report for a single day."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             entry_date = entry.date
             date_str = entry_date.strftime("%Y-%m-%d")
 

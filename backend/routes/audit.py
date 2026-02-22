@@ -19,7 +19,6 @@ def index():
 
     # Build query
     query = AuditLog.query
-
     if entity_type:
         query = query.filter_by(entity_type=entity_type)
     if action:

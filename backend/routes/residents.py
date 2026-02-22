@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date
+from logging import Logger
 
 from flask import (
     Blueprint,
@@ -21,8 +22,8 @@ from ..models import AuditLog, Resident, TimeEntry, db
 from ..staff_import import import_staff_list
 from ..utils import handle_db_error
 
-bp = Blueprint("residents", __name__, url_prefix="/residents")
-logger = logging.getLogger(__name__)
+bp: Blueprint = Blueprint("residents", __name__, url_prefix="/residents")
+logger: Logger = logging.getLogger(__name__)
 
 
 @bp.route("/")

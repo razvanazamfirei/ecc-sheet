@@ -24,7 +24,7 @@ class TestPhiladelphiaTime:
         """Test that get_philadelphia_time returns timezone-aware datetime"""
         philly_time = get_philadelphia_time()
         assert philly_time.tzinfo is not None
-        assert philly_time.tzinfo.zone == "America/New_York"
+        assert str(philly_time.tzinfo) == "America/New_York"
 
     def test_get_philadelphia_time_is_current(self):
         """Test that returned time is reasonably current"""
@@ -239,7 +239,7 @@ class TestPhillyNow:
 
         now = get_philadelphia_time()
         assert now.tzinfo is not None
-        assert now.tzinfo.zone == "America/New_York"
+        assert str(now.tzinfo) == "America/New_York"
 
     def test_philly_now_equivalent_to_get_philadelphia_time(self):
         """Test that philly_now is equivalent to get_philadelphia_time"""
@@ -293,14 +293,16 @@ class TestHandleDbError:
         with app.app_context():
             # The decorator wraps the function and will return either the result
             # or a redirect. In test context this is fine.
+            import werkzeug.routing.exceptions
+
             try:
                 result = successful_function()
                 assert result == "success"
-            except Exception:
+            except werkzeug.routing.exceptions.BuildError:
                 # If url_for fails due to missing endpoint, that's expected
                 pass
 
-    def test_decorator_catches_exception(self, app, client):
+    def test_decorator_catches_exception(self, app):
         """Test that decorator catches database exceptions"""
         from unittest.mock import patch
 
@@ -374,7 +376,7 @@ class TestEffectiveDateWithDifferentTimezones:
 
     def test_effective_date_with_utc_input(self):
         """Test effective date with UTC input datetime"""
-        utc_time = datetime(2024, 6, 15, 12, 0, 0, tzinfo=pytz.UTC)
+        utc_time = datetime(2024, 6, 15, 12, 0, 0, tzinfo=UTC)
 
         effective = get_effective_date(utc_time)
         assert isinstance(effective, date)

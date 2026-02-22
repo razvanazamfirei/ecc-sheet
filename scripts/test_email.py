@@ -9,10 +9,21 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
+from email_validator import EmailNotValidError, validate_email
 
 from backend.config import Config
 
 load_dotenv()
+
+
+def _validate_address(address: str, label: str) -> bool:
+    """Return True if address is valid, False and print error if not."""
+    try:
+        validate_email(address, check_deliverability=False)
+    except EmailNotValidError as e:
+        print(f"Invalid {label} email address: {e}")
+        return False
+    return True
 
 
 def test_email():
@@ -24,12 +35,26 @@ def test_email():
     print(f"To: {Config.EMAIL_RECIPIENT}")
     print()
 
+    email_username = Config.EMAIL_USERNAME
+    email_password = Config.EMAIL_PASSWORD
+    email_recipient = Config.EMAIL_RECIPIENT
+    if not email_username or not email_password or not email_recipient:
+        print("Missing required email settings.")
+        print("Please set EMAIL_USERNAME, EMAIL_PASSWORD, and EMAIL_RECIPIENT.")
+        return False
+
+    if not _validate_address(email_username, "sender"):
+        return False
+
+    if not _validate_address(email_recipient, "recipient"):
+        return False
+
     try:
         # Create message
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "ECC Sheet - Test Email"
-        msg["From"] = Config.EMAIL_USERNAME
-        msg["To"] = Config.EMAIL_RECIPIENT
+        msg["From"] = email_username
+        msg["To"] = email_recipient
 
         # Create HTML content
         html_content = """
@@ -47,19 +72,19 @@ def test_email():
 
         # Send email
         print("Connecting to SMTP server...")
-        with smtplib.SMTP(Config.EMAIL_HOST, Config.EMAIL_PORT) as server:
+        with smtplib.SMTP(Config.EMAIL_HOST, Config.EMAIL_PORT, timeout=30) as server:
             print("Starting TLS...")
             server.starttls()
 
             print("Logging in...")
-            server.login(Config.EMAIL_USERNAME, Config.EMAIL_PASSWORD)
+            server.login(email_username, email_password)
 
             print("Sending email...")
             server.send_message(msg)
 
         print()
         print("Test email sent successfully!")
-        print(f"Check {Config.EMAIL_RECIPIENT} for the test message.")
+        print(f"Check {email_recipient} for the test message.")
 
     except Exception as e:
         print()

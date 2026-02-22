@@ -331,7 +331,7 @@ class TestIsFirstCall:
 class TestAdminRequiredDecorator:
     """Tests for admin_required decorator."""
 
-    def test_admin_can_access_protected_route(self, client, app):
+    def test_admin_can_access_protected_route(self, client):
         """Test that admin users can access admin-protected routes."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -351,7 +351,7 @@ class TestAdminRequiredDecorator:
             else:
                 os.environ.pop("ADMIN_USERS", None)
 
-    def test_non_admin_redirected_from_protected_route(self, client, app):
+    def test_non_admin_redirected_from_protected_route(self, client):
         """Test that non-admin users are redirected from admin-protected routes."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -375,7 +375,7 @@ class TestAdminRequiredDecorator:
             else:
                 os.environ.pop("ADMIN_USERS", None)
 
-    def test_admin_required_redirects_to_index(self, client, app):
+    def test_admin_required_redirects_to_index(self, client):
         """Test that admin_required redirects to sheets.index."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -397,7 +397,7 @@ class TestAdminRequiredDecorator:
             else:
                 os.environ.pop("ADMIN_USERS", None)
 
-    def test_residents_route_requires_admin(self, client, app):
+    def test_residents_route_requires_admin(self, client):
         """Test that residents route requires admin privileges."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -417,7 +417,7 @@ class TestAdminRequiredDecorator:
             else:
                 os.environ.pop("ADMIN_USERS", None)
 
-    def test_audit_route_requires_admin(self, client, app):
+    def test_audit_route_requires_admin(self, client):
         """Test that audit route requires admin privileges."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")

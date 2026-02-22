@@ -1,6 +1,6 @@
 """Sheet routes for daily sheet management."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from flask import Blueprint, current_app, flash, redirect, render_template, url_for
 from sqlalchemy.orm import joinedload
@@ -11,7 +11,7 @@ from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Role, TimeEntry, db
 from ..utils import get_effective_date, get_philadelphia_time, handle_db_error
 
-bp = Blueprint(
+bp: Blueprint = Blueprint(
     "sheets",
     __name__,
 )
@@ -112,15 +112,16 @@ def view(date_str):
 def lock(date_str):
     """Lock/unlock a daily sheet."""
     try:
-        sheet_date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
-
+        sheet_date: date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
         if not (is_admin() or is_first_call(sheet_date)):
             flash(
                 "Only the first call resident or an admin can lock/unlock the sheet.",
                 "error",
             )
             return redirect(url_for("sheets.view", date_str=date_str))
-        daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
+        daily_sheet: DailySheet | None = DailySheet.query.filter_by(
+            date=sheet_date
+        ).first()
 
         if not daily_sheet:
             daily_sheet = DailySheet(date=sheet_date)
@@ -139,7 +140,7 @@ def lock(date_str):
         db.session.commit()
 
         # Log lock/unlock action
-        log_lock(date_str, daily_sheet.locked)
+        log_lock(date_str, locked=daily_sheet.locked)
 
         status = "locked" if daily_sheet.locked else "unlocked"
         flash(f"Sheet {status} successfully", "success")

@@ -121,7 +121,7 @@ class TestAuditRoute:
         response = client.get("/audit?entity_type=TimeEntry&action=CREATE&limit=50")
         assert response.status_code == 200
 
-    def test_audit_requires_admin(self, client, app):
+    def test_audit_requires_admin(self, client):
         """Test that audit page requires admin privileges."""
         import os
 
@@ -154,17 +154,17 @@ class TestAuditRoute:
                 db.session.delete(log_entry)
                 db.session.commit()
 
-    def test_audit_filter_by_action_only(self, client, app):
+    def test_audit_filter_by_action_only(self, client):
         """Test filtering audit log by action only."""
         response = client.get("/audit?action=CREATE")
         assert response.status_code == 200
 
-    def test_audit_limit_parameter(self, client, app):
+    def test_audit_limit_parameter(self, client):
         """Test audit log limit parameter."""
         response = client.get("/audit?limit=10")
         assert response.status_code == 200
 
-    def test_audit_default_limit(self, client, app):
+    def test_audit_default_limit(self, client):
         """Test audit log uses default limit of 100."""
         response = client.get("/audit")
         assert response.status_code == 200
@@ -296,24 +296,25 @@ class TestLogActionExceptionHandling:
 
     def test_log_action_handles_db_error(self, app):
         """Test that log_action handles database errors gracefully."""
-        with app.app_context(), patch.object(db.session, "commit") as mock_commit:
-            mock_commit.side_effect = Exception("Database error")
+        with app.app_context(), patch.object(db.session, "flush") as mock_flush:
+            mock_flush.side_effect = Exception("Database error")
 
             # Should not raise an exception
             log_action("TEST", "TestEntity", entity_id=1, details={})
 
-    def test_log_action_rollback_on_error(self, app):
-        """Test that log_action rolls back on error."""
+    def test_log_action_no_rollback_on_error(self, app):
+        """Test that log_action does not roll back on error
+        (caller controls transaction)."""
         with (
             app.app_context(),
-            patch.object(db.session, "commit") as mock_commit,
+            patch.object(db.session, "flush") as mock_flush,
             patch.object(db.session, "rollback") as mock_rollback,
         ):
-            mock_commit.side_effect = Exception("Database error")
+            mock_flush.side_effect = Exception("Database error")
 
             log_action("TEST", "TestEntity", entity_id=1, details={})
 
-            mock_rollback.assert_called_once()
+            mock_rollback.assert_not_called()
 
 
 class TestGetAuditTrail:

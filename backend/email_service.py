@@ -7,6 +7,7 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+from email_validator import EmailNotValidError, validate_email
 from flask import render_template
 
 from .config import Config
@@ -16,6 +17,7 @@ from .report_utils import (
     build_entries_query,
     generate_csv_content,
 )
+from .type_defs import ResidentData, TimeEntries
 
 logger = logging.getLogger("ecc_sheet")
 
@@ -46,16 +48,30 @@ def send_report_email(
             logger.error("Email credentials not configured")
             return False
 
+        # Bind to locals so static type checkers can narrow str | None → str.
+        username: str = Config.EMAIL_USERNAME
+        password: str = Config.EMAIL_PASSWORD
+
         recipient = recipient_email or Config.EMAIL_RECIPIENT
         if not recipient:
             logger.error("No email recipient configured")
             return False
 
+        # Validate sender and recipient email addresses
+        try:
+            validate_email(username, check_deliverability=False)
+            validate_email(recipient, check_deliverability=False)
+        except EmailNotValidError:
+            logger.exception("Invalid email address in configuration")
+            return False
+
         # Get entries and generate content
         query = build_entries_query(start_date, end_date, resident_id)
-        entries = query.order_by(TimeEntry.date, TimeEntry.resident_id).all()
-        csv_content = generate_csv_content(entries)
-        resident_data = aggregate_entries_by_resident(entries)
+        entries: TimeEntries = query.order_by(
+            TimeEntry.date, TimeEntry.resident_id
+        ).all()
+        csv_content: str = generate_csv_content(entries)
+        resident_data: ResidentData = aggregate_entries_by_resident(entries)
         total_overtime = sum(data["total_overtime"] for data in resident_data.values())
 
         # Build HTML content
@@ -75,7 +91,7 @@ def send_report_email(
             subject += f" - {resident_name}"
 
         msg["Subject"] = subject
-        msg["From"] = Config.EMAIL_USERNAME
+        msg["From"] = username
         msg["To"] = recipient
 
         # Attach HTML body
@@ -99,15 +115,11 @@ def send_report_email(
         # Send email
         with smtplib.SMTP(Config.EMAIL_HOST, Config.EMAIL_PORT, timeout=30) as server:
             server.starttls()
-            server.login(Config.EMAIL_USERNAME, Config.EMAIL_PASSWORD)
+            server.login(username, password)
             server.send_message(msg)
 
         logger.info("Report email sent successfully to %s", recipient)
         return True
-
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error("SMTP Authentication failed: %s", e)
-        return False
 
     except smtplib.SMTPException as e:
         logger.error("SMTP error sending report email: %s", e)

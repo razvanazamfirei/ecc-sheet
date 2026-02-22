@@ -247,7 +247,6 @@ class TestResidentModel:
                 date=date(2024, 7, 1),
                 exit_time=time(18, 0),
             )
-            entry.role = None  # Explicitly set to None before adding to relationship
 
             # Add to resident's time_entries without persisting
             resident.time_entries.append(entry)
@@ -675,7 +674,7 @@ class TestTimeEntryModel:
             db.session.delete(entry)
             db.session.commit()
 
-    def test_overtime_without_role(self, app, sample_resident, sample_role):
+    def test_overtime_without_role(self, app):
         """Test overtime calculation without role returns 0."""
         with app.app_context():
             # Create a transient entry without role to test the None role branch
@@ -683,7 +682,6 @@ class TestTimeEntryModel:
                 date=get_effective_date(),
                 exit_time=time(20, 0),
             )
-            entry.role = None
 
             assert isclose(entry.overtime_hours, 0.0, abs_tol=0.01)
 
@@ -691,6 +689,7 @@ class TestTimeEntryModel:
         """Test overtime_hours property."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             # Exit time 20:00, cutoff 17:30 -> 2.5 hours overtime
             assert isclose(entry.overtime_hours, 2.5, abs_tol=0.01)
 
@@ -705,14 +704,13 @@ class TestTimeEntryModel:
             )
             db.session.add(entry)
             db.session.commit()
-
-            expected = f"<TimeEntry 2024-05-15 - {sample_resident.name}>"
+            expected = f"<TimeEntry 2024-05-15 - resident_id={sample_resident.id}>"
             assert repr(entry) == expected
 
             db.session.delete(entry)
             db.session.commit()
 
-    def test_time_entry_repr_without_resident(self, app, sample_role):
+    def test_time_entry_repr_without_resident(self, app):
         """Test TimeEntry __repr__ without resident."""
         with app.app_context():
             # Create a transient entry without resident to test Unknown case
@@ -720,9 +718,8 @@ class TestTimeEntryModel:
                 date=date(2024, 5, 16),
                 exit_time=time(18, 0),
             )
-            entry.resident = None
 
-            assert repr(entry) == "<TimeEntry 2024-05-16 - Unknown>"
+            assert repr(entry) == "<TimeEntry 2024-05-16 - resident_id=None>"
 
 
 class TestDailySheetModel:

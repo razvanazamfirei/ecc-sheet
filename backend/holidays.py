@@ -7,7 +7,7 @@ from the database.
 
 from datetime import date
 
-import holidays
+from holidays import country_holidays
 
 
 def get_federal_holidays(year: int) -> list[tuple[date, str]]:
@@ -20,8 +20,8 @@ def get_federal_holidays(year: int) -> list[tuple[date, str]]:
     Returns:
         List of (date, name) tuples for each holiday
     """
-    us_holidays = holidays.US(years=[year])
-    return [(d, name) for d, name in sorted(us_holidays.items())]
+    us_holidays = country_holidays("US", years=[year])
+    return sorted(us_holidays.items())
 
 
 def is_weekend_or_holiday(check_date: date) -> bool:
@@ -34,11 +34,11 @@ def is_weekend_or_holiday(check_date: date) -> bool:
     Returns:
         True if the date is a weekend, federal holiday, or custom holiday
     """
-    # Import here to avoid circular import (Holiday model imports this module)
-    from .models import Holiday  # noqa: PLC0415
+    # Import here to avoid circular import (Holiday model imports this module).
+    from .models import Holiday
 
     # Check US federal holidays and weekends
-    us_holidays = holidays.US(years=[check_date.year])
+    us_holidays = country_holidays("US", years=[check_date.year])
     if not us_holidays.is_working_day(check_date):
         return True
 

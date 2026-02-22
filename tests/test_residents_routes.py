@@ -9,7 +9,7 @@ from backend.models import Resident, db
 class TestResidentsIndex:
     """Tests for residents index page."""
 
-    def test_residents_index_requires_admin(self, client, app):
+    def test_residents_index_requires_admin(self, client):
         """Test that residents index requires admin privileges."""
         original_admin_users = os.environ.get("ADMIN_USERS", "")
         original_user_name = os.environ.get("USER_NAME", "")
@@ -127,7 +127,7 @@ class TestAddResident:
             db.session.delete(resident)
             db.session.commit()
 
-    def test_add_resident_requires_admin(self, client, app):
+    def test_add_resident_requires_admin(self, client):
         """Test that adding resident requires admin privileges."""
         original_admin_users = os.environ.get("ADMIN_USERS", "")
         original_user_name = os.environ.get("USER_NAME", "")
@@ -167,6 +167,7 @@ class TestToggleResident:
             assert b"deactivated" in response.data
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.active is False
 
             # Cleanup
@@ -190,13 +191,14 @@ class TestToggleResident:
             assert b"activated" in response.data
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.active is True
 
             # Cleanup
             db.session.delete(updated)
             db.session.commit()
 
-    def test_toggle_nonexistent_resident(self, client, app):
+    def test_toggle_nonexistent_resident(self, client):
         """Test toggling a resident that doesn't exist returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
@@ -231,7 +233,7 @@ class TestToggleResident:
 class TestImportStaff:
     """Tests for staff import endpoint."""
 
-    def test_import_staff_requires_admin(self, client, app):
+    def test_import_staff_requires_admin(self, client):
         """Test that staff import requires admin privileges."""
         original_admin_users = os.environ.get("ADMIN_USERS", "")
         original_user_name = os.environ.get("USER_NAME", "")
@@ -400,12 +402,14 @@ class TestEditResident:
             assert b"updated successfully" in response.data
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.name == "Updated Name"
             assert updated.first_name == "Updated"
             assert updated.last_name == "Name"
             assert updated.class_year == "CA-2"
             assert updated.email == "updated@example.com"
             assert updated.lawson_id == 98765
+            assert updated.hire_date is not None
             assert updated.hire_date.isoformat() == "2023-07-01"
 
             db.session.delete(updated)
@@ -429,6 +433,7 @@ class TestEditResident:
             )
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.class_year is None
 
             db.session.delete(updated)
@@ -450,6 +455,7 @@ class TestEditResident:
                 )
 
                 updated = db.session.get(Resident, resident_id)
+                assert updated is not None
                 assert updated.class_year == cy
 
                 db.session.delete(updated)
@@ -487,6 +493,7 @@ class TestEditResident:
             )
 
             updated = db.session.get(Resident, resident_id)
+            assert updated is not None
             assert updated.class_year is None
             assert updated.email is None
             assert updated.lawson_id is None

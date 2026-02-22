@@ -3,39 +3,43 @@ Audit logging utilities for tracking all changes in the system.
 """
 
 import json
+import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Any
 
-from flask import current_app, request
+from flask import has_request_context, request
 
+from .auth import get_current_user
 from .models import AuditLog, db
+from .type_defs import AuditLogs
+
+logger = logging.getLogger(__name__)
 
 
-def get_current_user():
-    """Get the current user from session or config"""
-    # In a real app, you'd get this from session/auth
-    # For now, use the config value
-    return current_app.config.get("USER_NAME", "System")
+def get_client_ip() -> str | None:
+    """Get the client's IP address."""
+    if not has_request_context():
+        return None
 
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
 
-def get_client_ip():
-    """Get the client's IP address"""
-    if request:
-        # Check for proxy headers first
-        if request.headers.get("X-Forwarded-For"):
-            return request.headers.get("X-Forwarded-For").split(",")[0].strip()
-        if request.headers.get("X-Real-IP"):
-            return request.headers.get("X-Real-IP")
-        return request.remote_addr
-    return None
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip
+
+    return request.remote_addr
 
 
 def log_action(
     action: str,
     entity_type: str,
     entity_id: int | None = None,
-    details: dict | None = None,
+    details: Mapping[str, Any] | None = None,
     user: str | None = None,
-):
+) -> None:
     """
     Log an action to the audit trail.
 
@@ -57,14 +61,16 @@ def log_action(
             ip_address=get_client_ip(),
         )
         db.session.add(audit_entry)
-        db.session.commit()
-    except Exception as e:
-        # Don't let audit logging break the main flow
-        print(f"Audit logging failed: {e!s}")
-        db.session.rollback()
+        db.session.flush()
+    except Exception:
+        # Don't let audit logging break the main flow; the caller's transaction
+        # controls commit/rollback.
+        logger.exception("Audit logging failed")
 
 
-def log_create(entity_type: str, entity_id: int, details: dict | None = None):
+def log_create(
+    entity_type: str, entity_id: int, details: Mapping[str, Any] | None = None
+) -> None:
     """Log a CREATE action"""
     log_action("CREATE", entity_type, entity_id, details)
 
@@ -72,22 +78,24 @@ def log_create(entity_type: str, entity_id: int, details: dict | None = None):
 def log_update(
     entity_type: str,
     entity_id: int,
-    changes: dict | None = None,
-    details: dict | None = None,
-):
+    changes: Mapping[str, Any] | None = None,
+    details: Mapping[str, Any] | None = None,
+) -> None:
     """Log an UPDATE action"""
+    merged_details = dict(details) if details else {}
     if changes:
-        details = details or {}
-        details["changes"] = changes
-    log_action("UPDATE", entity_type, entity_id, details)
+        merged_details["changes"] = dict(changes)
+    log_action("UPDATE", entity_type, entity_id, merged_details or None)
 
 
-def log_delete(entity_type: str, entity_id: int, details: dict | None = None):
+def log_delete(
+    entity_type: str, entity_id: int, details: Mapping[str, Any] | None = None
+) -> None:
     """Log a DELETE action"""
     log_action("DELETE", entity_type, entity_id, details)
 
 
-def log_lock(sheet_date: str, locked: bool):
+def log_lock(sheet_date: str, *, locked: bool) -> None:
     """Log a lock/unlock action"""
     action = "LOCK" if locked else "UNLOCK"
     log_action(action, "DailySheet", details={"date": sheet_date})
@@ -98,7 +106,7 @@ def log_import(
     details_str: str,
     user: str | None = None,
     entity_id: int | None = None,
-):
+) -> None:
     """
     Log an import action.
 
@@ -123,7 +131,7 @@ def get_audit_trail(
     user: str | None = None,
     action: str | None = None,
     limit: int = 100,
-):
+) -> AuditLogs:
     """
     Get audit trail entries with optional filtering.
 
@@ -151,6 +159,6 @@ def get_audit_trail(
     return query.order_by(AuditLog.timestamp.desc()).limit(limit).all()
 
 
-def get_entity_history(entity_type: str, entity_id: int):
+def get_entity_history(entity_type: str, entity_id: int) -> AuditLogs:
     """Get the full history of changes for a specific entity"""
     return get_audit_trail(entity_type=entity_type, entity_id=entity_id, limit=1000)

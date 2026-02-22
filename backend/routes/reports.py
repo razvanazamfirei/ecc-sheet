@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, datetime
+from logging import Logger
 
 from flask import (
     Blueprint,
@@ -22,6 +23,7 @@ from ..auth import (
     payroll_admin_required,
 )
 from ..email_service import send_report_email
+from ..errors import ValidationError
 from ..models import PayrollSettings, TimeEntry, db
 from ..report_utils import (
     aggregate_entries_by_resident,
@@ -32,21 +34,22 @@ from ..report_utils import (
     get_resident_name,
 )
 
-bp = Blueprint("reports", __name__)
-logger = logging.getLogger(__name__)
+bp: Blueprint = Blueprint("reports", __name__)
+logger: Logger = logging.getLogger(__name__)
 
 
-def _parse_report_params() -> tuple[date, date, str | int | None]:
-    """Parse common report parameters from form data.
+def _parse_report_params() -> tuple[date, date, int | None]:
+    """Parse common report parameters from form data."""
+    start_date_raw = request.form.get("start_date")
+    end_date_raw = request.form.get("end_date")
+    if not start_date_raw or not end_date_raw:
+        raise ValidationError("Start date and end date are required")
 
-    If the current user cannot view all reports, the resident_id is forced
-    to their own resident record regardless of what was submitted.
-    """
     start_date = datetime.strptime(  # noqa: DTZ007
-        request.form.get("start_date"), "%Y-%m-%d"
+        start_date_raw, "%Y-%m-%d"
     ).date()
     end_date = datetime.strptime(  # noqa: DTZ007
-        request.form.get("end_date"), "%Y-%m-%d"
+        end_date_raw, "%Y-%m-%d"
     ).date()
 
     if not can_view_all_reports():
@@ -90,6 +93,9 @@ def generate():
             can_view_all=can_view_all_reports(),
         )
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         logger.exception("Error generating report: %s", e)
         flash("Error generating report. Check logs for details.", "error")
@@ -112,6 +118,9 @@ def export_csv():
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         logger.exception("Error exporting report: %s", e)
         flash("Error exporting report. Check logs for details.", "error")
@@ -138,6 +147,9 @@ def export_billing_csv():
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         logger.exception("Error exporting billing report: %s", e)
         flash("Error exporting billing report. Check logs for details.", "error")
@@ -160,7 +172,7 @@ def send_email():
             start_date=start_date,
             end_date=end_date,
             recipient_email=recipient_email,
-            resident_id=int(resident_id) if resident_id else None,
+            resident_id=resident_id,
             resident_name=resident_name,
         )
 
@@ -170,6 +182,9 @@ def send_email():
         else:
             flash("Failed to send email. Check email configuration and logs.", "error")
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         flash(f"Error sending email: {e!s}", "error")
         logger.error("Error in send_report_email_route: %s", e)
@@ -200,6 +215,9 @@ def export_payroll_xlsx():
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         logger.exception("Error exporting payroll report: %s", e)
         flash("Error exporting payroll report. Check logs for details.", "error")

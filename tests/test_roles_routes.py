@@ -6,7 +6,7 @@ from backend.models import Role, db
 class TestRolesIndex:
     """Tests for the roles index page."""
 
-    def test_roles_index_requires_admin(self, client, app):
+    def test_roles_index_requires_admin(self, client):
         """Test that roles index requires admin privileges."""
         import os
 
@@ -34,7 +34,7 @@ class TestRolesIndex:
             assert response.status_code == 200
             assert sample_role.name.encode() in response.data
 
-    def test_roles_index_shows_cutoff_times(self, client, app, sample_role):
+    def test_roles_index_shows_cutoff_times(self, client, app):
         """Test that roles index shows cutoff times."""
         with app.app_context():
             response = client.get("/roles/")
@@ -83,6 +83,7 @@ class TestRolesUpdate:
 
             # Verify the update
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.cutoff_hour == 18
             assert updated_role.cutoff_minute == 45
 
@@ -97,6 +98,7 @@ class TestRolesUpdate:
             assert response.status_code == 200
 
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.is_backup is True
 
     def test_update_role_disable_backup(self, client, app, sample_role):
@@ -115,6 +117,7 @@ class TestRolesUpdate:
             assert response.status_code == 200
 
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.is_backup is False
 
     def test_update_role_invalid_hour_too_high(self, client, app, sample_role):
@@ -161,7 +164,7 @@ class TestRolesUpdate:
             assert response.status_code == 200
             assert b"error" in response.data.lower()
 
-    def test_update_nonexistent_role(self, client, app):
+    def test_update_nonexistent_role(self, client):
         """Test updating a role that doesn't exist returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
@@ -188,6 +191,7 @@ class TestRolesUpdate:
             assert response.status_code == 200
 
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.cutoff_hour == 17  # Default
             assert updated_role.cutoff_minute == 30  # Default
 
@@ -202,6 +206,7 @@ class TestRolesUpdate:
             )
             assert response.status_code == 200
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.cutoff_hour == 0
             assert updated_role.cutoff_minute == 0
 
@@ -213,6 +218,7 @@ class TestRolesUpdate:
             )
             assert response.status_code == 200
             updated_role = db.session.get(Role, sample_role.id)
+            assert updated_role is not None
             assert updated_role.cutoff_hour == 23
             assert updated_role.cutoff_minute == 59
 

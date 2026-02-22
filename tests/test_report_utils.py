@@ -75,6 +75,7 @@ class TestAggregateEntriesByResident:
         with app.app_context():
             # Reload entry in current session
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             result = aggregate_entries_by_resident([entry])
 
             assert len(result) == 1
@@ -128,14 +129,16 @@ class TestAggregateEntriesByResident:
             db.session.add(entry)
             db.session.commit()
 
-            entries = [db.session.get(TimeEntry, entry.id)]
+            imported_entry = db.session.get(TimeEntry, entry.id)
+            assert imported_entry is not None
+            entries = [imported_entry]
             result = aggregate_entries_by_resident(entries)
 
             assert len(result) == 1
             # Exit time should be empty string
             assert not result[sample_resident.id]["entries"][0]["exit_time"]
 
-            db.session.delete(entry)
+            db.session.delete(imported_entry)
             db.session.commit()
 
 
@@ -155,11 +158,13 @@ class TestGenerateCsvContent:
         """Test CSV generation with single entry."""
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
+            assert entry is not None
             csv_content = generate_csv_content([entry])
 
             lines = csv_content.strip().split("\n")
             assert len(lines) == 2  # Header + 1 entry
             assert entry.resident.name in lines[1]
+            assert entry.role is not None
             assert entry.role.name in lines[1]
 
     def test_entry_without_exit_time(self, app, sample_resident, sample_role):
@@ -174,7 +179,9 @@ class TestGenerateCsvContent:
             db.session.add(entry)
             db.session.commit()
 
-            entries = [db.session.get(TimeEntry, entry.id)]
+            imported_entry = db.session.get(TimeEntry, entry.id)
+            assert imported_entry is not None
+            entries = [imported_entry]
             csv_content = generate_csv_content(entries)
 
             # Should not raise error
@@ -182,7 +189,7 @@ class TestGenerateCsvContent:
             lines = csv_content.strip().split("\n")
             assert len(lines) == 2
 
-            db.session.delete(entry)
+            db.session.delete(imported_entry)
             db.session.commit()
 
 

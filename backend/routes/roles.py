@@ -6,7 +6,7 @@ from ..auth import admin_required
 from ..models import Role, db
 from ..utils import handle_db_error
 
-bp = Blueprint("roles", __name__, url_prefix="/roles")
+bp: Blueprint = Blueprint("roles", __name__, url_prefix="/roles")
 
 
 @bp.route("/")

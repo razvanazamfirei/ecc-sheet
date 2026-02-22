@@ -13,7 +13,7 @@ from backend.utils import get_effective_date
 class TestHolidaysIndex:
     """Tests for holidays index page."""
 
-    def test_holidays_index_requires_admin(self, client, app):
+    def test_holidays_index_requires_admin(self, client):
         """Test that holidays index requires admin privileges."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -24,12 +24,16 @@ class TestHolidaysIndex:
             response = client.get("/holidays", follow_redirects=True)
             assert b"Admin privileges required" in response.data
         finally:
-            if original_user:
+            if original_user is not None:
                 os.environ["USER_NAME"] = original_user
-            if original_admins:
+            else:
+                os.environ.pop("USER_NAME", None)
+            if original_admins is not None:
                 os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
 
-    def test_holidays_index_loads(self, client, app):
+    def test_holidays_index_loads(self, client):
         """Test that holidays index page loads."""
         response = client.get("/holidays")
         assert response.status_code == 200
@@ -81,7 +85,7 @@ class TestAddHoliday:
             db.session.delete(holiday)
             db.session.commit()
 
-    def test_add_holiday_missing_date(self, client, app):
+    def test_add_holiday_missing_date(self, client):
         """Test adding holiday without date fails."""
         response = client.post(
             "/holidays/add",
@@ -136,7 +140,7 @@ class TestAddHoliday:
             db.session.delete(holiday)
             db.session.commit()
 
-    def test_add_holiday_requires_admin(self, client, app):
+    def test_add_holiday_requires_admin(self, client):
         """Test that adding holiday requires admin."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -151,10 +155,14 @@ class TestAddHoliday:
             )
             assert b"Admin privileges required" in response.data
         finally:
-            if original_user:
+            if original_user is not None:
                 os.environ["USER_NAME"] = original_user
-            if original_admins:
+            else:
+                os.environ.pop("USER_NAME", None)
+            if original_admins is not None:
                 os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
 
     def test_add_holiday_exception_handling(self, client, app):
         """Test that exceptions during add are handled."""
@@ -195,7 +203,7 @@ class TestDeleteHoliday:
             deleted_holiday = db.session.get(Holiday, holiday_id)
             assert deleted_holiday is None
 
-    def test_delete_nonexistent_holiday(self, client, app):
+    def test_delete_nonexistent_holiday(self, client):
         """Test deleting nonexistent holiday returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
@@ -232,10 +240,14 @@ class TestDeleteHoliday:
                 )
                 assert b"Admin privileges required" in response.data
             finally:
-                if original_user:
+                if original_user is not None:
                     os.environ["USER_NAME"] = original_user
-                if original_admins:
+                else:
+                    os.environ.pop("USER_NAME", None)
+                if original_admins is not None:
                     os.environ["ADMIN_USERS"] = original_admins
+                else:
+                    os.environ.pop("ADMIN_USERS", None)
 
             # Cleanup
             holiday = db.session.get(Holiday, holiday_id)
@@ -266,7 +278,7 @@ class TestRefreshFederalHolidays:
             assert response.status_code == 200
             assert b"already present" in response.data
 
-    def test_refresh_federal_holidays_requires_admin(self, client, app):
+    def test_refresh_federal_holidays_requires_admin(self, client):
         """Test that refreshing requires admin."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -277,10 +289,14 @@ class TestRefreshFederalHolidays:
             response = client.post("/holidays/refresh", follow_redirects=True)
             assert b"Admin privileges required" in response.data
         finally:
-            if original_user:
+            if original_user is not None:
                 os.environ["USER_NAME"] = original_user
-            if original_admins:
+            else:
+                os.environ.pop("USER_NAME", None)
+            if original_admins is not None:
                 os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
 
     def test_refresh_federal_holidays_adds_new(self, client, app):
         """Test refreshing when some holidays don't exist yet."""

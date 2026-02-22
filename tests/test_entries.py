@@ -33,6 +33,7 @@ class TestEntryUpdate:
 
             # Verify update
             entry = db.session.get(TimeEntry, entry_id)
+            assert entry is not None
             assert entry.exit_time == time(21, 30)
 
     def test_update_clears_exit_time(self, client, app, sample_time_entry):
@@ -55,6 +56,7 @@ class TestEntryUpdate:
             assert response.status_code == 200
 
             entry = db.session.get(TimeEntry, entry_id)
+            assert entry is not None
             assert entry.exit_time is None
 
     def test_update_locked_sheet_fails(self, client, app, sample_time_entry):
@@ -130,6 +132,7 @@ class TestEntryUpdate:
 
             # Verify
             entry = db.session.get(TimeEntry, entry_id)
+            assert entry is not None
             assert entry.start_time == time(9, 0)
 
             # Cleanup
@@ -146,6 +149,7 @@ class TestEntryAdd:
             from backend.models import Role
 
             role = Role.query.first()
+            assert role is not None
 
             # Ensure sheet is unlocked
             sheet = DailySheet.query.filter_by(date=get_effective_date()).first()
@@ -175,15 +179,14 @@ class TestEntryAdd:
             assert entry is not None
 
             # Cleanup
-            if entry:
-                db.session.delete(entry)
-                db.session.commit()
+            db.session.delete(entry)
+            db.session.commit()
 
 
 class TestEntryDelete:
     """Tests for deleting entries."""
 
-    def test_delete_nonexistent_entry(self, client, app):
+    def test_delete_nonexistent_entry(self, client):
         """Test deleting a nonexistent entry returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
@@ -218,7 +221,7 @@ class TestEntryDelete:
 class TestEntryEdgeCases:
     """Edge case tests for entries."""
 
-    def test_update_nonexistent_entry(self, client, app):
+    def test_update_nonexistent_entry(self, client):
         """Test updating a nonexistent entry returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
@@ -256,6 +259,7 @@ class TestEntryEdgeCases:
             from backend.models import Role
 
             role = Role.query.first()
+            assert role is not None
 
             # Create entry with start time
             entry = TimeEntry(
@@ -285,6 +289,7 @@ class TestEntryEdgeCases:
 
             # Verify start time cleared
             entry = db.session.get(TimeEntry, entry_id)
+            assert entry is not None
             assert entry.start_time is None
 
             # Cleanup

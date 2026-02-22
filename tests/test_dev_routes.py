@@ -59,7 +59,7 @@ class TestDevRoutesEnabled:
         assert response.status_code == 302
         assert "/" in response.headers["Location"]
 
-    def test_get_current_user_returns_session_value(self, client, app):
+    def test_get_current_user_returns_session_value(self, client):
         """When MOCK_USERS_ENABLED, get_current_user() reads from session."""
         with client.session_transaction() as sess:
             sess["dev_user"] = "Mocked User"
