@@ -58,7 +58,7 @@ def send_report_email(
             validate_email(Config.EMAIL_USERNAME, check_deliverability=False)
             validate_email(recipient, check_deliverability=False)
         except EmailNotValidError as e:
-            logger.error("Invalid email address in configuration: %s", e)
+            logger.exception("Invalid email address in configuration: %s", e)
             return False
 
         # Get entries and generate content

@@ -176,9 +176,7 @@ class Resident(ModelBase):
                 resident.epic_id = epic_id
             return resident, False
 
-        resident = cls()
-        resident.name = name
-        resident.epic_id = epic_id
+        resident = cls(name=name, epic_id=epic_id)
         db.session.add(resident)
         return resident, True
 
@@ -460,16 +458,17 @@ class PayrollSettings(ModelBase):
         """
         settings = db.session.get(cls, 1)
         if settings is None:
-            settings = cls()
-            settings.id = 1
-            settings.program = Config.PAYROLL_PROGRAM
-            settings.company = Config.PAYROLL_COMPANY
-            settings.batch = Config.PAYROLL_BATCH
-            settings.pay_code = Config.PAYROLL_PAY_CODE
-            settings.dept = Config.PAYROLL_DEPT
-            settings.expense = Config.PAYROLL_EXPENSE
-            settings.acct_unit = Config.PAYROLL_ACCT_UNIT
-            settings.label_suffix = Config.PAYROLL_LABEL_SUFFIX
+            settings = cls(
+                id=1,
+                program=Config.PAYROLL_PROGRAM,
+                company=Config.PAYROLL_COMPANY,
+                batch=Config.PAYROLL_BATCH,
+                pay_code=Config.PAYROLL_PAY_CODE,
+                dept=Config.PAYROLL_DEPT,
+                expense=Config.PAYROLL_EXPENSE,
+                acct_unit=Config.PAYROLL_ACCT_UNIT,
+                label_suffix=Config.PAYROLL_LABEL_SUFFIX,
+            )
             db.session.add(settings)
             db.session.commit()
         return settings
