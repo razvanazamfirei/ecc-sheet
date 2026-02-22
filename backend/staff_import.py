@@ -128,7 +128,7 @@ def parse_staff_list(csv_content: str) -> StaffList:
                     backup_id=_clean_cell(row.get("Backup ID")),
                     abbreviation=_clean_cell(row.get("Abbreviation")),
                     phone=_clean_cell(row.get("Pager")) or _clean_cell(row.get("Tel.")),
-                    email=validated_email or "",
+                    email=validated_email,
                 )
             )
 
@@ -152,6 +152,8 @@ def _update_resident_fields(
         ("backup_id", staff["backup_id"]),
         ("name", staff["name"]),
     ]:
+        if attr == "email" and new_val is None:
+            continue
         old_val = getattr(resident, attr)
         if old_val != new_val:
             changes[attr] = {"old": old_val, "new": new_val}

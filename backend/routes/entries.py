@@ -1,9 +1,9 @@
 """Entry routes for time entry management."""
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
-from flask import Blueprint, abort, flash, redirect, request, url_for
+from flask import Blueprint, Response, abort, flash, redirect, request, url_for
 
 from ..audit import log_create, log_delete, log_update
 from ..auth import is_admin, is_first_call
@@ -25,7 +25,9 @@ def _apply_time_field(
     return {field: {"old": old_str, "new": None}} if old_str is not None else {}
 
 
-def _check_sheet_locked(check_date, date_str: str, action: str):
+def _check_sheet_locked(
+    check_date: date, date_str: str, action: str
+) -> Response | None:
     """Return a redirect response if the sheet is locked, else None."""
     sheet = DailySheet.query.filter_by(date=check_date).first()
     if sheet and sheet.locked:
@@ -217,23 +219,17 @@ def delete(entry_id):
 
     try:
         resident_name, role_name = _entry_names(entry)
-        log_delete(
-            "TimeEntry",
-            entry.id,
-            {
-                "entry_id": entry.id,
-                "date": str(entry.date),
-                "resident": resident_name,
-                "role": role_name,
-                "exit_time": entry.exit_time.strftime("%H:%M")
-                if entry.exit_time
-                else None,
-                "start_time": entry.start_time.strftime("%H:%M")
-                if entry.start_time
-                else None,
-            },
-        )
-
+        log_details = {
+            "entry_id": entry.id,
+            "date": str(entry.date),
+            "resident": resident_name,
+            "role": role_name,
+            "exit_time": entry.exit_time.strftime("%H:%M") if entry.exit_time else None,
+            "start_time": entry.start_time.strftime("%H:%M")
+            if entry.start_time
+            else None,
+        }
+        saved_entry_id = entry.id
         db.session.delete(entry)
         db.session.commit()
         flash("Entry deleted successfully", "success")
@@ -241,5 +237,13 @@ def delete(entry_id):
     except Exception as e:
         db.session.rollback()
         flash(f"Error deleting entry: {e!s}", "error")
+        return redirect(
+            url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d"))
+        )
+
+    try:
+        log_delete("TimeEntry", saved_entry_id, log_details)
+    except Exception:
+        logger.warning("Audit log failed for entry %s", saved_entry_id, exc_info=True)
 
     return redirect(url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d")))

@@ -24,7 +24,7 @@ app.config.from_object(Config)
 db.init_app(app)
 
 # Initialize Flask-Migrate for database migrations
-migrate: Migrate = Migrate(app, db)
+migrate: Migrate = Migrate(app, db, render_as_batch=True)
 
 # Enable CSRF protection
 csrf: CSRFProtect = CSRFProtect(app)

@@ -9,7 +9,7 @@ import openpyxl
 from flask_sqlalchemy.query import Query
 from sqlalchemy.orm import joinedload
 
-from .models import Resident, Role, TimeEntry, db
+from .models import PayrollSettings, Resident, Role, TimeEntry, db
 from .type_defs import (
     ResidentData,
     ResidentEntryDict,
@@ -60,7 +60,7 @@ def aggregate_entries_by_resident(entries: TimeEntries) -> ResidentData:
     resident_data: ResidentData = {}
     for entry in entries:
         resident: Resident = entry.resident
-        role: Role = entry.role
+        role: Role | None = entry.role
         res_id: int = resident.id
         if res_id not in resident_data:
             resident_data[res_id] = ResidentSummaryDict(
@@ -73,7 +73,7 @@ def aggregate_entries_by_resident(entries: TimeEntries) -> ResidentData:
         resident_data[res_id]["entries"].append(
             ResidentEntryDict(
                 date=entry.date.strftime("%Y-%m-%d"),
-                role=role.name,
+                role=role.name if role else "",
                 exit_time=entry.exit_time.strftime("%H:%M") if entry.exit_time else "",
                 overtime=overtime,
             )
@@ -91,12 +91,12 @@ def generate_csv_content(entries: TimeEntries) -> str:
 
     for entry in entries:
         resident: Resident = entry.resident
-        role: Role = entry.role
+        role: Role | None = entry.role
         writer.writerow(
             [
                 entry.date.strftime("%Y-%m-%d"),
                 resident.name,
-                role.name,
+                role.name if role else "",
                 entry.exit_time.strftime("%H:%M") if entry.exit_time else "",
                 f"{entry.overtime_hours:.2f}",
             ]

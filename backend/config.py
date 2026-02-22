@@ -38,14 +38,14 @@ class Config:
     AMION_SCHEDULE_CODE: ClassVar[str] = os.getenv("AMION_SCHEDULE_CODE", "upennane")
 
     # Payroll export defaults (used to seed the DB on first run via PayrollSettings)
-    PAYROLL_PROGRAM = os.getenv("PAYROLL_PROGRAM")
-    PAYROLL_COMPANY = os.getenv("PAYROLL_COMPANY")
-    PAYROLL_BATCH = _int_env("PAYROLL_BATCH")
-    PAYROLL_PAY_CODE = _int_env("PAYROLL_PAY_CODE")
-    PAYROLL_DEPT = _int_env("PAYROLL_DEPT")
-    PAYROLL_EXPENSE = _int_env("PAYROLL_EXPENSE")
-    PAYROLL_ACCT_UNIT = _int_env("PAYROLL_ACCT_UNIT")
-    PAYROLL_LABEL_SUFFIX = os.getenv("PAYROLL_LABEL_SUFFIX")
+    PAYROLL_PROGRAM: ClassVar[str | None] = os.getenv("PAYROLL_PROGRAM")
+    PAYROLL_COMPANY: ClassVar[str | None] = os.getenv("PAYROLL_COMPANY")
+    PAYROLL_BATCH: ClassVar[int | None] = _int_env("PAYROLL_BATCH")
+    PAYROLL_PAY_CODE: ClassVar[int | None] = _int_env("PAYROLL_PAY_CODE")
+    PAYROLL_DEPT: ClassVar[int | None] = _int_env("PAYROLL_DEPT")
+    PAYROLL_EXPENSE: ClassVar[int | None] = _int_env("PAYROLL_EXPENSE")
+    PAYROLL_ACCT_UNIT: ClassVar[int | None] = _int_env("PAYROLL_ACCT_UNIT")
+    PAYROLL_LABEL_SUFFIX: ClassVar[str | None] = os.getenv("PAYROLL_LABEL_SUFFIX")
 
     # Time tracking configuration
     DEFAULT_CUTOFF_HOUR: ClassVar[int] = int(os.getenv("DEFAULT_CUTOFF_HOUR", "17"))

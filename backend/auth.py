@@ -75,14 +75,14 @@ def is_first_call(check_date: date | None = None) -> bool:
     )
 
 
-def is_payroll_admin():
+def is_payroll_admin() -> bool:
     """Check if current user has payroll admin privileges."""
     payroll_admin_users = os.getenv("PAYROLL_ADMIN_USERS", "").split(",")
     payroll_admin_users = [u.strip() for u in payroll_admin_users if u.strip()]
     return get_current_user() in payroll_admin_users
 
 
-def can_view_all_reports():
+def can_view_all_reports() -> bool:
     """Return True if the current user can view reports for all residents."""
     return is_admin() or is_payroll_admin()
 

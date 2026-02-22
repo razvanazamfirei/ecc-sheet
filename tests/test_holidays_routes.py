@@ -24,10 +24,14 @@ class TestHolidaysIndex:
             response = client.get("/holidays", follow_redirects=True)
             assert b"Admin privileges required" in response.data
         finally:
-            if original_user:
+            if original_user is not None:
                 os.environ["USER_NAME"] = original_user
-            if original_admins:
+            else:
+                os.environ.pop("USER_NAME", None)
+            if original_admins is not None:
                 os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
 
     def test_holidays_index_loads(self, client):
         """Test that holidays index page loads."""
@@ -151,10 +155,14 @@ class TestAddHoliday:
             )
             assert b"Admin privileges required" in response.data
         finally:
-            if original_user:
+            if original_user is not None:
                 os.environ["USER_NAME"] = original_user
-            if original_admins:
+            else:
+                os.environ.pop("USER_NAME", None)
+            if original_admins is not None:
                 os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
 
     def test_add_holiday_exception_handling(self, client, app):
         """Test that exceptions during add are handled."""
@@ -277,10 +285,14 @@ class TestRefreshFederalHolidays:
             response = client.post("/holidays/refresh", follow_redirects=True)
             assert b"Admin privileges required" in response.data
         finally:
-            if original_user:
+            if original_user is not None:
                 os.environ["USER_NAME"] = original_user
-            if original_admins:
+            else:
+                os.environ.pop("USER_NAME", None)
+            if original_admins is not None:
                 os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
 
     def test_refresh_federal_holidays_adds_new(self, client, app):
         """Test refreshing when some holidays don't exist yet."""

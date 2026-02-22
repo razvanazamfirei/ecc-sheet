@@ -194,7 +194,7 @@ class TestDeleteEntry:
 class TestLockSheet:
     """Test locking/unlocking daily sheets"""
 
-    def test_lock_sheet(self, client, app):
+    def test_lock_sheet(self, client):
         """Test locking a sheet"""
         date_str = get_effective_date().strftime("%Y-%m-%d")
 

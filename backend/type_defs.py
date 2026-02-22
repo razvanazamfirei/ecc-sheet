@@ -40,7 +40,7 @@ class StaffRecord(TypedDict):
     backup_id: str
     abbreviation: str
     phone: str
-    email: str
+    email: str | None
 
 
 class ImportResult(TypedDict):

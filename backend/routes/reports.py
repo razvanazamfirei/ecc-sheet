@@ -93,6 +93,9 @@ def generate():
             can_view_all=can_view_all_reports(),
         )
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         logger.exception("Error generating report: %s", e)
         flash("Error generating report. Check logs for details.", "error")
@@ -115,6 +118,9 @@ def export_csv():
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         logger.exception("Error exporting report: %s", e)
         flash("Error exporting report. Check logs for details.", "error")
@@ -141,6 +147,9 @@ def export_billing_csv():
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         logger.exception("Error exporting billing report: %s", e)
         flash("Error exporting billing report. Check logs for details.", "error")
@@ -163,7 +172,7 @@ def send_email():
             start_date=start_date,
             end_date=end_date,
             recipient_email=recipient_email,
-            resident_id=int(resident_id) if resident_id else None,
+            resident_id=resident_id,
             resident_name=resident_name,
         )
 
@@ -203,6 +212,9 @@ def export_payroll_xlsx():
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    except ValidationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.index"))
     except Exception as e:
         logger.exception("Error exporting payroll report: %s", e)
         flash("Error exporting payroll report. Check logs for details.", "error")

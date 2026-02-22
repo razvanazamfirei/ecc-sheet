@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, time
 from datetime import date as dt_date
-from typing import TYPE_CHECKING, ClassVar, override
+from typing import TYPE_CHECKING, ClassVar, Final, override
 
+from email_validator import EmailNotValidError
+from email_validator import validate_email as _validate_email
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time
 from sqlalchemy.orm import (
@@ -49,7 +53,7 @@ class Resident(ModelBase):
     epic_id: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     # Additional staff information
     class_year: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -80,18 +84,31 @@ class Resident(ModelBase):
             return None
         return value
 
+    @validates("email")
+    def validate_email(self, _key: str, value: str | None) -> str | None:
+        if not value or not value.strip():
+            return None
+        try:
+            result = _validate_email(value, check_deliverability=False)
+            return result.normalized
+        except EmailNotValidError:
+            logger.warning(
+                "Invalid email %r discarded for Resident(id=%r)", value, self.id
+            )
+            return None
+
     @property
-    def display_name(self):
+    def display_name(self) -> str:
         """Formatted display name"""
         return self.name
 
     @property
-    def status(self):
+    def status(self) -> str:
         """Human-readable status"""
         return "Active" if self.active else "Inactive"
 
     @property
-    def total_entries(self):
+    def total_entries(self) -> int:
         """Total number of time entries for this resident"""
         return len(self.time_entries)
 
@@ -193,9 +210,11 @@ class Resident(ModelBase):
         Returns:
             List of TimeEntry objects
         """
-        return [
-            entry for entry in self.time_entries if start_date <= entry.date <= end_date
-        ]
+        return TimeEntry.query.filter(
+            TimeEntry.resident_id == self.id,
+            TimeEntry.date >= start_date,
+            TimeEntry.date <= end_date,
+        ).all()
 
     def get_total_overtime(
         self, start_date: dt_date | None = None, end_date: dt_date | None = None
@@ -210,13 +229,12 @@ class Resident(ModelBase):
         Returns:
             Total overtime hours as float
         """
-        entries = (
-            self.get_entries_for_period(start_date, end_date)
-            if start_date and end_date
-            else self.time_entries
-        )
-
-        return sum(entry.overtime_hours for entry in entries)
+        query = TimeEntry.query.filter(TimeEntry.resident_id == self.id)
+        if start_date is not None:
+            query = query.filter(TimeEntry.date >= start_date)
+        if end_date is not None:
+            query = query.filter(TimeEntry.date <= end_date)
+        return sum(entry.overtime_hours for entry in query.all())
 
     @override
     def __repr__(self) -> str:
@@ -229,10 +247,10 @@ class Role(ModelBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     cutoff_hour: Mapped[int] = mapped_column(
-        Integer, default=17
+        Integer, default=Config.DEFAULT_CUTOFF_HOUR
     )  # Default cutoff hour for overtime calculation (17:30)
     cutoff_minute: Mapped[int] = mapped_column(
-        Integer, default=30
+        Integer, default=Config.DEFAULT_CUTOFF_MINUTE
     )  # Default cutoff minute (17:30)
     display_order: Mapped[int | None] = mapped_column(Integer, default=0)
     is_backup: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -242,7 +260,7 @@ class Role(ModelBase):
 
     # Relationship to time entries
     time_entries: Mapped[list[TimeEntry]] = relationship(
-        "TimeEntry", back_populates="role", cascade="all, delete-orphan"
+        "TimeEntry", back_populates="role", passive_deletes=True
     )
 
     @property
@@ -261,7 +279,9 @@ class TimeEntry(ModelBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     date: Mapped[dt_date] = mapped_column(Date, nullable=False, index=True)
     resident_id: Mapped[int] = mapped_column(ForeignKey("residents.id"), nullable=False)
-    role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), nullable=False)
+    role_id: Mapped[int | None] = mapped_column(
+        ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Time fields
     stop_time: Mapped[time | None] = mapped_column(Time, nullable=True)
@@ -271,20 +291,22 @@ class TimeEntry(ModelBase):
     # Status
     locked: Mapped[bool] = mapped_column(Boolean, default=False)
     submitted: Mapped[bool] = mapped_column(Boolean, default=False)
-    submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
 
     # Relationships
     resident: Mapped[Resident] = relationship("Resident", back_populates="time_entries")
-    role: Mapped[Role] = relationship("Role", back_populates="time_entries")
+    role: Mapped[Role | None] = relationship("Role", back_populates="time_entries")
 
     @property
     def overtime_hours(self) -> float:
@@ -324,9 +346,7 @@ class TimeEntry(ModelBase):
         cutoff_time_decimal: float = (
             self.role.cutoff_hour + self.role.cutoff_minute / 60.0
         )
-        exit_time_decimal: float = (
-            self.exit_time.hour + self.exit_time.minute / 60.0
-        )
+        exit_time_decimal: float = self.exit_time.hour + self.exit_time.minute / 60.0
 
         # Distinguish overnight shifts from same-day early exits
         # Overnight threshold: exit times before this are treated as next-day
@@ -358,16 +378,20 @@ class DailySheet(ModelBase):
     date: Mapped[dt_date] = mapped_column(Date, unique=True, nullable=False, index=True)
     locked: Mapped[bool] = mapped_column(Boolean, default=False)
     locked_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     submitted: Mapped[bool] = mapped_column(Boolean, default=False)
-    submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
@@ -384,7 +408,7 @@ class AuditLog(ModelBase):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         nullable=False,
         index=True,
@@ -420,7 +444,7 @@ class Holiday(ModelBase):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_federal: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
     @classmethod
@@ -447,6 +471,15 @@ class PayrollSettings(ModelBase):
     expense: Mapped[int | None] = mapped_column(Integer, nullable=True)
     acct_unit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     label_suffix: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    @property
+    def text_format(self) -> str:
+        """Excel format string for text columns."""
+        return "@"
+    @property
+    def date_format(self) -> str:
+        """Excel format string for date columns."""
+        return "mm/dd/yyyy"
+
 
     @classmethod
     def get_or_create(cls) -> PayrollSettings:
@@ -470,7 +503,7 @@ class PayrollSettings(ModelBase):
                 label_suffix=Config.PAYROLL_LABEL_SUFFIX,
             )
             db.session.add(settings)
-            db.session.commit()
+            db.session.flush()
         return settings
 
     @override

@@ -3,6 +3,7 @@ Audit logging utilities for tracking all changes in the system.
 """
 
 import json
+import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
@@ -11,6 +12,8 @@ from flask import current_app, has_request_context, request
 
 from .models import AuditLog, db
 from .type_defs import AuditLogs
+
+logger = logging.getLogger(__name__)
 
 
 def get_current_user() -> str:
@@ -65,9 +68,9 @@ def log_action(
         )
         db.session.add(audit_entry)
         db.session.commit()
-    except Exception as e:
+    except Exception:
         # Don't let audit logging break the main flow
-        print(f"Audit logging failed: {e!s}")
+        logger.exception("Audit logging failed")
         db.session.rollback()
 
 

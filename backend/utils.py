@@ -82,7 +82,7 @@ def handle_db_error(func):
             raise
         except Exception as e:
             function_name = getattr(func, "__name__", func.__class__.__name__)
-            logger.error("Database error in %s: %s", function_name, e)
+            logger.exception("Database error in %s", function_name)
             db.session.rollback()
             flash(f"An error occurred: {e!s}", "error")
             return redirect(url_for("index"))

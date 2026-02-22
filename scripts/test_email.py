@@ -16,6 +16,16 @@ from backend.config import Config
 load_dotenv()
 
 
+def _validate_address(address: str, label: str) -> bool:
+    """Return True if address is valid, False and print error if not."""
+    try:
+        validate_email(address, check_deliverability=False)
+        return True
+    except EmailNotValidError as e:
+        print(f"Invalid {label} email address: {e}")
+        return False
+
+
 def test_email():
     """Send a test email to verify configuration"""
     print("Testing email configuration...")
@@ -33,16 +43,10 @@ def test_email():
         print("Please set EMAIL_USERNAME, EMAIL_PASSWORD, and EMAIL_RECIPIENT.")
         return False
 
-    try:
-        validate_email(email_username, check_deliverability=False)
-    except EmailNotValidError as e:
-        print(f"Invalid sender email address: {e}")
+    if not _validate_address(email_username, "sender"):
         return False
 
-    try:
-        validate_email(email_recipient, check_deliverability=False)
-    except EmailNotValidError as e:
-        print(f"Invalid recipient email address: {e}")
+    if not _validate_address(email_recipient, "recipient"):
         return False
 
     try:
@@ -68,7 +72,7 @@ def test_email():
 
         # Send email
         print("Connecting to SMTP server...")
-        with smtplib.SMTP(Config.EMAIL_HOST, Config.EMAIL_PORT) as server:
+        with smtplib.SMTP(Config.EMAIL_HOST, Config.EMAIL_PORT, timeout=30) as server:
             print("Starting TLS...")
             server.starttls()
 
