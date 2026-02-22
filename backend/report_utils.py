@@ -134,71 +134,45 @@ def generate_billing_csv_content(resident_data: ResidentData) -> str:
 
 
 def generate_payroll_xlsx(
-    resident_data: dict, start_date: date, end_date: date, settings
+    resident_data: ResidentData,
+    start_date: date,
+    end_date: date,
+    settings: PayrollSettings,
 ) -> bytes:
     """
-    Generate a Lawson/UPHS payroll export spreadsheet.
+    Generate a Lawson/UPHS payroll export spreadsheet (A..AB).
 
-    Column layout (1-indexed):
-      A=Program, B=HireDate, C=Employee, D=Company, E=Batch,
-      F=LawsonID, G=filter(empty), H=PayCode, I=Hours,
-      J-M=filter1-4(empty), N=Transdate, O=Dept, P=Expense,
-      Q=AcctUnit, R-AA=empty, AB=note ("{MON} {label_suffix}")
-
-    Only residents with a lawson_id are included.
-
-    Args:
-        resident_data: Dict from aggregate_entries_by_resident() keyed by resident_id.
-        start_date: Report start date (used for col AB month abbreviation).
-        end_date: Report end date (used as Transdate in col N).
-        settings: PayrollSettings instance.
-
-    Returns:
-        Bytes of the .xlsx workbook.
+    Only residents with a non-null lawson_id are included.
+    Dates are written as true Excel dates; code-like fields are forced to text.
     """
     wb = openpyxl.Workbook()
     ws = wb.active
 
-    # Header row
-    headers = [
-        "Program",  # A
-        "",  # B (hire date — no header label per spec)
-        "Employee",  # C
-        "Company",  # D
-        "Batch",  # E
-        "Lawson ID #",  # F
-        "filter",  # G
-        "Pay Code",  # H
-        "Hours",  # I
-        "filter 1",  # J
-        "filter 2",  # K
-        "filter 3",  # L
-        "filter 4",  # M
-        "Transdate",  # N
-        "Dept",  # O
-        "Expense",  # P
-        "Acct Unit",  # Q
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",  # R-AA (10 empty cols)
-        "",  # AB note (header empty)
-    ]
-    ws.append(headers)
+    layout = settings.layout
+    c = layout.columns
 
-    month_abbrev = start_date.strftime("%b").upper()  # e.g. 'JAN', 'FEB'
-    if settings.label_suffix:
-        note = f"{month_abbrev} {settings.label_suffix}"
-    else:
-        note = month_abbrev
+    ws.append(layout.headers)
 
-    # Batch-load all residents to avoid N+1 queries inside the loop
+    codes = settings.export_codes()
+    note = settings.note_for(start_date)
+    text_cols = settings.export_text_cols()
+
+    # Precompute constants once
+    base_row: list[object | None] = [None] * layout.n_cols
+    base_row[c["program"]] = codes["program"]
+    base_row[c["company"]] = codes["company"]
+    base_row[c["batch"]] = codes["batch"]
+    base_row[c["pay_code"]] = codes["pay_code"]
+    base_row[c["transdate"]] = end_date  # date object
+    base_row[c["dept"]] = codes["dept"]
+    base_row[c["expense"]] = codes["expense"]
+    base_row[c["acct_unit"]] = codes["acct_unit"]
+    base_row[c["note"]] = note
+
+    hire_col = c["hire_date"]
+    trans_col = c["transdate"]
+
+    # Batch-load residents
     resident_lookup: dict[int, Resident] = {
         r.id: r
         for r in db.session.query(Resident).filter(
@@ -213,29 +187,20 @@ def generate_payroll_xlsx(
         if resident is None or resident.lawson_id is None:
             continue
 
-        total_overtime = data["total_overtime"]
-        hire_date_val = resident.hire_date
-
-        # Build a 28-element row (cols A through AB)
-        row = [None] * 28
-        row[0] = settings.program  # A
-        row[1] = hire_date_val.strftime("%m/%d/%Y") if hire_date_val else None  # B
-        row[2] = data["name"]  # C
-        row[3] = settings.company  # D
-        row[4] = settings.batch  # E
-        row[5] = resident.lawson_id  # F
-        row[6] = None  # G (empty)
-        row[7] = settings.pay_code  # H
-        row[8] = round(total_overtime, 2)  # I
-        # J-M (indices 9-12) remain None
-        row[13] = end_date.strftime("%m/%d/%Y")  # N
-        row[14] = settings.dept  # O
-        row[15] = settings.expense  # P
-        row[16] = settings.acct_unit  # Q
-        # R-AA (indices 17-26) remain None
-        row[27] = note  # AB
+        row: list[object | None] = base_row.copy()
+        row[hire_col] = resident.hire_date
+        row[c["employee"]] = data["name"]
+        row[c["lawson_id"]] = str(resident.lawson_id)
+        row[c["hours"]] = round(data["total_overtime"], 2)
 
         ws.append(row)
+
+        # Format the appended row
+        r = ws.max_row
+        for col0 in text_cols:
+            ws.cell(row=r, column=col0 + 1).number_format = settings.text_format
+        ws.cell(row=r, column=hire_col + 1).number_format = settings.date_format
+        ws.cell(row=r, column=trans_col + 1).number_format = settings.date_format
 
     output = BytesIO()
     wb.save(output)

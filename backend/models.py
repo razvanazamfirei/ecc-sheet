@@ -455,6 +455,74 @@ class Holiday(ModelBase):
         return f"<Holiday {self.date} - {self.name}>"
 
 
+@dataclass(frozen=True)
+class PayrollExportLayout:
+    headers: tuple[str, ...]
+    columns: Mapping[str, int]  # semantic name -> 0-based index
+
+    def __post_init__(self) -> None:
+        max_index = max(self.columns.values())
+        if len(self.headers) != max_index + 1:
+            raise ValueError(
+                f"Layout mismatch: len(headers)={len(self.headers)} "
+                f"but max(columns)+1={max_index + 1}. "
+                "Fix headers/col to cover the same A..?? span."
+            )
+
+    @property
+    def n_cols(self) -> int:
+        return len(self.headers)
+
+
+PayrollLayout: Final = PayrollExportLayout(
+    headers=(
+        "Program",  # A (0)
+        "",  # B (1)
+        "Employee",  # C (2)
+        "Company",  # D (3)
+        "Batch",  # E (4)
+        "Lawson ID #",  # F (5)
+        "filter",  # G (6)
+        "Pay Code",  # H (7)
+        "Hours",  # I (8)
+        "filter 1",  # J (9)
+        "filter 2",  # K (10)
+        "filter 3",  # L (11)
+        "filter 4",  # M (12)
+        "Transdate",  # N (13)
+        "Dept",  # O (14)
+        "Expense",  # P (15)
+        "Acct Unit",  # Q (16)
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",  # R..AA (10 empties: 17..26)
+        "",  # AB header blank (27)
+    ),
+    columns={
+        "program": 0,
+        "hire_date": 1,
+        "employee": 2,
+        "company": 3,
+        "batch": 4,
+        "lawson_id": 5,
+        "pay_code": 7,
+        "hours": 8,
+        "transdate": 13,
+        "dept": 14,
+        "expense": 15,
+        "acct_unit": 16,
+        "note": 27,
+    },
+)
+
+
 class PayrollSettings(ModelBase):
     """Institutional payroll export settings (single-row config table)."""
 
@@ -469,15 +537,66 @@ class PayrollSettings(ModelBase):
     expense: Mapped[int | None] = mapped_column(Integer, nullable=True)
     acct_unit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     label_suffix: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    layout: ClassVar[PayrollExportLayout] = PayrollLayout
+
     @property
     def text_format(self) -> str:
         """Excel format string for text columns."""
         return "@"
+
     @property
     def date_format(self) -> str:
         """Excel format string for date columns."""
         return "mm/dd/yyyy"
 
+    @classmethod
+    def export_headers(cls) -> tuple[str, ...]:
+        return cls.layout.headers
+
+    @classmethod
+    def col(cls, name: str) -> int:
+        return cls.layout.col[name]
+
+    def note_for(self, start_date: date) -> str:
+        # "FEB" or "FEB Suffix"
+        month = start_date.strftime("%b").upper()
+        suffix = (self.label_suffix or "").strip()
+        return f"{month} {suffix}".strip()
+
+    def export_codes(self) -> dict[str, str | None]:
+        """
+        Coerce code-like fields to strings for Excel/import robustness.
+        """
+        return {
+            "program": self.program,  # already str|None
+            "company": self.company,  # already str|None
+            "batch": str(self.batch) if self.batch is not None else None,
+            "pay_code": str(self.pay_code) if self.pay_code is not None else None,
+            "dept": str(self.dept) if self.dept is not None else None,
+            "expense": str(self.expense) if self.expense is not None else None,
+            "acct_unit": str(self.acct_unit) if self.acct_unit is not None else None,
+        }
+
+    @classmethod
+    def export_text_cols(cls) -> frozenset[int]:
+        """
+        0-based indices of columns that should be formatted as TEXT in Excel.
+        Driven by the export layout.
+        """
+        c = cls.layout.columns
+        return frozenset(
+            {
+                c["program"],
+                c["company"],
+                c["batch"],
+                c["lawson_id"],
+                c["pay_code"],
+                c["dept"],
+                c["expense"],
+                c["acct_unit"],
+                c["note"],
+            }
+        )
 
     @classmethod
     def get_or_create(cls) -> PayrollSettings:

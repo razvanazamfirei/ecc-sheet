@@ -13,6 +13,7 @@ from backend.report_utils import (
     generate_payroll_xlsx,
     get_resident_name,
 )
+from backend.type_defs import ResidentData
 
 
 class TestBuildEntriesQuery:
@@ -209,7 +210,7 @@ class TestGeneratePayrollXlsx:
                 settings.label_suffix = "ECA"
                 db.session.commit()
 
-                resident_data = {
+                resident_data: ResidentData = {
                     sample_resident.id: {
                         "name": sample_resident.name,
                         "entries": [],
@@ -237,7 +238,7 @@ class TestGeneratePayrollXlsx:
             settings.label_suffix = "ECA"
             db.session.commit()
 
-            resident_data = {
+            resident_data: ResidentData = {
                 sample_resident.id: {
                     "name": sample_resident.name,
                     "entries": [],
@@ -252,6 +253,7 @@ class TestGeneratePayrollXlsx:
             )
             wb = openpyxl.load_workbook(io.BytesIO(result))
             ws = wb.active
+            assert ws is not None
             assert ws.cell(row=1, column=1).value == "Program"
             assert ws.cell(row=1, column=9).value == "Hours"
 
@@ -259,6 +261,7 @@ class TestGeneratePayrollXlsx:
         """Test that residents without lawson_id are excluded."""
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
+            assert resident is not None
             resident.lawson_id = None
             db.session.commit()
 
@@ -266,7 +269,7 @@ class TestGeneratePayrollXlsx:
             settings.label_suffix = "ECA"
             db.session.commit()
 
-            resident_data = {
+            resident_data: ResidentData = {
                 resident.id: {
                     "name": resident.name,
                     "entries": [],
@@ -281,12 +284,14 @@ class TestGeneratePayrollXlsx:
             )
             wb = openpyxl.load_workbook(io.BytesIO(result))
             ws = wb.active
+            assert ws is not None
             assert ws.max_row == 1  # Only header
 
     def test_includes_residents_with_lawson_id(self, app, sample_resident):
         """Test that residents with lawson_id appear as data rows."""
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
+            assert resident is not None
             resident.lawson_id = 12345
             db.session.commit()
 
@@ -294,7 +299,7 @@ class TestGeneratePayrollXlsx:
             settings.label_suffix = "ECA"
             db.session.commit()
 
-            resident_data = {
+            resident_data: ResidentData = {
                 resident.id: {
                     "name": resident.name,
                     "entries": [],
@@ -309,6 +314,7 @@ class TestGeneratePayrollXlsx:
             )
             wb = openpyxl.load_workbook(io.BytesIO(result))
             ws = wb.active
+            assert ws is not None
             assert ws.max_row == 2  # Header + 1 data row
             assert ws.cell(row=2, column=9).value == 2  # Hours
 
@@ -316,6 +322,7 @@ class TestGeneratePayrollXlsx:
         """Test that col AB contains '{MON} {label_suffix}'."""
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
+            assert resident is not None
             resident.lawson_id = 99999
             db.session.commit()
 
@@ -323,7 +330,7 @@ class TestGeneratePayrollXlsx:
             settings.label_suffix = "ECA"
             db.session.commit()
 
-            resident_data = {
+            resident_data: ResidentData = {
                 resident.id: {
                     "name": resident.name,
                     "entries": [],
@@ -338,12 +345,14 @@ class TestGeneratePayrollXlsx:
             )
             wb = openpyxl.load_workbook(io.BytesIO(result))
             ws = wb.active
+            assert ws is not None
             assert ws.cell(row=2, column=28).value == "MAR ECA"
 
     def test_transdate_is_end_date(self, app, sample_resident):
         """Test that Transdate column (N = col 14) contains end_date as MM/DD/YYYY."""
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
+            assert resident is not None
             resident.lawson_id = 11111
             db.session.commit()
 
@@ -352,7 +361,7 @@ class TestGeneratePayrollXlsx:
             db.session.commit()
 
             end = date(2026, 2, 28)
-            resident_data = {
+            resident_data: ResidentData = {
                 resident.id: {
                     "name": resident.name,
                     "entries": [],
@@ -367,8 +376,9 @@ class TestGeneratePayrollXlsx:
             )
             wb = openpyxl.load_workbook(io.BytesIO(result))
             ws = wb.active
+            assert ws is not None
             cell_value = ws.cell(row=2, column=14).value
-            assert cell_value == end.strftime("%m/%d/%Y")
+            assert cell_value.date() == end
 
 
 class TestPayrollSettingsModel:
@@ -399,6 +409,7 @@ class TestPayrollSettingsModel:
             db.session.commit()
 
             reloaded = PayrollSettings.query.first()
+            assert reloaded is not None
             assert reloaded.program == "M9999"
             assert reloaded.company == "TEST"
             assert reloaded.batch == 42
