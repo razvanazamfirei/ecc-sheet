@@ -1,5 +1,8 @@
 """Tests for app initialization and init_db function."""
 
+import os
+from unittest.mock import patch
+
 from backend.models import Holiday, Role, db
 
 
@@ -127,6 +130,23 @@ class TestInitDb:
             # Count should be the same
             assert count_after_first == count_after_second
 
+    def test_init_db_backfills_display_order_when_none(self, app):
+        """init_db sets display_order on existing roles that have it unset."""
+        with app.app_context():
+            role = Role.query.filter_by(name="ECA 1").first()
+            assert role is not None
+            original_order = role.display_order
+            role.display_order = None
+            db.session.commit()
+
+            from backend.app import init_db
+
+            init_db()
+
+            role = Role.query.filter_by(name="ECA 1").first()
+            assert role.display_order is not None
+            assert role.display_order == original_order
+
     def test_init_db_uses_config_cutoff_hours(self, app):
         """Test that init_db uses cutoff hours from config."""
         with app.app_context():
@@ -162,3 +182,67 @@ class TestContextProcessor:
         response = client.get("/")
         assert response.status_code == 200
         # The template should have access to is_admin
+
+    def test_inject_dev_disabled_when_mock_not_enabled(self, client):
+        """inject_dev returns mock_users_enabled=False when env var is unset."""
+        original = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ.pop("MOCK_USERS_ENABLED", None)
+            response = client.get("/")
+            assert response.status_code == 200
+            # Dev dropdown must not appear when mock is disabled
+            assert b"switch-user" not in response.data
+        finally:
+            if original is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original
+
+    def test_inject_dev_with_payroll_admin_users(self, client):
+        """inject_dev includes a payroll persona when PAYROLL_ADMIN_USERS is set."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            os.environ["PAYROLL_ADMIN_USERS"] = "Payroll Person"
+            response = client.get("/")
+            assert response.status_code == 200
+            assert b"Payroll Person" in response.data
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+            if original_pa is not None:
+                os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+            else:
+                os.environ.pop("PAYROLL_ADMIN_USERS", None)
+
+    def test_inject_dev_enabled_shows_switch_user_form(self, client):
+        """inject_dev populates template context when MOCK_USERS_ENABLED=true."""
+        original = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            response = client.get("/")
+            assert response.status_code == 200
+            assert b"switch-user" in response.data
+        finally:
+            if original is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+
+    def test_inject_dev_handles_resident_query_exception(self, client, app):
+        """inject_dev falls back to empty resident list when DB query fails."""
+        from backend.models import Resident
+
+        original = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            with app.app_context(), patch.object(Resident, "query") as mock_query:
+                mock_query.filter_by.side_effect = Exception("DB error")
+                response = client.get("/")
+            assert response.status_code == 200
+        finally:
+            if original is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)

@@ -33,6 +33,12 @@ def app():
         }
     )
 
+    # db.init_app(app) ran at module import time with the production URI.
+    # Remove the extension registration so we can re-initialize with the
+    # temp test database URI. init_app disposes old engines internally.
+    flask_app.extensions.pop("sqlalchemy", None)
+    db.init_app(flask_app)
+
     with flask_app.app_context():
         init_db()
 

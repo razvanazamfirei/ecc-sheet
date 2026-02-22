@@ -2,7 +2,18 @@
 
 from flask import Flask
 
-from . import api, audit, entries, holidays, reports, residents, roles, schedule, sheets
+from . import (
+    api,
+    audit,
+    dev,
+    entries,
+    holidays,
+    reports,
+    residents,
+    roles,
+    schedule,
+    sheets,
+)
 
 
 def register_blueprints(app: Flask) -> None:
@@ -16,3 +27,4 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(reports.bp)
     app.register_blueprint(api.bp)
     app.register_blueprint(audit.bp)
+    app.register_blueprint(dev.bp)
