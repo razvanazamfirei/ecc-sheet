@@ -109,7 +109,7 @@ class TestRolesAPI:
             names = [r["name"] for r in data]
             assert sample_role.name in names
 
-    def test_returns_json_format(self, client, app):
+    def test_returns_json_format(self, client):
         """Test that API returns proper JSON format."""
         response = client.get("/api/roles")
         assert response.status_code == 200
@@ -163,7 +163,7 @@ class TestRolesAPI:
             db.session.delete(role_a)
             db.session.commit()
 
-    def test_returns_empty_list_when_no_roles(self, client, app):
+    def test_returns_empty_list_when_no_roles(self, client):
         """Test behavior when no roles exist (edge case)."""
         # This test verifies the endpoint doesn't crash
         # The actual database will have roles from fixtures
@@ -176,7 +176,7 @@ class TestRolesAPI:
 class TestAPIEndpointAccess:
     """Tests for API endpoint access control."""
 
-    def test_residents_api_no_auth_required(self, client, app):
+    def test_residents_api_no_auth_required(self, client):
         """Test that residents API doesn't require admin auth."""
         import os
 
@@ -194,7 +194,7 @@ class TestAPIEndpointAccess:
             if original_admins:
                 os.environ["ADMIN_USERS"] = original_admins
 
-    def test_roles_api_no_auth_required(self, client, app):
+    def test_roles_api_no_auth_required(self, client):
         """Test that roles API doesn't require admin auth."""
         import os
 

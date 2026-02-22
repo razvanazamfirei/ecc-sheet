@@ -138,7 +138,7 @@ class TestAggregateEntriesByResident:
             # Exit time should be empty string
             assert not result[sample_resident.id]["entries"][0]["exit_time"]
 
-            db.session.delete(entry)
+            db.session.delete(imported_entry)
             db.session.commit()
 
 
@@ -188,7 +188,7 @@ class TestGenerateCsvContent:
             lines = csv_content.strip().split("\n")
             assert len(lines) == 2
 
-            db.session.delete(entry)
+            db.session.delete(imported_entry)
             db.session.commit()
 
 

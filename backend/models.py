@@ -37,7 +37,7 @@ else:
     ModelBase = db.Model
 
 
-class Resident(ModelBases):
+class Resident(ModelBase):
     __tablename__ = "residents"
 
     CLASS_YEARS: ClassVar[list[str]] = ["CA-1", "CA-2", "CA-3", "Fellow", "OMFS"]
@@ -48,7 +48,7 @@ class Resident(ModelBases):
     last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     epic_id: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime | None] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC)
     )
     # Additional staff information
@@ -100,7 +100,7 @@ class Resident(ModelBases):
         """Time entries that are not submitted"""
         return [entry for entry in self.time_entries if not entry.submitted]
 
-    def to_dict(self, include_entries: bool = False) -> ResidentDict:
+    def to_dict(self, *, include_entries: bool = False) -> ResidentDict:
         """
         Serialize resident to dictionary.
 
@@ -236,9 +236,9 @@ class Role(ModelBase):
     cutoff_minute: Mapped[int] = mapped_column(
         Integer, default=30
     )  # Default cutoff minute (17:30)
-    display_order: Mapped[int] = mapped_column(Integer, default=0)
+    display_order: Mapped[int | None] = mapped_column(Integer, default=0)
     is_backup: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_call_team = Mapped[bool] = mapped_column(
+    is_call_team: Mapped[bool] = mapped_column(
         Boolean, default=False
     )  # Call team roles: shown on sheet but never generate overtime
 
@@ -275,10 +275,10 @@ class TimeEntry(ModelBase):
     submitted: Mapped[bool] = mapped_column(Boolean, default=False)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    created_at: Mapped[datetime | None] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC)
     )
-    updated_at: Mapped[datetime | None] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
@@ -323,10 +323,10 @@ class TimeEntry(ModelBase):
             return round(exit_decimal - start_decimal, 2)
 
         # Convert cutoff and exit to decimal hours
-        cutoff_time_decimal: int | float = (
+        cutoff_time_decimal: float = (
             self.role.cutoff_hour + self.role.cutoff_minute / 60.0
         )
-        exit_time_decimal: int | float = (
+        exit_time_decimal: float = (
             self.exit_time.hour + self.exit_time.minute / 60.0
         )
 
@@ -344,7 +344,7 @@ class TimeEntry(ModelBase):
                 return 0.0
 
         # Calculate overtime
-        overtime: int | float = exit_time_decimal - cutoff_time_decimal
+        overtime: float = exit_time_decimal - cutoff_time_decimal
         return round(overtime, 2) if overtime > 0 else 0.0
 
     @override
@@ -365,10 +365,10 @@ class DailySheet(ModelBase):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime | None] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC)
     )
-    updated_at: Mapped[datetime | None] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
@@ -421,7 +421,7 @@ class Holiday(ModelBase):
     date: Mapped[dt_date] = mapped_column(Date, nullable=False, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_federal: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime | None] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC)
     )
 
@@ -435,23 +435,23 @@ class Holiday(ModelBase):
         return f"<Holiday {self.date} - {self.name}>"
 
 
-class PayrollSettings(db.Model):
+class PayrollSettings(ModelBase):
     """Institutional payroll export settings (single-row config table)."""
 
     __tablename__ = "payroll_settings"
 
-    id = db.Column(db.Integer, primary_key=True)
-    program = db.Column(db.String(50), nullable=True)
-    company = db.Column(db.String(50), nullable=True)
-    batch = db.Column(db.Integer, nullable=True)
-    pay_code = db.Column(db.Integer, nullable=True)
-    dept = db.Column(db.Integer, nullable=True)
-    expense = db.Column(db.Integer, nullable=True)
-    acct_unit = db.Column(db.Integer, nullable=True)
-    label_suffix = db.Column(db.String(50), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    program: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    company: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    batch: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pay_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dept: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    expense: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    acct_unit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    label_suffix: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     @classmethod
-    def get_or_create(cls):
+    def get_or_create(cls) -> PayrollSettings:
         """Return the single settings row, creating it with defaults if
         it doesn't exist.
 
@@ -460,20 +460,20 @@ class PayrollSettings(db.Model):
         """
         settings = db.session.get(cls, 1)
         if settings is None:
-            settings = cls(
-                id=1,
-                program=Config.PAYROLL_PROGRAM,
-                company=Config.PAYROLL_COMPANY,
-                batch=Config.PAYROLL_BATCH,
-                pay_code=Config.PAYROLL_PAY_CODE,
-                dept=Config.PAYROLL_DEPT,
-                expense=Config.PAYROLL_EXPENSE,
-                acct_unit=Config.PAYROLL_ACCT_UNIT,
-                label_suffix=Config.PAYROLL_LABEL_SUFFIX,
-            )
+            settings = cls()
+            settings.id = 1
+            settings.program = Config.PAYROLL_PROGRAM
+            settings.company = Config.PAYROLL_COMPANY
+            settings.batch = Config.PAYROLL_BATCH
+            settings.pay_code = Config.PAYROLL_PAY_CODE
+            settings.dept = Config.PAYROLL_DEPT
+            settings.expense = Config.PAYROLL_EXPENSE
+            settings.acct_unit = Config.PAYROLL_ACCT_UNIT
+            settings.label_suffix = Config.PAYROLL_LABEL_SUFFIX
             db.session.add(settings)
             db.session.commit()
         return settings
 
-    def __repr__(self):
+    @override
+    def __repr__(self) -> str:
         return f"<PayrollSettings program={self.program}>"

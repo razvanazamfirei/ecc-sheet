@@ -6,7 +6,7 @@ from backend.models import Role, db
 class TestRolesIndex:
     """Tests for the roles index page."""
 
-    def test_roles_index_requires_admin(self, client, app):
+    def test_roles_index_requires_admin(self, client):
         """Test that roles index requires admin privileges."""
         import os
 
@@ -34,7 +34,7 @@ class TestRolesIndex:
             assert response.status_code == 200
             assert sample_role.name.encode() in response.data
 
-    def test_roles_index_shows_cutoff_times(self, client, app, sample_role):
+    def test_roles_index_shows_cutoff_times(self, client, app):
         """Test that roles index shows cutoff times."""
         with app.app_context():
             response = client.get("/roles/")
@@ -164,7 +164,7 @@ class TestRolesUpdate:
             assert response.status_code == 200
             assert b"error" in response.data.lower()
 
-    def test_update_nonexistent_role(self, client, app):
+    def test_update_nonexistent_role(self, client):
         """Test updating a role that doesn't exist returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions

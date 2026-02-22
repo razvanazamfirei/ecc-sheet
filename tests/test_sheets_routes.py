@@ -50,7 +50,7 @@ class TestSheetsIndex:
 class TestSheetsView:
     """Tests for viewing specific date sheets."""
 
-    def test_view_past_date(self, client, app):
+    def test_view_past_date(self, client):
         """Test viewing a past date sheet."""
         past_date = get_effective_date() - timedelta(days=7)
         date_str = past_date.strftime("%Y-%m-%d")
@@ -59,7 +59,7 @@ class TestSheetsView:
         assert response.status_code == 200
         assert past_date.strftime("%B %d, %Y").encode() in response.data
 
-    def test_view_future_date(self, client, app):
+    def test_view_future_date(self, client):
         """Test viewing a future date sheet."""
         future_date = get_effective_date() + timedelta(days=7)
         date_str = future_date.strftime("%Y-%m-%d")
@@ -68,7 +68,7 @@ class TestSheetsView:
         assert response.status_code == 200
         assert future_date.strftime("%B %d, %Y").encode() in response.data
 
-    def test_view_invalid_date_format(self, client, app):
+    def test_view_invalid_date_format(self, client):
         """Test viewing with invalid date format redirects."""
         response = client.get("/sheets/invalid-date", follow_redirects=True)
         assert response.status_code == 200

@@ -289,7 +289,7 @@ class TestReportsPage:
         assert response.status_code == 200
         assert b"Generate Report" in response.data
 
-    def test_generate_report(self, client, app, clean_database, sample_time_entry):
+    def test_generate_report(self, client, clean_database, sample_time_entry):
         """Test generating a report"""
         start_date = (get_effective_date() - timedelta(days=7)).strftime("%Y-%m-%d")
         end_date = get_effective_date().strftime("%Y-%m-%d")
@@ -454,7 +454,7 @@ class TestWorkflowIntegration:
         assert b"5.00" in response.data  # 22:30 - 17:30 = 5 hours
 
     def test_overnight_shift_workflow(
-        self, client, app, clean_database, sample_resident, sample_role
+        self, client, clean_database, sample_resident, sample_role
     ):
         """Test overnight shift entry and calculation"""
         resident_id = sample_resident.id

@@ -1,5 +1,6 @@
 """Entry routes for time entry management."""
 
+import logging
 from datetime import datetime
 
 from flask import Blueprint, abort, flash, redirect, request, url_for
@@ -10,6 +11,35 @@ from ..models import DailySheet, TimeEntry, db
 from ..utils import handle_db_error
 
 bp = Blueprint("entries", __name__, url_prefix="/entries")
+logger = logging.getLogger(__name__)
+
+
+def _apply_time_field(
+    entry: "TimeEntry", field: str, raw: str | None, old_str: str | None
+) -> dict:
+    """Set a time field on entry and return a change record if it changed."""
+    if raw:
+        setattr(entry, field, datetime.strptime(raw, "%H:%M").time())  # noqa: DTZ007
+        return {field: {"old": old_str, "new": raw}} if old_str != raw else {}
+    setattr(entry, field, None)
+    return {field: {"old": old_str, "new": None}} if old_str is not None else {}
+
+
+def _check_sheet_locked(check_date, date_str: str, action: str):
+    """Return a redirect response if the sheet is locked, else None."""
+    sheet = DailySheet.query.filter_by(date=check_date).first()
+    if sheet and sheet.locked:
+        flash(f"Cannot {action} - sheet is locked", "error")
+        return redirect(url_for("sheets.view", date_str=date_str))
+    return None
+
+
+def _entry_names(entry: "TimeEntry") -> tuple[str, str]:
+    """Return (resident_name, role_name), falling back to IDs if unloaded."""
+    return (
+        entry.resident.name if entry.resident else str(entry.resident_id),
+        entry.role.name if entry.role else str(entry.role_id),
+    )
 
 
 @bp.route("/add", methods=["POST"])
@@ -28,11 +58,8 @@ def add():
             flash("Only the first call resident or an admin can add entries.", "error")
             return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
-        # Check if sheet is locked
-        daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
-        if daily_sheet and daily_sheet.locked:
-            flash("Cannot add entry - sheet is locked", "error")
-            return redirect(url_for("sheets.view", date_str=sheet_date_str))
+        if resp := _check_sheet_locked(sheet_date, sheet_date_str, "add entry"):
+            return resp
 
         resident_id_raw = request.form.get("resident_id")
         role_id_raw = request.form.get("role_id")
@@ -69,24 +96,33 @@ def add():
         )
 
         db.session.add(entry)
+        # Resolve relationship names before commit so they are available for audit
+        # logging even if the session state changes after commit.
+        resident_name = str(resident_id)
+        role_name = str(role_id)
+        db.session.flush()
+        if entry.resident:
+            resident_name = entry.resident.name
+        if entry.role:
+            role_name = entry.role.name
         db.session.commit()
 
-        # Log the action
-        resident_name = (
-            entry.resident.name if entry.resident else str(entry.resident_id)
-        )
-        role_name = entry.role.name if entry.role else str(entry.role_id)
-        log_create(
-            "TimeEntry",
-            entry.id,
-            {
-                "date": sheet_date_str,
-                "resident": resident_name,
-                "role": role_name,
-                "exit_time": exit_time_str or None,
-                "start_time": start_time_str or None,
-            },
-        )
+        # Log the action - wrapped separately so audit failure does not
+        # roll back the committed entry or flash a false failure message.
+        try:
+            log_create(
+                "TimeEntry",
+                entry.id,
+                {
+                    "date": sheet_date_str,
+                    "resident": resident_name,
+                    "role": role_name,
+                    "exit_time": exit_time_str or None,
+                    "start_time": start_time_str or None,
+                },
+            )
+        except Exception:
+            logger.warning("Audit log failed for entry %s", entry.id, exc_info=True)
 
         flash("Entry added successfully", "success")
 
@@ -111,55 +147,33 @@ def update(entry_id):
             url_for("sheets.view", date_str=entry.date.strftime("%Y-%m-%d"))
         )
 
-    # Check if sheet is locked
-    daily_sheet = DailySheet.query.filter_by(date=entry.date).first()
-    if daily_sheet and daily_sheet.locked:
-        flash("Cannot update entry - sheet is locked", "error")
-        date_str = entry.date.strftime("%Y-%m-%d")
-        return redirect(url_for("sheets.view", date_str=date_str))
+    if resp := _check_sheet_locked(
+        entry.date, entry.date.strftime("%Y-%m-%d"), "update entry"
+    ):
+        return resp
 
     try:
-        changes = {}
-
-        # Store old values for audit
         old_exit_time = entry.exit_time.strftime("%H:%M") if entry.exit_time else None
         old_start_time = (
             entry.start_time.strftime("%H:%M") if entry.start_time else None
         )
 
-        exit_time_str = request.form.get("exit_time")
-        if exit_time_str:
-            entry.exit_time = datetime.strptime(exit_time_str, "%H:%M").time()  # noqa: DTZ007
-            if old_exit_time != exit_time_str:
-                changes["exit_time"] = {"old": old_exit_time, "new": exit_time_str}
-        else:
-            entry.exit_time = None
-            if old_exit_time is not None:
-                changes["exit_time"] = {"old": old_exit_time, "new": None}
+        changes = _apply_time_field(
+            entry, "exit_time", request.form.get("exit_time"), old_exit_time
+        )
 
-        # Handle start_time for backup roles
+        # Handle start_time for backup roles (only update if field was submitted)
         start_time_str = request.form.get("start_time")
-        if start_time_str is not None:  # Only update if field was submitted
-            if start_time_str:
-                entry.start_time = datetime.strptime(start_time_str, "%H:%M").time()  # noqa: DTZ007
-                if old_start_time != start_time_str:
-                    changes["start_time"] = {
-                        "old": old_start_time,
-                        "new": start_time_str,
-                    }
-            else:
-                entry.start_time = None
-                if old_start_time is not None:
-                    changes["start_time"] = {"old": old_start_time, "new": None}
+        if start_time_str is not None:
+            changes.update(
+                _apply_time_field(entry, "start_time", start_time_str, old_start_time)
+            )
 
         db.session.commit()
 
         # Log the action with enhanced details
         if changes:
-            resident_name = (
-                entry.resident.name if entry.resident else str(entry.resident_id)
-            )
-            role_name = entry.role.name if entry.role else str(entry.role_id)
+            resident_name, role_name = _entry_names(entry)
             log_update(
                 "TimeEntry",
                 entry.id,
@@ -196,20 +210,13 @@ def delete(entry_id):
             url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d"))
         )
 
-    # Check if sheet is locked
-    daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
-    if daily_sheet and daily_sheet.locked:
-        flash("Cannot delete entry - sheet is locked", "error")
-        date_str = sheet_date.strftime("%Y-%m-%d")
-        redirect_url = url_for("sheets.view", date_str=date_str)
-        return redirect(redirect_url)
+    if resp := _check_sheet_locked(
+        sheet_date, sheet_date.strftime("%Y-%m-%d"), "delete entry"
+    ):
+        return resp
 
     try:
-        # Log before deleting
-        resident_name = (
-            entry.resident.name if entry.resident else str(entry.resident_id)
-        )
-        role_name = entry.role.name if entry.role else str(entry.role_id)
+        resident_name, role_name = _entry_names(entry)
         log_delete(
             "TimeEntry",
             entry.id,

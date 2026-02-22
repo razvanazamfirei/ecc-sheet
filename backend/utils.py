@@ -4,7 +4,7 @@ Utility functions for logging, validation, and error handling
 
 import logging
 import shutil
-from datetime import date, datetime, timedelta, tzinfo
+from datetime import date, datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -42,8 +42,8 @@ def backup_database(
 ) -> bool:
     """Create a backup of the database"""
     try:
-        backup_dir: Path = Path(backup_dir)
-        db_path: Path = Path(db_path)
+        backup_dir = Path(backup_dir)
+        db_path = Path(db_path)
 
         if not backup_dir.exists():
             backup_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +51,7 @@ def backup_database(
         if not db_path.exists():
             return False
 
-        tz: tzinfo = pytz.timezone(Config.TIMEZONE)
+        tz = pytz.timezone(Config.TIMEZONE)
         timestamp: str = datetime.now(tz=tz).strftime("%Y%m%d_%H%M%S")
         backup_path: Path = backup_dir / f"ecc_sheet_{timestamp}.db"
 
@@ -66,8 +66,8 @@ def backup_database(
                 old_backup.unlink()
 
         return True
-    except Exception as e:
-        logger.error("Database backup failed: %s", e)
+    except Exception:
+        logger.exception("Database backup failed")
         return False
 
 
@@ -92,7 +92,7 @@ def handle_db_error(func):
 
 def get_philadelphia_time() -> datetime:
     """Get current time in Philadelphia timezone."""
-    philly_tz: tzinfo = pytz.timezone(Config.TIMEZONE)
+    philly_tz = pytz.timezone(Config.TIMEZONE)
     return datetime.now(philly_tz)
 
 
@@ -108,14 +108,14 @@ def get_effective_date(dt: datetime | None = None) -> date:
         date object representing the effective day
     """
     if dt is None:
-        dt: datetime = get_philadelphia_time()
+        dt = get_philadelphia_time()
 
     # Ensure datetime is in Philadelphia timezone
-    philly_tz: tzinfo = pytz.timezone(Config.TIMEZONE)
+    philly_tz = pytz.timezone(Config.TIMEZONE)
     if dt.tzinfo is None:
-        dt: datetime = philly_tz.localize(dt)
+        dt = philly_tz.localize(dt)
     elif dt.tzinfo != philly_tz:
-        dt: datetime = dt.astimezone(philly_tz)
+        dt = dt.astimezone(philly_tz)
 
     # If before 8 AM, use previous day
     reset_hour: int = Config.DAY_RESET_HOUR

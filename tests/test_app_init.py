@@ -170,14 +170,14 @@ class TestInitDb:
 class TestContextProcessor:
     """Tests for template context processor."""
 
-    def test_inject_auth_provides_current_user(self, client, app):
+    def test_inject_auth_provides_current_user(self, client):
         """Test that inject_auth provides current_user in template context."""
         # Make a request to get template context
         response = client.get("/")
         assert response.status_code == 200
         # The template should have access to current_user
 
-    def test_inject_auth_provides_is_admin(self, client, app):
+    def test_inject_auth_provides_is_admin(self, client):
         """Test that inject_auth provides is_admin in template context."""
         response = client.get("/")
         assert response.status_code == 200

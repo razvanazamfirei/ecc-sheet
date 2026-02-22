@@ -124,7 +124,7 @@ def lock(date_str):
         ).first()
 
         if not daily_sheet:
-            daily_sheet: DailySheet = DailySheet(date=sheet_date)
+            daily_sheet = DailySheet(date=sheet_date)
             db.session.add(daily_sheet)
 
         daily_sheet.locked = not daily_sheet.locked
@@ -140,7 +140,7 @@ def lock(date_str):
         db.session.commit()
 
         # Log lock/unlock action
-        log_lock(date_str, daily_sheet.locked)
+        log_lock(date_str, locked=daily_sheet.locked)
 
         status = "locked" if daily_sheet.locked else "unlocked"
         flash(f"Sheet {status} successfully", "success")

@@ -11,7 +11,7 @@ class APIError(Exception):
     """Base API error with user-friendly message"""
 
     def __init__(self, message, status_code=400, payload=None):
-        super().__init__()
+        super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.payload = payload

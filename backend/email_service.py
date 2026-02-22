@@ -7,6 +7,7 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+from email_validator import EmailNotValidError, validate_email
 from flask import render_template
 
 from .config import Config
@@ -50,6 +51,14 @@ def send_report_email(
         recipient = recipient_email or Config.EMAIL_RECIPIENT
         if not recipient:
             logger.error("No email recipient configured")
+            return False
+
+        # Validate sender and recipient email addresses
+        try:
+            validate_email(Config.EMAIL_USERNAME, check_deliverability=False)
+            validate_email(recipient, check_deliverability=False)
+        except EmailNotValidError as e:
+            logger.error("Invalid email address in configuration: %s", e)
             return False
 
         # Get entries and generate content
@@ -107,10 +116,6 @@ def send_report_email(
 
         logger.info("Report email sent successfully to %s", recipient)
         return True
-
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error("SMTP Authentication failed: %s", e)
-        return False
 
     except smtplib.SMTPException as e:
         logger.error("SMTP error sending report email: %s", e)

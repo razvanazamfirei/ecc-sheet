@@ -9,7 +9,7 @@ from backend.models import Resident, db
 class TestResidentsIndex:
     """Tests for residents index page."""
 
-    def test_residents_index_requires_admin(self, client, app):
+    def test_residents_index_requires_admin(self, client):
         """Test that residents index requires admin privileges."""
         original_admin_users = os.environ.get("ADMIN_USERS", "")
         original_user_name = os.environ.get("USER_NAME", "")
@@ -127,7 +127,7 @@ class TestAddResident:
             db.session.delete(resident)
             db.session.commit()
 
-    def test_add_resident_requires_admin(self, client, app):
+    def test_add_resident_requires_admin(self, client):
         """Test that adding resident requires admin privileges."""
         original_admin_users = os.environ.get("ADMIN_USERS", "")
         original_user_name = os.environ.get("USER_NAME", "")
@@ -198,7 +198,7 @@ class TestToggleResident:
             db.session.delete(updated)
             db.session.commit()
 
-    def test_toggle_nonexistent_resident(self, client, app):
+    def test_toggle_nonexistent_resident(self, client):
         """Test toggling a resident that doesn't exist returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
@@ -233,7 +233,7 @@ class TestToggleResident:
 class TestImportStaff:
     """Tests for staff import endpoint."""
 
-    def test_import_staff_requires_admin(self, client, app):
+    def test_import_staff_requires_admin(self, client):
         """Test that staff import requires admin privileges."""
         original_admin_users = os.environ.get("ADMIN_USERS", "")
         original_user_name = os.environ.get("USER_NAME", "")

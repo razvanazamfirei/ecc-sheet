@@ -8,13 +8,18 @@ resident information including class year, email, phone, and other details.
 from __future__ import annotations
 
 import csv
+import logging
 from collections.abc import Sequence
 
 import requests
+from email_validator import EmailNotValidError, validate_email
 
-from backend.audit import log_import
+from backend.audit import log_create, log_import, log_update
+from backend.errors import ValidationError
 from backend.models import Resident, db
 from backend.type_defs import ImportResult, StaffList, StaffRecord
+
+logger = logging.getLogger(__name__)
 
 CLASS_YEAR_MAP: dict[str, str] = {
     "CA1": "CA-1",
@@ -76,7 +81,7 @@ def parse_staff_list(csv_content: str) -> StaffList:
             break
 
     if header_index is None:
-        raise ValueError("Could not find header line in staff list")
+        raise ValidationError("Could not find header line in staff list")
 
     # Parse CSV starting from header
     csv_reader = csv.DictReader(
@@ -101,6 +106,20 @@ def parse_staff_list(csv_content: str) -> StaffList:
 
         # Only include staff with valid EPIC IDs
         if epic_id:
+            raw_email = _clean_cell(row.get("Email"))
+            validated_email: str | None = None
+            if raw_email:
+                try:
+                    validated_email = validate_email(
+                        raw_email, check_deliverability=False
+                    ).normalized
+                except EmailNotValidError:
+                    logger.warning(
+                        "Invalid email %r for %r discarded during staff import",
+                        raw_email,
+                        name,
+                    )
+
             staff_list.append(
                 StaffRecord(
                     name=name,
@@ -109,11 +128,42 @@ def parse_staff_list(csv_content: str) -> StaffList:
                     backup_id=_clean_cell(row.get("Backup ID")),
                     abbreviation=_clean_cell(row.get("Abbreviation")),
                     phone=_clean_cell(row.get("Pager")) or _clean_cell(row.get("Tel.")),
-                    email=_clean_cell(row.get("Email")),
+                    email=validated_email or "",
                 )
             )
 
     return staff_list
+
+
+def _update_resident_fields(
+    resident: Resident,
+    staff: StaffRecord,
+    normalized_class_year: str,
+    first_name: str | None,
+    last_name: str | None,
+) -> dict:
+    """Apply staff record fields to an existing resident; return change map."""
+    changes: dict = {}
+    for attr, new_val in [
+        ("class_year", normalized_class_year),
+        ("email", staff["email"]),
+        ("phone", staff["phone"]),
+        ("abbreviation", staff["abbreviation"]),
+        ("backup_id", staff["backup_id"]),
+        ("name", staff["name"]),
+    ]:
+        old_val = getattr(resident, attr)
+        if old_val != new_val:
+            changes[attr] = {"old": old_val, "new": new_val}
+            setattr(resident, attr, new_val)
+
+    if resident.first_name != first_name or resident.last_name != last_name:
+        changes["first_name"] = {"old": resident.first_name, "new": first_name}
+        changes["last_name"] = {"old": resident.last_name, "new": last_name}
+        resident.first_name = first_name
+        resident.last_name = last_name
+
+    return changes
 
 
 def import_staff_to_database(
@@ -135,56 +185,29 @@ def import_staff_to_database(
     updated = 0
     skipped = 0
 
+    # Track residents to audit-log after commit (id is not yet available for new ones)
+    created_residents: list[Resident] = []
+    updated_residents: list[tuple[Resident, dict]] = []
+
     for staff in staff_list:
         epic_id = staff["epic_id"]
         normalized_class_year = CLASS_YEAR_MAP.get(
             staff["class_year"], staff["class_year"]
         )
 
-        # Split Amion display name into first/last
         parts = staff["name"].rsplit(" ", 1)
         first_name = parts[0].strip() if parts else None
         last_name = parts[1].strip() if len(parts) > 1 else None
 
-        # Find existing resident by EPIC ID
         resident = Resident.get_by_epic_id(epic_id)
 
         if resident:
-            # Update existing resident
-            changed = False
-
-            if resident.class_year != normalized_class_year:
-                resident.class_year = normalized_class_year
-                changed = True
-
-            if resident.email != staff["email"]:
-                resident.email = staff["email"]
-                changed = True
-
-            if resident.phone != staff["phone"]:
-                resident.phone = staff["phone"]
-                changed = True
-
-            if resident.abbreviation != staff["abbreviation"]:
-                resident.abbreviation = staff["abbreviation"]
-                changed = True
-
-            if resident.backup_id != staff["backup_id"]:
-                resident.backup_id = staff["backup_id"]
-                changed = True
-
-            # Update name if it's different (might be more formal in staff list)
-            if resident.name != staff["name"]:
-                resident.name = staff["name"]
-                changed = True
-
-            if resident.first_name != first_name or resident.last_name != last_name:
-                resident.first_name = first_name
-                resident.last_name = last_name
-                changed = True
-
-            if changed:
+            changes = _update_resident_fields(
+                resident, staff, normalized_class_year, first_name, last_name
+            )
+            if changes:
                 updated += 1
+                updated_residents.append((resident, changes))
             else:
                 skipped += 1
         else:
@@ -202,12 +225,27 @@ def import_staff_to_database(
                 active=True,
             )
             db.session.add(resident)
+            created_residents.append(resident)
             created += 1
 
     # Commit all changes
     db.session.commit()
 
-    # Log the import
+    # Log per-resident audit events after commit so IDs are assigned
+    for resident in created_residents:
+        log_create(
+            "Resident",
+            resident.id,
+            {
+                "name": resident.name,
+                "epic_id": resident.epic_id,
+                "source": "staff_import",
+            },
+        )
+    for resident, changes in updated_residents:
+        log_update("Resident", resident.id, changes=changes)
+
+    # Log the overall import
     log_import(
         "staff_list",
         f"Created: {created}, Updated: {updated}, Skipped: {skipped}",

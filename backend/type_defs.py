@@ -60,11 +60,12 @@ class ResidentEntryDict(TypedDict):
 
 
 class ResidentSummaryDict(TypedDict):
+    name: str
     entries: list[ResidentEntryDict]
     total_overtime: float
 
 
-type ResidentData = dict[str, ResidentSummaryDict]
+type ResidentData = dict[int, ResidentSummaryDict]
 
 type ResidentID = int | str | None
 

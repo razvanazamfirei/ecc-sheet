@@ -121,7 +121,7 @@ class TestAuditRoute:
         response = client.get("/audit?entity_type=TimeEntry&action=CREATE&limit=50")
         assert response.status_code == 200
 
-    def test_audit_requires_admin(self, client, app):
+    def test_audit_requires_admin(self, client):
         """Test that audit page requires admin privileges."""
         import os
 
@@ -154,17 +154,17 @@ class TestAuditRoute:
                 db.session.delete(log_entry)
                 db.session.commit()
 
-    def test_audit_filter_by_action_only(self, client, app):
+    def test_audit_filter_by_action_only(self, client):
         """Test filtering audit log by action only."""
         response = client.get("/audit?action=CREATE")
         assert response.status_code == 200
 
-    def test_audit_limit_parameter(self, client, app):
+    def test_audit_limit_parameter(self, client):
         """Test audit log limit parameter."""
         response = client.get("/audit?limit=10")
         assert response.status_code == 200
 
-    def test_audit_default_limit(self, client, app):
+    def test_audit_default_limit(self, client):
         """Test audit log uses default limit of 100."""
         response = client.get("/audit")
         assert response.status_code == 200

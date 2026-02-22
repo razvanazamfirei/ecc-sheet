@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
+from email_validator import EmailNotValidError, validate_email
 
 from backend.config import Config
 
@@ -30,6 +31,18 @@ def test_email():
     if not email_username or not email_password or not email_recipient:
         print("Missing required email settings.")
         print("Please set EMAIL_USERNAME, EMAIL_PASSWORD, and EMAIL_RECIPIENT.")
+        return False
+
+    try:
+        validate_email(email_username, check_deliverability=False)
+    except EmailNotValidError as e:
+        print(f"Invalid sender email address: {e}")
+        return False
+
+    try:
+        validate_email(email_recipient, check_deliverability=False)
+    except EmailNotValidError as e:
+        print(f"Invalid recipient email address: {e}")
         return False
 
     try:

@@ -674,7 +674,7 @@ class TestTimeEntryModel:
             db.session.delete(entry)
             db.session.commit()
 
-    def test_overtime_without_role(self, app, sample_resident, sample_role):
+    def test_overtime_without_role(self, app):
         """Test overtime calculation without role returns 0."""
         with app.app_context():
             # Create a transient entry without role to test the None role branch
@@ -711,7 +711,7 @@ class TestTimeEntryModel:
             db.session.delete(entry)
             db.session.commit()
 
-    def test_time_entry_repr_without_resident(self, app, sample_role):
+    def test_time_entry_repr_without_resident(self, app):
         """Test TimeEntry __repr__ without resident."""
         with app.app_context():
             # Create a transient entry without resident to test Unknown case

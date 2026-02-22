@@ -302,7 +302,7 @@ class TestHandleDbError:
                 # If url_for fails due to missing endpoint, that's expected
                 pass
 
-    def test_decorator_catches_exception(self, app, client):
+    def test_decorator_catches_exception(self, app):
         """Test that decorator catches database exceptions"""
         from unittest.mock import patch
 

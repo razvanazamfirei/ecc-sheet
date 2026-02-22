@@ -258,7 +258,7 @@ class TestReportEmail:
 class TestReportEdgeCases:
     """Edge case tests for reports."""
 
-    def test_generate_report_date_range(self, client, app):
+    def test_generate_report_date_range(self, client):
         """Test report with wide date range."""
         response = client.post(
             "/api/report",

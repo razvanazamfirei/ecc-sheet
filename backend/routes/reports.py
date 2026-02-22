@@ -23,6 +23,7 @@ from ..auth import (
     payroll_admin_required,
 )
 from ..email_service import send_report_email
+from ..errors import ValidationError
 from ..models import PayrollSettings, TimeEntry, db
 from ..report_utils import (
     aggregate_entries_by_resident,
@@ -37,12 +38,12 @@ bp: Blueprint = Blueprint("reports", __name__)
 logger: Logger = logging.getLogger(__name__)
 
 
-def _parse_report_params() -> tuple[date, date, str | None]:
+def _parse_report_params() -> tuple[date, date, int | None]:
     """Parse common report parameters from form data."""
     start_date_raw = request.form.get("start_date")
     end_date_raw = request.form.get("end_date")
     if not start_date_raw or not end_date_raw:
-        raise ValueError("Start date and end date are required")
+        raise ValidationError("Start date and end date are required")
 
     start_date = datetime.strptime(  # noqa: DTZ007
         start_date_raw, "%Y-%m-%d"

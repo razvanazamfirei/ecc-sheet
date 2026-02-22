@@ -1,14 +1,21 @@
 """Shared utilities for report generation."""
 
 import csv
+import operator
 from datetime import date
-from io import StringIO
+from io import BytesIO, StringIO
 
+import openpyxl
 from flask_sqlalchemy.query import Query
+from sqlalchemy.orm import joinedload
 
-from .models import Resident, TimeEntry, db
+from .models import Resident, Role, TimeEntry, db
 from .type_defs import (
+    ResidentData,
+    ResidentEntryDict,
     ResidentID,
+    ResidentSummaryDict,
+    TimeEntries,
 )
 
 
@@ -53,17 +60,17 @@ def aggregate_entries_by_resident(entries: TimeEntries) -> ResidentData:
     resident_data: ResidentData = {}
     for entry in entries:
         resident: Resident = entry.resident
-        resident: Resident = entry.resident
         role: Role = entry.role
-        res_name: str = resident.name
-        if res_name not in resident_data:
-            resident_data[res_name] = ResidentSummaryDict(
+        res_id: int = resident.id
+        if res_id not in resident_data:
+            resident_data[res_id] = ResidentSummaryDict(
+                name=resident.name,
                 entries=[],
                 total_overtime=0.0,
             )
 
         overtime = entry.overtime_hours
-        resident_data[res_name]["entries"].append(
+        resident_data[res_id]["entries"].append(
             ResidentEntryDict(
                 date=entry.date.strftime("%Y-%m-%d"),
                 role=role.name,
@@ -71,7 +78,7 @@ def aggregate_entries_by_resident(entries: TimeEntries) -> ResidentData:
                 overtime=overtime,
             )
         )
-        resident_data[res_name]["total_overtime"] += overtime
+        resident_data[res_id]["total_overtime"] += overtime
 
     return resident_data
 

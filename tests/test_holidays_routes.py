@@ -13,7 +13,7 @@ from backend.utils import get_effective_date
 class TestHolidaysIndex:
     """Tests for holidays index page."""
 
-    def test_holidays_index_requires_admin(self, client, app):
+    def test_holidays_index_requires_admin(self, client):
         """Test that holidays index requires admin privileges."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -29,7 +29,7 @@ class TestHolidaysIndex:
             if original_admins:
                 os.environ["ADMIN_USERS"] = original_admins
 
-    def test_holidays_index_loads(self, client, app):
+    def test_holidays_index_loads(self, client):
         """Test that holidays index page loads."""
         response = client.get("/holidays")
         assert response.status_code == 200
@@ -81,7 +81,7 @@ class TestAddHoliday:
             db.session.delete(holiday)
             db.session.commit()
 
-    def test_add_holiday_missing_date(self, client, app):
+    def test_add_holiday_missing_date(self, client):
         """Test adding holiday without date fails."""
         response = client.post(
             "/holidays/add",
@@ -136,7 +136,7 @@ class TestAddHoliday:
             db.session.delete(holiday)
             db.session.commit()
 
-    def test_add_holiday_requires_admin(self, client, app):
+    def test_add_holiday_requires_admin(self, client):
         """Test that adding holiday requires admin."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
@@ -195,7 +195,7 @@ class TestDeleteHoliday:
             deleted_holiday = db.session.get(Holiday, holiday_id)
             assert deleted_holiday is None
 
-    def test_delete_nonexistent_holiday(self, client, app):
+    def test_delete_nonexistent_holiday(self, client):
         """Test deleting nonexistent holiday returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
@@ -266,7 +266,7 @@ class TestRefreshFederalHolidays:
             assert response.status_code == 200
             assert b"already present" in response.data
 
-    def test_refresh_federal_holidays_requires_admin(self, client, app):
+    def test_refresh_federal_holidays_requires_admin(self, client):
         """Test that refreshing requires admin."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
+from backend.errors import ValidationError
 from backend.models import Resident, db
 from backend.staff_import import (
     fetch_staff_list,
@@ -15,6 +16,7 @@ from backend.staff_import import (
 from backend.type_defs import StaffRecord
 
 
+@pytest.mark.unit
 class TestFetchStaffList:
     """Tests for fetch_staff_list function."""
 
@@ -68,6 +70,7 @@ class TestFetchStaffList:
             fetch_staff_list("testcode")
 
 
+@pytest.mark.unit
 class TestParseStaffList:
     """Tests for parse_staff_list function."""
 
@@ -95,13 +98,13 @@ CA2\tJane Smith\tEPICID:R67890\t\tJS\t2\t\t555-9999\tjane@example.com
 
     def test_parse_empty_content(self):
         """Test parsing empty content raises error."""
-        with pytest.raises(ValueError, match="Could not find header"):
+        with pytest.raises(ValidationError, match="Could not find header"):
             parse_staff_list("")
 
     def test_parse_no_header(self):
         """Test parsing content without header raises error."""
         csv_content = "Some random content\nNo header here"
-        with pytest.raises(ValueError, match="Could not find header"):
+        with pytest.raises(ValidationError, match="Could not find header"):
             parse_staff_list(csv_content)
 
     def test_parse_only_header(self):
@@ -184,6 +187,7 @@ CA2\tJane Smith\tEPICID:R67890
         assert result[0]["name"] == "Jane Smith"
 
 
+@pytest.mark.integration
 class TestImportStaffToDatabase:
     """Tests for import_staff_to_database function."""
 
@@ -456,6 +460,7 @@ class TestImportStaffToDatabase:
             db.session.commit()
 
 
+@pytest.mark.integration
 class TestImportStaffList:
     """Tests for import_staff_list complete workflow function."""
 
@@ -574,6 +579,7 @@ CA1\tTest Person\tEPICID:R12345
             assert "Database connection lost" in error
 
 
+@pytest.mark.integration
 class TestImportStaffRoute:
     """Tests for staff import route."""
 

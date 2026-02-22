@@ -13,17 +13,17 @@ from flask import Flask
 from flask.testing import FlaskClient, FlaskCliRunner
 from sqlalchemy.orm import Session
 
+from backend.app import app as flask_app
+from backend.app import init_db
+from backend.models import DailySheet, Resident, Role, TimeEntry, db
+from backend.utils import get_effective_date
+
 # Configure a dedicated temporary database before importing the Flask app.
 _TEST_DB_FD, _TEST_DB_PATH = tempfile.mkstemp(prefix="ecc-sheet-tests-", suffix=".db")
 os.close(_TEST_DB_FD)
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
 os.environ["USER_NAME"] = "Admin"
 os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
-
-from backend.app import app as flask_app  # noqa: E402
-from backend.app import init_db  # noqa: E402
-from backend.models import DailySheet, Resident, Role, TimeEntry, db  # noqa: E402
-from backend.utils import get_effective_date  # noqa: E402
 
 
 @pytest.fixture(scope="session")

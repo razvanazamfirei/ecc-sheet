@@ -98,7 +98,7 @@ def log_delete(
     log_action("DELETE", entity_type, entity_id, details)
 
 
-def log_lock(sheet_date: str, locked: bool) -> None:
+def log_lock(sheet_date: str, *, locked: bool) -> None:
     """Log a lock/unlock action"""
     action = "LOCK" if locked else "UNLOCK"
     log_action(action, "DailySheet", details={"date": sheet_date})

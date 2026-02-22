@@ -186,7 +186,7 @@ class TestEntryAdd:
 class TestEntryDelete:
     """Tests for deleting entries."""
 
-    def test_delete_nonexistent_entry(self, client, app):
+    def test_delete_nonexistent_entry(self, client):
         """Test deleting a nonexistent entry returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
@@ -221,7 +221,7 @@ class TestEntryDelete:
 class TestEntryEdgeCases:
     """Edge case tests for entries."""
 
-    def test_update_nonexistent_entry(self, client, app):
+    def test_update_nonexistent_entry(self, client):
         """Test updating a nonexistent entry returns 404."""
         import werkzeug.exceptions
         import werkzeug.routing.exceptions
