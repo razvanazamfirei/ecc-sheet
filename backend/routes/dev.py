@@ -15,13 +15,9 @@ def _mock_enabled() -> bool:
     return os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
 
 
-def _is_local_request() -> bool:
-    return request.remote_addr in {"127.0.0.1", "::1"}
-
-
 @bp.before_request
 def require_mock_enabled():
-    if not (_mock_enabled() and _is_local_request()):
+    if not _mock_enabled():
         abort(404)
 
 

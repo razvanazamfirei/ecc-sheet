@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, session
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 
 from .auth import get_current_user, is_admin
 from .config import Config
 from .holidays import get_federal_holidays
-from .models import Holiday, Role, db
+from .models import Holiday, Resident, Role, db
 from .routes import register_blueprints
 from .utils import get_effective_date, setup_logging
 
@@ -65,14 +65,10 @@ def inject_auth():
 @app.context_processor
 def inject_dev():
     """Inject dev mock-user context (only when MOCK_USERS_ENABLED is set)."""
-    import os
+    import os  # noqa: PLC0415
 
     if os.getenv("MOCK_USERS_ENABLED", "").lower() not in {"1", "true", "yes"}:
         return {"mock_users_enabled": False}
-
-    from flask import session
-
-    from .models import Resident
 
     admin_users = [
         u.strip() for u in os.getenv("ADMIN_USERS", "Admin").split(",") if u.strip()

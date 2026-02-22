@@ -61,17 +61,12 @@ class TestDevRoutesEnabled:
 
     def test_get_current_user_returns_session_value(self, client, app):
         """When MOCK_USERS_ENABLED, get_current_user() reads from session."""
-
         with client.session_transaction() as sess:
             sess["dev_user"] = "Mocked User"
 
-        with app.test_request_context():
-            with client.session_transaction() as sess:
-                sess["dev_user"] = "Mocked User"
-            # Within a request context the session is active
-            response = client.get("/")
-            # The page should render as Mocked User
-            assert response.status_code == 200
+        response = client.get("/")
+        assert response.status_code == 200
+        assert b"Mocked User" in response.data
 
     def test_get_current_user_falls_back_to_env(self, client, app):
         """Without a session override, get_current_user() uses USER_NAME env."""
@@ -80,13 +75,16 @@ class TestDevRoutesEnabled:
         with client.session_transaction() as sess:
             sess.pop("dev_user", None)
 
-        original_username = os.environ.get("USER_NAME", "")
+        original_username = os.environ.get("USER_NAME")
         os.environ["USER_NAME"] = "EnvUser"
         try:
             with app.test_request_context():
                 assert get_current_user() == "EnvUser"
         finally:
-            os.environ["USER_NAME"] = original_username
+            if original_username is not None:
+                os.environ["USER_NAME"] = original_username
+            else:
+                os.environ.pop("USER_NAME", None)
 
     def test_dev_nav_visible_in_template(self, client):
         """Dev persona dropdown should appear in HTML when MOCK_USERS_ENABLED."""
