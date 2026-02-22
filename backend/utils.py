@@ -13,6 +13,7 @@ from flask import flash, redirect, url_for
 from werkzeug.exceptions import HTTPException
 
 from .config import Config
+from .errors import DataBaseOperationError
 from .models import db
 
 logger = logging.getLogger("ecc_sheet")
@@ -66,7 +67,7 @@ def backup_database(
                 old_backup.unlink()
 
         return True
-    except Exception:
+    except DataBaseOperationError:
         logger.exception("Database backup failed")
         return False
 

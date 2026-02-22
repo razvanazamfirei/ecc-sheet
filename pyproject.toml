@@ -23,6 +23,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.2",
+    "ty>=0.0.18",
 ]
 
 [build-system]
@@ -31,3 +32,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
+
+[tool.ty.src]
+exclude = [
+    ".claude/*",
+    "tests/*",
+]

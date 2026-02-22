@@ -4,6 +4,7 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
+from datetime import date as dt_date
 from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from email_validator import EmailNotValidError
@@ -446,7 +447,7 @@ class Holiday(ModelBase):
     )
 
     @classmethod
-    def is_holiday(cls, check_date: date) -> bool:
+    def is_holiday(cls, check_date: dt_date) -> bool:
         """Check if a date is a holiday."""
         return cls.query.filter_by(date=check_date).first() is not None
 
@@ -461,6 +462,10 @@ class PayrollExportLayout:
     columns: Mapping[str, int]  # semantic name -> 0-based index
 
     def __post_init__(self) -> None:
+        if not self.columns:
+            if self.headers:
+                raise ValueError("Layout has headers but no column mappings.")
+            return
         max_index = max(self.columns.values())
         if len(self.headers) != max_index + 1:
             raise ValueError(
@@ -549,14 +554,6 @@ class PayrollSettings(ModelBase):
         """Excel format string for date columns."""
         return "mm/dd/yyyy"
 
-    @classmethod
-    def export_headers(cls) -> tuple[str, ...]:
-        return cls.layout.headers
-
-    @classmethod
-    def col(cls, name: str) -> int:
-        return cls.layout.col[name]
-
     def note_for(self, start_date: date) -> str:
         # "FEB" or "FEB Suffix"
         month = start_date.strftime("%b").upper()
@@ -568,8 +565,8 @@ class PayrollSettings(ModelBase):
         Coerce code-like fields to strings for Excel/import robustness.
         """
         return {
-            "program": self.program,  # already str|None
-            "company": self.company,  # already str|None
+            "program": self.program,
+            "company": self.company,
             "batch": str(self.batch) if self.batch is not None else None,
             "pay_code": str(self.pay_code) if self.pay_code is not None else None,
             "dept": str(self.dept) if self.dept is not None else None,

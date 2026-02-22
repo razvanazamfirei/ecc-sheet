@@ -42,7 +42,7 @@ class NotFoundError(APIError):
         super().__init__(message, status_code=404, payload=payload)
 
 
-class PermissionError(APIError):
+class NotAllowedError(APIError):
     """Permission denied error"""
 
     def __init__(self, message, payload=None):
@@ -123,3 +123,15 @@ def register_error_handlers(app):
             ),
             500,
         )
+
+
+class DataBaseOperationError(BaseException):
+    """Error for database operation failures"""
+
+
+class AuditLogError(BaseException):
+    """Error for audit log operation failures"""
+
+
+class UserMockError(BaseException):
+    """Error for user mock operation failures"""

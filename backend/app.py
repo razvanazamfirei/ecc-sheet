@@ -7,6 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 
 from .auth import get_current_user, is_admin
 from .config import Config
+from .errors import UserMockError
 from .holidays import get_federal_holidays
 from .models import Holiday, Resident, Role, db
 from .routes import register_blueprints
@@ -86,7 +87,7 @@ def inject_dev():
     try:
         residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
         resident_names = [r.name for r in residents]
-    except Exception:
+    except UserMockError:
         app.logger.exception("Failed to query residents for dev mock context")
         resident_names = []
 

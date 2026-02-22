@@ -349,7 +349,8 @@ class TestGeneratePayrollXlsx:
             assert ws.cell(row=2, column=28).value == "MAR ECA"
 
     def test_transdate_is_end_date(self, app, sample_resident):
-        """Test that Transdate column (N = col 14) contains end_date as MM/DD/YYYY."""
+        """Test that Transdate column (N = col 14) contains end_date as a true
+        Excel date."""
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
             assert resident is not None
