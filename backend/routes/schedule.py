@@ -161,18 +161,14 @@ def import_schedule(date_str):
             skipped_messages: list[str] = []
             if import_result["skipped_unknown_residents"] > 0:
                 skipped_messages.append(
-                    (
-                        f"{import_result['skipped_unknown_residents']} rows were "
-                        "skipped because the resident was not found."
-                    )
+                    f"{import_result['skipped_unknown_residents']} rows were skipped "
+                    "because the resident was not found."
                 )
             if import_result["skipped_weekday_backups"] > 0:
                 skipped_messages.append(
-                    (
-                        f"{import_result['skipped_weekday_backups']} rows were "
-                        "skipped by weekday-backup rules because the resident "
-                        "also had a Late assignment."
-                    )
+                    f"{import_result['skipped_weekday_backups']} rows were skipped "
+                    "by weekday-backup rules because the resident also had a "
+                    "Late assignment."
                 )
             flash(
                 f"No new entries imported. {' '.join(skipped_messages)}",

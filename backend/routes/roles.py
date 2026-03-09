@@ -2,7 +2,7 @@
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
-from ..audit import log_update
+from ..audit import log_update_strict
 from ..auth import admin_required
 from ..models import Role, db
 from ..utils import handle_db_error
@@ -46,7 +46,6 @@ def update(role_id):
         role.cutoff_hour = cutoff_hour
         role.cutoff_minute = cutoff_minute
         role.is_backup = is_backup
-        db.session.commit()
 
         changes = {
             field: {"old": before[field], "new": getattr(role, field)}
@@ -54,7 +53,14 @@ def update(role_id):
             if before[field] != getattr(role, field)
         }
         if changes:
-            log_update("Role", role.id, changes=changes, details={"name": role.name})
+            log_update_strict(
+                "Role",
+                role.id,
+                changes=changes,
+                details={"name": role.name},
+            )
+
+        db.session.commit()
 
         flash(f"Role {role.name} updated successfully", "success")
 

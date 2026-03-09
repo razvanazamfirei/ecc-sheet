@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.audit import (
@@ -340,17 +341,14 @@ class TestLogActionExceptionHandling:
         with app.app_context(), patch.object(db.session, "execute") as mock_execute:
             mock_execute.side_effect = SQLAlchemyError("Database error")
 
-            try:
+            with pytest.raises(SQLAlchemyError) as excinfo:
                 log_action_strict(
                     "TEST",
                     "TestEntity",
                     entity_id=1,
                     details={},
                 )
-            except SQLAlchemyError as exc:
-                assert "Database error" in str(exc)
-            else:
-                raise AssertionError("Expected SQLAlchemyError to be re-raised")
+            assert "Database error" in str(excinfo.value)
 
 
 class TestGetAuditTrail:

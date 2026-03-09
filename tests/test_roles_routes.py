@@ -125,16 +125,18 @@ class TestRolesUpdate:
     def test_update_role_creates_audit_log(self, client, app, sample_role):
         """Test role updates are written to the audit log."""
         with app.app_context():
+            role_id = sample_role.id
             response = client.post(
-                f"/roles/{sample_role.id}/update",
+                f"/roles/{role_id}/update",
                 data={"cutoff_hour": "18", "cutoff_minute": "15", "is_backup": "on"},
                 follow_redirects=True,
             )
             assert response.status_code == 200
 
+            db.session.remove()
             log = (
                 AuditLog.query.filter_by(
-                    entity_type="Role", entity_id=sample_role.id, action="UPDATE"
+                    entity_type="Role", entity_id=role_id, action="UPDATE"
                 )
                 .order_by(AuditLog.id.desc())
                 .first()
