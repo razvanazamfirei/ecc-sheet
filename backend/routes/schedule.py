@@ -10,10 +10,15 @@ import requests
 from flask import Blueprint, current_app, flash, redirect, url_for
 
 from ..audit import log_create, log_import, log_update
+from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Resident, Role, TimeEntry, db
 
+from ..type_defs import ScheduleImportResult
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
+
+LATE_ROLE_NAMES = frozenset({"Late Late 1", "Late Late 2"})
+WEEKDAY_BACKUP_ROLE_NAMES = frozenset({"Backup"})
 
 
 @bp.route("/<date_str>/import", methods=["POST"])
@@ -173,11 +178,41 @@ def import_schedule(date_str):
     return redirect(url_for("sheets.view", date_str=date_str))
 
 
+def _normalize_epic_id(raw: str) -> str | None:
+    """Extract an EPIC ID from a raw schedule cell."""
+    if raw.startswith("EPICID:"):
+        return raw.removeprefix("EPICID:")
+    return None
+
+
+def _resident_keys(resident_name: str, epic_id: str | None) -> set[tuple[str, str]]:
+    """Return normalized identifiers for matching a resident across rows."""
+    keys: set[tuple[str, str]] = set()
+    normalized_name = resident_name.casefold().strip()
+    if normalized_name:
+        keys.add(("name", normalized_name))
+    if epic_id:
+        keys.add(("epic_id", epic_id))
+    return keys
+
+
+def _collect_late_assignment_keys(data_lines: list[list[str]]) -> set[tuple[str, str]]:
+    """Return resident identifiers assigned to late roles in the import."""
+    late_assignment_keys: set[tuple[str, str]] = set()
+    for line in data_lines:
+        resident_name = line[0].strip('"').strip()
+        epic_id = _normalize_epic_id(line[1].strip('"').strip())
+        assignment_name = line[3].strip('"').strip()
+        if assignment_name in LATE_ROLE_NAMES:
+            late_assignment_keys.update(_resident_keys(resident_name, epic_id))
+    return late_assignment_keys
+
+
 def _process_entries(
     data_lines: list[list[str]],
     role_mapping: dict[str, str],
     sheet_date: date,
-) -> dict[str, object]:
+) -> ScheduleImportResult:
     """Process CSV lines and create time entries."""
     entries_created = 0
     created_residents: list[Resident] = []
@@ -225,13 +260,23 @@ def _process_entries(
                 resident = Resident.query.filter_by(name=resident_name).first()
 
             if not resident:
-                skipped_unknown_residents += 1
-                logger.info(
-                    "Skipping schedule row for unknown resident: %s (EPIC ID: %s)",
-                    resident_name,
-                    epic_id,
-                )
-                continue
+                if resident_name and not epic_id:
+                    resident = Resident(name=resident_name, active=True)
+                    db.session.add(resident)
+                    db.session.flush()
+                    created_residents.append(resident)
+                    logger.info(
+                        "Created resident during schedule import: %s (no EPIC ID)",
+                        resident_name,
+                    )
+                else:
+                    skipped_unknown_residents += 1
+                    logger.info(
+                        "Skipping schedule row for unknown resident: %s (EPIC ID: %s)",
+                        resident_name,
+                        epic_id,
+                    )
+                    continue
             if not resident.epic_id and epic_id:
                 # Update existing resident with EPIC ID if missing
                 resident.epic_id = epic_id

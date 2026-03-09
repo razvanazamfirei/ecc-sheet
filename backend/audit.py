@@ -52,27 +52,16 @@ def log_action(
     """
     details_json = json.dumps(details) if details else None
     try:
-        audit_entry = AuditLog(
-            timestamp=datetime.now(UTC),
-            user=user or get_current_user(),
-            action=action,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            details=details_json,
-            ip_address=get_client_ip(),
-        )
-        with db.engine.begin() as connection:
-            connection.execute(
-                AuditLog.__table__.insert().values(
-                    timestamp=audit_entry.timestamp,
-                    user=audit_entry.user,
-                    action=audit_entry.action,
-                    entity_type=audit_entry.entity_type,
-                    entity_id=audit_entry.entity_id,
-                    details=audit_entry.details,
-                    ip_address=audit_entry.ip_address,
-                )
-            )
+        audit_values = {
+            "timestamp": datetime.now(UTC),
+            "user": user or get_current_user(),
+            "action": action,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "details": details_json,
+            "ip_address": get_client_ip(),
+        }
+        db.session.execute(AuditLog.__table__.insert().values(**audit_values))
     except Exception:
         logger.exception("Audit logging failed")
 

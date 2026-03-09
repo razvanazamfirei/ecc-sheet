@@ -1,5 +1,7 @@
 """Tests for role management routes."""
 
+import json
+
 from backend.models import AuditLog, Role, db
 
 
@@ -138,7 +140,9 @@ class TestRolesUpdate:
                 .first()
             )
             assert log is not None
-            assert "18" in (log.details or "")
+            parsed = json.loads(log.details or "{}")
+            assert parsed["changes"]["cutoff_hour"]["new"] == 18
+            assert parsed["changes"]["is_backup"]["new"] is True
 
             db.session.delete(log)
             db.session.commit()

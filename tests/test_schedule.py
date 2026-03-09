@@ -496,6 +496,74 @@ class TestScheduleImport:
             db.session.commit()
 
     @patch("backend.routes.schedule.requests.get")
+    def test_import_creates_new_resident_without_epic_id(
+        self, mock_get, client, app
+    ):
+        """Test import creates a resident when a matching name-only row is new."""
+        with app.app_context():
+            test_date = date(2024, 4, 11)
+
+            sheet = DailySheet.query.filter_by(date=test_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            role = Role.query.filter_by(name="ECC 1").first()
+            if not role:
+                role = Role(name="ECC 1", cutoff_hour=17, display_order=1)
+                db.session.add(role)
+                db.session.commit()
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = '"Walk In Resident","","","ECC 1","","","","",""\n'
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            response = client.post(
+                f"/schedule/{test_date.strftime('%Y-%m-%d')}/import",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            resident = Resident.query.filter_by(name="Walk In Resident").first()
+            assert resident is not None
+            assert resident.epic_id is None
+
+            entry = TimeEntry.query.filter_by(
+                date=test_date,
+                resident_id=resident.id,
+            ).first()
+            assert entry is not None
+
+            resident_log = (
+                AuditLog.query.filter_by(
+                    entity_type="Resident",
+                    entity_id=resident.id,
+                    action="CREATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            entry_log = (
+                AuditLog.query.filter_by(
+                    entity_type="TimeEntry",
+                    entity_id=entry.id,
+                    action="CREATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert resident_log is not None
+            assert entry_log is not None
+
+            db.session.delete(resident_log)
+            db.session.delete(entry_log)
+            db.session.delete(entry)
+            db.session.delete(resident)
+            db.session.commit()
+
+    @patch("backend.routes.schedule.requests.get")
     def test_import_schedule_creates_audit_logs(self, mock_get, client, app):
         """Test schedule imports persist resident, entry, and import audit logs."""
         with app.app_context():

@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 if TYPE_CHECKING:
-    from .models import AuditLog, TimeEntry
+    from .models import AuditLog, Resident, TimeEntry
 
 
 class ResidentTimeEntryDict(TypedDict):
@@ -63,6 +63,23 @@ class ResidentSummaryDict(TypedDict):
     name: str
     entries: list[ResidentEntryDict]
     total_overtime: float
+
+
+class ResidentFieldChange(TypedDict):
+    old: str | None
+    new: str | None
+
+
+type ScheduleResidentChanges = dict[str, ResidentFieldChange]
+
+
+class ScheduleImportResult(TypedDict):
+    entries_created: int
+    created_residents: list[Resident]
+    updated_residents: list[tuple[Resident, ScheduleResidentChanges]]
+    created_entries: list[TimeEntry]
+    skipped_unknown_residents: int
+    skipped_weekday_backups: int
 
 
 type ResidentData = dict[int, ResidentSummaryDict]

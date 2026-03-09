@@ -124,8 +124,6 @@ def refresh_federal():
                     f"{current_year + 1}; added {added}"
                 ),
             )
-
-        if added > 0:
             flash(f"Added {added} federal holidays", "success")
         else:
             flash("All federal holidays are already present", "info")

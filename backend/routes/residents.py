@@ -1,5 +1,6 @@
 """Resident management routes."""
 
+import json
 import logging
 from datetime import date
 from logging import Logger
@@ -203,7 +204,8 @@ def profile(resident_id):
         else None
     )
 
-    resident_id_fragment = f'"resident_id": {resident_id}'
+    resident_id_mid_fragment = f'"resident_id": {resident_id},'
+    resident_id_end_fragment = f'"resident_id": {resident_id}}}'
     resident_name_fragment = f'"resident": {json.dumps(resident.name)}'
     audit_logs = (
         AuditLog.query.filter(
@@ -212,7 +214,8 @@ def profile(resident_id):
                 & (AuditLog.entity_id == resident_id),
                 (AuditLog.entity_type == "TimeEntry")
                 & (
-                    AuditLog.details.contains(resident_id_fragment)
+                    AuditLog.details.contains(resident_id_mid_fragment)
+                    | AuditLog.details.contains(resident_id_end_fragment)
                     | AuditLog.details.contains(resident_name_fragment)
                 ),
             )
