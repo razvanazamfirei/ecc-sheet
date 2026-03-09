@@ -85,6 +85,41 @@ class TestAddHoliday:
             db.session.delete(holiday)
             db.session.commit()
 
+    def test_add_holiday_creates_audit_log(self, client, app):
+        """Test adding a holiday persists its audit log."""
+        with app.app_context():
+            test_date = get_effective_date() + timedelta(days=366)
+            date_str = test_date.strftime("%Y-%m-%d")
+
+            Holiday.query.filter_by(date=test_date).delete()
+            db.session.commit()
+
+            response = client.post(
+                "/holidays/add",
+                data={"date": date_str, "name": "Audit Add Holiday"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            holiday = Holiday.query.filter_by(date=test_date).first()
+            assert holiday is not None
+
+            audit_log = (
+                AuditLog.query.filter_by(
+                    entity_type="Holiday",
+                    entity_id=holiday.id,
+                    action="CREATE",
+                )
+                .filter(AuditLog.details.contains("Audit Add Holiday"))
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert audit_log is not None
+
+            db.session.delete(audit_log)
+            db.session.delete(holiday)
+            db.session.commit()
+
     def test_add_holiday_missing_date(self, client):
         """Test adding holiday without date fails."""
         response = client.post(
@@ -202,6 +237,39 @@ class TestDeleteHoliday:
             # Verify deleted
             deleted_holiday = db.session.get(Holiday, holiday_id)
             assert deleted_holiday is None
+
+    def test_delete_holiday_creates_audit_log(self, client, app):
+        """Test deleting a holiday persists its audit log."""
+        with app.app_context():
+            holiday = Holiday(
+                date=date(2030, 1, 2),
+                name="Delete Audit Holiday",
+                is_federal=False,
+            )
+            db.session.add(holiday)
+            db.session.commit()
+            holiday_id = holiday.id
+
+            response = client.post(
+                f"/holidays/{holiday_id}/delete",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            audit_log = (
+                AuditLog.query.filter_by(
+                    entity_type="Holiday",
+                    entity_id=holiday_id,
+                    action="DELETE",
+                )
+                .filter(AuditLog.details.contains("Delete Audit Holiday"))
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert audit_log is not None
+
+            db.session.delete(audit_log)
+            db.session.commit()
 
     def test_delete_nonexistent_holiday(self, client):
         """Test deleting nonexistent holiday returns 404."""

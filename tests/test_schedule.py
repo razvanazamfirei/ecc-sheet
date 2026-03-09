@@ -220,6 +220,63 @@ class TestScheduleImport:
             db.session.commit()
 
     @patch("backend.routes.schedule.requests.get")
+    def test_import_skips_name_match_when_epic_id_conflicts(
+        self, mock_get, client, app
+    ):
+        """Test import skips name matches when the EPIC ID belongs to someone else."""
+        with app.app_context():
+            test_date = date(2024, 4, 12)
+
+            sheet = DailySheet.query.filter_by(date=test_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            role = Role.query.filter_by(name="ECC 1").first()
+            if not role:
+                role = Role(name="ECC 1", cutoff_hour=17, display_order=1)
+                db.session.add(role)
+                db.session.commit()
+
+            resident = Resident(
+                name="Conflict Resident",
+                epic_id="R565656",
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = (
+                '"Conflict Resident","EPICID:R575757","","ECC 1","","","","",""\n'
+            )
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            response = client.post(
+                f"/schedule/{test_date.strftime('%Y-%m-%d')}/import",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"resident was not found" in response.data
+
+            resident = db.session.get(Resident, resident_id)
+            assert resident is not None
+            assert resident.epic_id == "R565656"
+            assert (
+                TimeEntry.query.filter_by(
+                    date=test_date,
+                    resident_id=resident.id,
+                ).first()
+                is None
+            )
+
+            db.session.delete(resident)
+            db.session.commit()
+
+    @patch("backend.routes.schedule.requests.get")
     def test_import_skips_unknown_roles(self, mock_get, client, app):
         """Test that import skips entries for unknown roles."""
         with app.app_context():
@@ -564,6 +621,65 @@ class TestScheduleImport:
             db.session.commit()
 
     @patch("backend.routes.schedule.requests.get")
+    def test_import_reports_skipped_weekday_backups_when_no_entries_created(
+        self, mock_get, client, app
+    ):
+        """Test no-entry imports report weekday-backup skips."""
+        with app.app_context():
+            test_date = date(2024, 4, 15)  # Monday, non-holiday
+
+            late_role = Role.query.filter_by(name="Late Late 1").first()
+            backup_role = Role.query.filter_by(name="Backup").first()
+            assert late_role is not None
+            assert backup_role is not None
+
+            resident = Resident(
+                name="No New Entries",
+                epic_id="R424243",
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            existing_entry = TimeEntry(
+                date=test_date,
+                resident_id=resident_id,
+                role_id=late_role.id,
+                exit_time=None,
+            )
+            db.session.add(existing_entry)
+            db.session.commit()
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = (
+                '"No New Entries","EPICID:R424243","","Late Late 1","","","","",""\n'
+                '"No New Entries","EPICID:R424243","","Backup","","","","",""\n'
+            )
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            response = client.post(
+                f"/schedule/{test_date.strftime('%Y-%m-%d')}/import",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"No new entries imported" in response.data
+            assert b"weekday-backup rules" in response.data
+
+            entries = TimeEntry.query.filter_by(
+                date=test_date,
+                resident_id=resident_id,
+            ).all()
+            assert len(entries) == 1
+            assert entries[0].role_id == late_role.id
+
+            db.session.delete(existing_entry)
+            db.session.delete(resident)
+            db.session.commit()
+
+    @patch("backend.routes.schedule.requests.get")
     def test_import_schedule_creates_audit_logs(self, mock_get, client, app):
         """Test schedule imports persist resident, entry, and import audit logs."""
         with app.app_context():
@@ -628,5 +744,52 @@ class TestScheduleImport:
             db.session.delete(entry_log)
             db.session.delete(import_log)
             db.session.delete(entry)
+            db.session.delete(resident)
+            db.session.commit()
+
+    @patch("backend.routes.schedule.requests.get")
+    def test_import_rolls_back_when_audit_logging_raises(
+        self, mock_get, client, app
+    ):
+        """Test audit failures roll back schedule changes before commit."""
+        with app.app_context():
+            test_date = date(2024, 4, 13)
+
+            resident = Resident(name="Audit Rollback", active=True)
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = (
+                '"Audit Rollback","EPICID:R454546","","ECC 1","","","","",""\n'
+            )
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            with patch(
+                "backend.routes.schedule.log_import_strict",
+                side_effect=RuntimeError("audit failure"),
+            ):
+                response = client.post(
+                    f"/schedule/{test_date.strftime('%Y-%m-%d')}/import",
+                    follow_redirects=True,
+                )
+
+            assert response.status_code == 200
+            assert b"Error importing schedule: audit failure" in response.data
+
+            resident = db.session.get(Resident, resident_id)
+            assert resident is not None
+            assert resident.epic_id is None
+            assert (
+                TimeEntry.query.filter_by(
+                    date=test_date,
+                    resident_id=resident_id,
+                ).first()
+                is None
+            )
+
             db.session.delete(resident)
             db.session.commit()

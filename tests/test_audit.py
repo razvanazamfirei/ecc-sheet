@@ -9,6 +9,7 @@ from backend.audit import (
     get_client_ip,
     get_entity_history,
     log_action,
+    log_action_strict,
     log_create,
     log_delete,
     log_import,
@@ -333,6 +334,23 @@ class TestLogActionExceptionHandling:
             log_action("TEST", "TestEntity", entity_id=1, details={})
 
             mock_rollback.assert_not_called()
+
+    def test_log_action_raises_when_requested(self, app):
+        """Test that strict audit logging re-raises database errors."""
+        with app.app_context(), patch.object(db.session, "execute") as mock_execute:
+            mock_execute.side_effect = SQLAlchemyError("Database error")
+
+            try:
+                log_action_strict(
+                    "TEST",
+                    "TestEntity",
+                    entity_id=1,
+                    details={},
+                )
+            except SQLAlchemyError as exc:
+                assert "Database error" in str(exc)
+            else:
+                raise AssertionError("Expected SQLAlchemyError to be re-raised")
 
 
 class TestGetAuditTrail:

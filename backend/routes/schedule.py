@@ -9,7 +9,7 @@ from logging import Logger
 import requests
 from flask import Blueprint, current_app, flash, redirect, url_for
 
-from ..audit import log_create, log_import, log_update
+from ..audit import log_create_strict, log_import_strict, log_update_strict
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Resident, Role, TimeEntry, db
 
@@ -86,11 +86,10 @@ def import_schedule(date_str):
         }
 
         import_result = _process_entries(data_lines, role_mapping, sheet_date)
-
-        db.session.commit()
+        db.session.flush()
 
         for resident in import_result["created_residents"]:
-            log_create(
+            log_create_strict(
                 "Resident",
                 resident.id,
                 {
@@ -101,7 +100,7 @@ def import_schedule(date_str):
                 },
             )
         for resident, changes in import_result["updated_residents"]:
-            log_update(
+            log_update_strict(
                 "Resident",
                 resident.id,
                 changes=changes,
@@ -112,7 +111,7 @@ def import_schedule(date_str):
                 },
             )
         for entry in import_result["created_entries"]:
-            log_create(
+            log_create_strict(
                 "TimeEntry",
                 entry.id,
                 {
@@ -127,7 +126,7 @@ def import_schedule(date_str):
             )
 
         # Log the import
-        log_import(
+        log_import_strict(
             "Schedule",
             (
                 f"Date: {date_str}, "
@@ -139,6 +138,7 @@ def import_schedule(date_str):
                 f"Weekday backups skipped: {import_result['skipped_weekday_backups']}"
             ),
         )
+        db.session.commit()
 
         if import_result["entries_created"] > 0:
             message = (
@@ -154,13 +154,28 @@ def import_schedule(date_str):
                 message,
                 "success",
             )
-        elif import_result["skipped_unknown_residents"] > 0:
+        elif (
+            import_result["skipped_unknown_residents"] > 0
+            or import_result["skipped_weekday_backups"] > 0
+        ):
+            skipped_messages: list[str] = []
+            if import_result["skipped_unknown_residents"] > 0:
+                skipped_messages.append(
+                    (
+                        f"{import_result['skipped_unknown_residents']} rows were "
+                        "skipped because the resident was not found."
+                    )
+                )
+            if import_result["skipped_weekday_backups"] > 0:
+                skipped_messages.append(
+                    (
+                        f"{import_result['skipped_weekday_backups']} rows were "
+                        "skipped by weekday-backup rules because the resident "
+                        "also had a Late assignment."
+                    )
+                )
             flash(
-                (
-                    "No new entries imported. "
-                    f"{import_result['skipped_unknown_residents']} rows were "
-                    "skipped because the resident was not found."
-                ),
+                f"No new entries imported. {' '.join(skipped_messages)}",
                 "info",
             )
         else:
@@ -258,6 +273,24 @@ def _process_entries(
 
             if not resident:
                 resident = Resident.query.filter_by(name=resident_name).first()
+                if (
+                    resident
+                    and epic_id
+                    and resident.epic_id
+                    and resident.epic_id != epic_id
+                ):
+                    skipped_unknown_residents += 1
+                    logger.info(
+                        (
+                            "Skipping schedule row for resident name/EPIC "
+                            "conflict: %s (row EPIC ID: %s, existing resident "
+                            "EPIC ID: %s)"
+                        ),
+                        resident_name,
+                        epic_id,
+                        resident.epic_id,
+                    )
+                    continue
 
             if not resident:
                 if resident_name and not epic_id:
