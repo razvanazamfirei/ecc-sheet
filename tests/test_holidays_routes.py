@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from backend.models import Holiday, db
+from backend.models import AuditLog, Holiday, db
 from backend.utils import get_effective_date
 
 
@@ -82,6 +82,41 @@ class TestAddHoliday:
             assert holiday.is_federal is False
 
             # Cleanup
+            db.session.delete(holiday)
+            db.session.commit()
+
+    def test_add_holiday_creates_audit_log(self, client, app):
+        """Test adding a holiday persists its audit log."""
+        with app.app_context():
+            test_date = get_effective_date() + timedelta(days=366)
+            date_str = test_date.strftime("%Y-%m-%d")
+
+            Holiday.query.filter_by(date=test_date).delete()
+            db.session.commit()
+
+            response = client.post(
+                "/holidays/add",
+                data={"date": date_str, "name": "Audit Add Holiday"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            holiday = Holiday.query.filter_by(date=test_date).first()
+            assert holiday is not None
+
+            audit_log = (
+                AuditLog.query.filter_by(
+                    entity_type="Holiday",
+                    entity_id=holiday.id,
+                    action="CREATE",
+                )
+                .filter(AuditLog.details.contains("Audit Add Holiday"))
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert audit_log is not None
+
+            db.session.delete(audit_log)
             db.session.delete(holiday)
             db.session.commit()
 
@@ -203,6 +238,39 @@ class TestDeleteHoliday:
             deleted_holiday = db.session.get(Holiday, holiday_id)
             assert deleted_holiday is None
 
+    def test_delete_holiday_creates_audit_log(self, client, app):
+        """Test deleting a holiday persists its audit log."""
+        with app.app_context():
+            holiday = Holiday(
+                date=date(2030, 1, 2),
+                name="Delete Audit Holiday",
+                is_federal=False,
+            )
+            db.session.add(holiday)
+            db.session.commit()
+            holiday_id = holiday.id
+
+            response = client.post(
+                f"/holidays/{holiday_id}/delete",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            audit_log = (
+                AuditLog.query.filter_by(
+                    entity_type="Holiday",
+                    entity_id=holiday_id,
+                    action="DELETE",
+                )
+                .filter(AuditLog.details.contains("Delete Audit Holiday"))
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert audit_log is not None
+
+            db.session.delete(audit_log)
+            db.session.commit()
+
     def test_delete_nonexistent_holiday(self, client):
         """Test deleting nonexistent holiday returns 404."""
         import werkzeug.exceptions
@@ -313,6 +381,41 @@ class TestRefreshFederalHolidays:
             # Verify some federal holidays were added
             federal_count = Holiday.query.filter_by(is_federal=True).count()
             assert federal_count > 0
+
+    def test_refresh_federal_holidays_creates_audit_logs(self, client, app):
+        """Test refresh persists per-holiday and summary audit logs."""
+        with app.app_context():
+            audit_date = get_effective_date() + timedelta(days=730)
+            Holiday.query.filter_by(date=audit_date).delete()
+            db.session.commit()
+
+            with patch(
+                "backend.routes.holidays.get_federal_holidays",
+                return_value=[(audit_date, "Audit Holiday")],
+            ):
+                response = client.post("/holidays/refresh", follow_redirects=True)
+                assert response.status_code == 200
+
+            create_log = (
+                AuditLog.query.filter_by(entity_type="Holiday", action="CREATE")
+                .filter(AuditLog.details.contains("federal_refresh"))
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            import_log = (
+                AuditLog.query.filter_by(entity_type="Holiday", action="IMPORT")
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert create_log is not None
+            assert import_log is not None
+
+            created_holiday = Holiday.query.filter_by(date=audit_date).first()
+            if created_holiday:
+                db.session.delete(created_holiday)
+            db.session.delete(create_log)
+            db.session.delete(import_log)
+            db.session.commit()
 
 
 class TestHolidayExceptionHandling:

@@ -1,6 +1,8 @@
 """Tests for role management routes."""
 
-from backend.models import Role, db
+import json
+
+from backend.models import AuditLog, Role, db
 
 
 class TestRolesIndex:
@@ -119,6 +121,33 @@ class TestRolesUpdate:
             updated_role = db.session.get(Role, sample_role.id)
             assert updated_role is not None
             assert updated_role.is_backup is False
+
+    def test_update_role_creates_audit_log(self, client, app, sample_role):
+        """Test role updates are written to the audit log."""
+        with app.app_context():
+            role_id = sample_role.id
+            response = client.post(
+                f"/roles/{role_id}/update",
+                data={"cutoff_hour": "18", "cutoff_minute": "15", "is_backup": "on"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            db.session.remove()
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="Role", entity_id=role_id, action="UPDATE"
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert log is not None
+            parsed = json.loads(log.details or "{}")
+            assert parsed["changes"]["cutoff_hour"]["new"] == 18
+            assert parsed["changes"]["is_backup"]["new"] is True
+
+            db.session.delete(log)
+            db.session.commit()
 
     def test_update_role_invalid_hour_too_high(self, client, app, sample_role):
         """Test updating role with invalid hour (>23) fails."""

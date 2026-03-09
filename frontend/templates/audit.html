@@ -148,21 +148,14 @@
                       >{{ entry.timestamp.strftime('%H:%M:%S') }}</small
                     >
                   </td>
-                  <td><i class="bi bi-person me-1"></i>{{ entry.user }}</td>
+                  <td>{{ entry.user }}</td>
                   <td>
-                    <span
-                      class="badge bg-{{ 'success' if entry.action == 'CREATE' else 'warning' if entry.action in ['UPDATE', 'LOCK', 'UNLOCK'] else 'danger' if entry.action == 'DELETE' else 'info' }}">
-                      <i
-                        class="bi bi-{{ 'plus-circle' if entry.action == 'CREATE' else 'pencil' if entry.action == 'UPDATE' else 'trash' if entry.action == 'DELETE' else 'lock' if entry.action == 'LOCK' else 'unlock' if entry.action == 'UNLOCK' else 'download' }} me-1"></i>
-                      {{ entry.action }}
-                    </span>
+                    <span>{{ entry.action.title() }}</span>
                   </td>
                   <td>
-                    <span class="badge bg-light text-dark"
-                      >{{ entry.entity_type }}</span
-                    >
+                    {{ entry.entity_type }}
                     {% if entry.entity_id %}
-                      <small class="text-muted">#{{ entry.entity_id }}</small>
+                      #{{ entry.entity_id }}
                     {% endif %}
                   </td>
                   <td class="audit-details">

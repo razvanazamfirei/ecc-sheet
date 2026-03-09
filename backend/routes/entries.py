@@ -119,6 +119,7 @@ def add():
                 entry.id,
                 {
                     "date": sheet_date_str,
+                    "resident_id": resident_id,
                     "resident": resident_name,
                     "role": role_name,
                     "exit_time": exit_time_str or None,
@@ -227,6 +228,7 @@ def delete(entry_id):
         resident_name, role_name = _entry_names(entry)
         log_details = {
             "entry_id": entry.id,
+            "resident_id": entry.resident_id,
             "date": str(entry.date),
             "resident": resident_name,
             "role": role_name,

@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from backend.models import Resident, db
+from backend.audit import log_create
+from backend.models import AuditLog, Resident, Role, TimeEntry, db
 
 
 class TestResidentsIndex:
@@ -633,6 +634,41 @@ class TestResidentProfile:
             assert response.status_code == 200
             assert b"Recent Audit Activity" in response.data
 
+    def test_profile_shows_related_time_entry_audit_logs(
+        self, client, app, sample_time_entry, sample_resident
+    ):
+        """Test resident profile includes related time-entry audit logs."""
+        with app.app_context():
+            assert sample_time_entry.resident_id == sample_resident.id
+            log_create(
+                "TimeEntry",
+                sample_time_entry.id,
+                {
+                    "resident_id": sample_resident.id,
+                    "resident": sample_resident.name,
+                    "role": sample_time_entry.role.name,
+                    "date": sample_time_entry.date.isoformat(),
+                },
+            )
+
+            response = client.get(f"/residents/{sample_resident.id}/profile")
+            assert response.status_code == 200
+            assert sample_time_entry.role.name.encode() in response.data
+            assert b"Time Entry" in response.data
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="TimeEntry",
+                    entity_id=sample_time_entry.id,
+                    action="CREATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            if log:
+                db.session.delete(log)
+                db.session.commit()
+
     def test_profile_hides_audit_for_regular_user(self, client, app, sample_resident):
         """Test that audit section is hidden for non-admin users."""
         original_admin_users = os.environ.get("ADMIN_USERS", "")
@@ -649,3 +685,78 @@ class TestResidentProfile:
         finally:
             os.environ["ADMIN_USERS"] = original_admin_users
             os.environ["USER_NAME"] = original_user_name
+
+    def test_profile_ignores_prefixed_resident_ids_in_audit_logs(
+        self, client, app, sample_resident, sample_time_entry
+    ):
+        """Test resident profile does not match audit logs by ID substring prefix."""
+        with app.app_context():
+            target_id_min = int(f"{sample_resident.id}0")
+            target_id_max = int(f"{sample_resident.id}9")
+            extra_residents: list[Resident] = []
+            matching_resident = None
+
+            while True:
+                candidate = Resident(
+                    name=f"Prefix Audit Resident {len(extra_residents)}",
+                    active=True,
+                )
+                db.session.add(candidate)
+                db.session.flush()
+                extra_residents.append(candidate)
+
+                if target_id_min <= candidate.id <= target_id_max:
+                    matching_resident = candidate
+                    break
+                if candidate.id > target_id_max:
+                    break
+
+            assert matching_resident is not None
+
+            role = Role(
+                name=f"False Positive Role {matching_resident.id}",
+                cutoff_hour=17,
+                display_order=999,
+            )
+            db.session.add(role)
+            db.session.flush()
+
+            entry = TimeEntry(
+                date=sample_time_entry.date,
+                resident_id=matching_resident.id,
+                role_id=role.id,
+            )
+            db.session.add(entry)
+            db.session.commit()
+
+            log_create(
+                "TimeEntry",
+                entry.id,
+                {
+                    "resident_id": matching_resident.id,
+                    "resident": matching_resident.name,
+                    "role": role.name,
+                    "date": entry.date.isoformat(),
+                },
+            )
+
+            response = client.get(f"/residents/{sample_resident.id}/profile")
+            assert response.status_code == 200
+            assert role.name.encode() not in response.data
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="TimeEntry",
+                    entity_id=entry.id,
+                    action="CREATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            if log:
+                db.session.delete(log)
+            db.session.delete(entry)
+            db.session.delete(role)
+            for resident in reversed(extra_residents):
+                db.session.delete(resident)
+            db.session.commit()

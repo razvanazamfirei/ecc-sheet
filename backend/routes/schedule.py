@@ -9,11 +9,16 @@ from logging import Logger
 import requests
 from flask import Blueprint, current_app, flash, redirect, url_for
 
-from ..audit import log_import
+from ..audit import log_create_strict, log_import_strict, log_update_strict
+from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Resident, Role, TimeEntry, db
 
+from ..type_defs import ScheduleImportResult
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
+
+LATE_ROLE_NAMES = frozenset({"Late Late 1", "Late Late 2"})
+WEEKDAY_BACKUP_ROLE_NAMES = frozenset({"Backup"})
 
 
 @bp.route("/<date_str>/import", methods=["POST"])
@@ -80,20 +85,94 @@ def import_schedule(date_str):
             "Cardiac Backup": "Cardiac Backup",
         }
 
-        entries_created = _process_entries(data_lines, role_mapping, sheet_date)
+        import_result = _process_entries(data_lines, role_mapping, sheet_date)
+        db.session.flush()
 
-        db.session.commit()
+        for resident in import_result["created_residents"]:
+            log_create_strict(
+                "Resident",
+                resident.id,
+                {
+                    "name": resident.name,
+                    "epic_id": resident.epic_id,
+                    "date": date_str,
+                    "source": "schedule_import",
+                },
+            )
+        for resident, changes in import_result["updated_residents"]:
+            log_update_strict(
+                "Resident",
+                resident.id,
+                changes=changes,
+                details={
+                    "name": resident.name,
+                    "date": date_str,
+                    "source": "schedule_import",
+                },
+            )
+        for entry in import_result["created_entries"]:
+            log_create_strict(
+                "TimeEntry",
+                entry.id,
+                {
+                    "date": date_str,
+                    "resident_id": entry.resident_id,
+                    "resident": (
+                        entry.resident.name if entry.resident else entry.resident_id
+                    ),
+                    "role": entry.role.name if entry.role else entry.role_id,
+                    "source": "schedule_import",
+                },
+            )
 
         # Log the import
-        log_import(
+        log_import_strict(
             "Schedule",
-            f"Date: {date_str}, Entries created: {entries_created}",
+            (
+                f"Date: {date_str}, "
+                f"Entries created: {import_result['entries_created']}, "
+                f"Residents created: {len(import_result['created_residents'])}, "
+                f"Residents updated: {len(import_result['updated_residents'])}, "
+                f"Unknown residents skipped: "
+                f"{import_result['skipped_unknown_residents']}, "
+                f"Weekday backups skipped: {import_result['skipped_weekday_backups']}"
+            ),
         )
+        db.session.commit()
 
-        if entries_created > 0:
+        if import_result["entries_created"] > 0:
+            message = (
+                "Successfully imported "
+                f"{import_result['entries_created']} schedule entries from Amion"
+            )
+            if import_result["skipped_unknown_residents"] > 0:
+                message += (
+                    f" ({import_result['skipped_unknown_residents']} rows skipped "
+                    "for unknown residents)"
+                )
             flash(
-                f"Successfully imported {entries_created} schedule entries from Amion",
+                message,
                 "success",
+            )
+        elif (
+            import_result["skipped_unknown_residents"] > 0
+            or import_result["skipped_weekday_backups"] > 0
+        ):
+            skipped_messages: list[str] = []
+            if import_result["skipped_unknown_residents"] > 0:
+                skipped_messages.append(
+                    f"{import_result['skipped_unknown_residents']} rows were skipped "
+                    "because the resident was not found."
+                )
+            if import_result["skipped_weekday_backups"] > 0:
+                skipped_messages.append(
+                    f"{import_result['skipped_weekday_backups']} rows were skipped "
+                    "by weekday-backup rules because the resident also had a "
+                    "Late assignment."
+                )
+            flash(
+                f"No new entries imported. {' '.join(skipped_messages)}",
+                "info",
             )
         else:
             flash("No new entries to import (entries may already exist)", "info")
@@ -110,44 +189,129 @@ def import_schedule(date_str):
     return redirect(url_for("sheets.view", date_str=date_str))
 
 
+def _normalize_epic_id(raw: str) -> str | None:
+    """Extract an EPIC ID from a raw schedule cell."""
+    if raw.startswith("EPICID:"):
+        return raw.removeprefix("EPICID:")
+    return None
+
+
+def _resident_keys(resident_name: str, epic_id: str | None) -> set[tuple[str, str]]:
+    """Return normalized identifiers for matching a resident across rows."""
+    keys: set[tuple[str, str]] = set()
+    normalized_name = resident_name.casefold().strip()
+    if normalized_name:
+        keys.add(("name", normalized_name))
+    if epic_id:
+        keys.add(("epic_id", epic_id))
+    return keys
+
+
+def _collect_late_assignment_keys(data_lines: list[list[str]]) -> set[tuple[str, str]]:
+    """Return resident identifiers assigned to late roles in the import."""
+    late_assignment_keys: set[tuple[str, str]] = set()
+    for line in data_lines:
+        resident_name = line[0].strip('"').strip()
+        epic_id = _normalize_epic_id(line[1].strip('"').strip())
+        assignment_name = line[3].strip('"').strip()
+        if assignment_name in LATE_ROLE_NAMES:
+            late_assignment_keys.update(_resident_keys(resident_name, epic_id))
+    return late_assignment_keys
+
+
 def _process_entries(
     data_lines: list[list[str]],
     role_mapping: dict[str, str],
     sheet_date: date,
-) -> int:
+) -> ScheduleImportResult:
     """Process CSV lines and create time entries."""
     entries_created = 0
+    created_residents: list[Resident] = []
+    updated_residents: list[tuple[Resident, dict[str, dict[str, str | None]]]] = []
+    created_entries: list[TimeEntry] = []
+    skipped_weekday_backups = 0
+    skipped_unknown_residents = 0
+    skip_weekday_backups = not is_weekend_or_holiday(sheet_date)
+    late_assignment_keys = (
+        _collect_late_assignment_keys(data_lines) if skip_weekday_backups else set()
+    )
 
     for line in data_lines:
-        resident_name = line[0].strip('"')
-        epic_id_raw = line[1].strip('"')
-        assignment_name = line[3].strip('"')
-
-        # Extract EPIC ID (e.g., "EPICID:R103348" -> "R103348")
-        epic_id = None
-        if epic_id_raw.startswith("EPICID:"):
-            epic_id = epic_id_raw.replace("EPICID:", "")
+        resident_name = line[0].strip('"').strip()
+        epic_id = _normalize_epic_id(line[1].strip('"').strip())
+        assignment_name = line[3].strip('"').strip()
 
         # Check if this is a role we care about
         if assignment_name in role_mapping:
-            # Find or create resident by EPIC ID first, then by name
+            if (
+                skip_weekday_backups
+                and assignment_name in WEEKDAY_BACKUP_ROLE_NAMES
+                and late_assignment_keys.intersection(
+                    _resident_keys(resident_name, epic_id)
+                )
+            ):
+                skipped_weekday_backups += 1
+                logger.info(
+                    (
+                        "Skipping weekday %s import for %s on %s because "
+                        "the resident is also assigned to a Late role"
+                    ),
+                    assignment_name,
+                    resident_name,
+                    sheet_date,
+                )
+                continue
+
+            # Find resident by EPIC ID first, then by name.
             resident = None
             if epic_id:
                 resident = Resident.query.filter_by(epic_id=epic_id).first()
 
             if not resident:
                 resident = Resident.query.filter_by(name=resident_name).first()
+                if (
+                    resident
+                    and epic_id
+                    and resident.epic_id
+                    and resident.epic_id != epic_id
+                ):
+                    skipped_unknown_residents += 1
+                    logger.info(
+                        (
+                            "Skipping schedule row for resident name/EPIC "
+                            "conflict: %s (row EPIC ID: %s, existing resident "
+                            "EPIC ID: %s)"
+                        ),
+                        resident_name,
+                        epic_id,
+                        resident.epic_id,
+                    )
+                    continue
 
             if not resident:
-                resident = Resident(name=resident_name, epic_id=epic_id, active=True)
-                db.session.add(resident)
-                db.session.flush()  # Get the ID
-                logger.info(
-                    "Created new resident: %s (EPIC ID: %s)", resident_name, epic_id
-                )
-            elif not resident.epic_id and epic_id:
+                if resident_name and not epic_id:
+                    resident = Resident(name=resident_name, active=True)
+                    db.session.add(resident)
+                    db.session.flush()
+                    created_residents.append(resident)
+                    logger.info(
+                        "Created resident during schedule import: %s (no EPIC ID)",
+                        resident_name,
+                    )
+                else:
+                    skipped_unknown_residents += 1
+                    logger.info(
+                        "Skipping schedule row for unknown resident: %s (EPIC ID: %s)",
+                        resident_name,
+                        epic_id,
+                    )
+                    continue
+            if not resident.epic_id and epic_id:
                 # Update existing resident with EPIC ID if missing
                 resident.epic_id = epic_id
+                updated_residents.append(
+                    (resident, {"epic_id": {"old": None, "new": epic_id}})
+                )
                 logger.info(
                     "Updated resident %s with EPIC ID: %s", resident_name, epic_id
                 )
@@ -172,6 +336,14 @@ def _process_entries(
                     exit_time=None,
                 )
                 db.session.add(entry)
+                created_entries.append(entry)
                 entries_created += 1
 
-    return entries_created
+    return {
+        "entries_created": entries_created,
+        "created_residents": created_residents,
+        "updated_residents": updated_residents,
+        "created_entries": created_entries,
+        "skipped_unknown_residents": skipped_unknown_residents,
+        "skipped_weekday_backups": skipped_weekday_backups,
+    }

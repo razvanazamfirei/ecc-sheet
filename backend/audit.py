@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from flask import has_request_context, request
-from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import get_current_user
 from .models import AuditLog, db
@@ -34,12 +33,14 @@ def get_client_ip() -> str | None:
     return request.remote_addr
 
 
-def log_action(
+def _log_action(
     action: str,
     entity_type: str,
     entity_id: int | None = None,
     details: Mapping[str, Any] | None = None,
     user: str | None = None,
+    *,
+    strict: bool = False,
 ) -> None:
     """
     Log an action to the audit trail.
@@ -50,30 +51,64 @@ def log_action(
         entity_id: ID of the entity being modified
         details: Dictionary of additional details to log
         user: User performing the action (defaults to current user)
+        strict: Whether to re-raise database/logging failures
     """
+    details_json = json.dumps(details) if details else None
     try:
-        audit_entry = AuditLog(
-            timestamp=datetime.now(UTC),
-            user=user or get_current_user(),
-            action=action,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            details=json.dumps(details) if details else None,
-            ip_address=get_client_ip(),
-        )
-        db.session.add(audit_entry)
-        db.session.flush()
-    except SQLAlchemyError:
-        # Don't let audit logging break the main flow; the caller's transaction
-        # controls commit/rollback.
+        audit_values = {
+            "timestamp": datetime.now(UTC),
+            "user": user or get_current_user(),
+            "action": action,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "details": details_json,
+            "ip_address": get_client_ip(),
+        }
+        db.session.execute(AuditLog.__table__.insert().values(**audit_values))
+    except Exception:
         logger.exception("Audit logging failed")
+        if strict:
+            raise
+
+
+def log_action(
+    action: str,
+    entity_type: str,
+    entity_id: int | None = None,
+    details: Mapping[str, Any] | None = None,
+    user: str | None = None,
+) -> None:
+    """Log an action to the audit trail without interrupting the caller."""
+    _log_action(action, entity_type, entity_id, details, user)
+
+
+def log_action_strict(
+    action: str,
+    entity_type: str,
+    entity_id: int | None = None,
+    details: Mapping[str, Any] | None = None,
+    user: str | None = None,
+) -> None:
+    """Log an action and re-raise failures so the caller can roll back."""
+    _log_action(action, entity_type, entity_id, details, user, strict=True)
 
 
 def log_create(
-    entity_type: str, entity_id: int, details: Mapping[str, Any] | None = None
+    entity_type: str,
+    entity_id: int,
+    details: Mapping[str, Any] | None = None,
 ) -> None:
     """Log a CREATE action"""
     log_action("CREATE", entity_type, entity_id, details)
+
+
+def log_create_strict(
+    entity_type: str,
+    entity_id: int,
+    details: Mapping[str, Any] | None = None,
+) -> None:
+    """Log a CREATE action and re-raise failures."""
+    log_action_strict("CREATE", entity_type, entity_id, details)
 
 
 def log_update(
@@ -89,17 +124,47 @@ def log_update(
     log_action("UPDATE", entity_type, entity_id, merged_details or None)
 
 
+def log_update_strict(
+    entity_type: str,
+    entity_id: int,
+    changes: Mapping[str, Any] | None = None,
+    details: Mapping[str, Any] | None = None,
+) -> None:
+    """Log an UPDATE action and re-raise failures."""
+    merged_details = dict(details) if details else {}
+    if changes:
+        merged_details["changes"] = dict(changes)
+    log_action_strict("UPDATE", entity_type, entity_id, merged_details or None)
+
+
 def log_delete(
-    entity_type: str, entity_id: int, details: Mapping[str, Any] | None = None
+    entity_type: str,
+    entity_id: int,
+    details: Mapping[str, Any] | None = None,
 ) -> None:
     """Log a DELETE action"""
     log_action("DELETE", entity_type, entity_id, details)
+
+
+def log_delete_strict(
+    entity_type: str,
+    entity_id: int,
+    details: Mapping[str, Any] | None = None,
+) -> None:
+    """Log a DELETE action and re-raise failures."""
+    log_action_strict("DELETE", entity_type, entity_id, details)
 
 
 def log_lock(sheet_date: str, *, locked: bool) -> None:
     """Log a lock/unlock action"""
     action = "LOCK" if locked else "UNLOCK"
     log_action(action, "DailySheet", details={"date": sheet_date})
+
+
+def log_lock_strict(sheet_date: str, *, locked: bool) -> None:
+    """Log a lock/unlock action and re-raise failures."""
+    action = "LOCK" if locked else "UNLOCK"
+    log_action_strict(action, "DailySheet", details={"date": sheet_date})
 
 
 def log_import(
@@ -118,6 +183,22 @@ def log_import(
         entity_id: Optional entity ID if applicable
     """
     log_action(
+        "IMPORT",
+        import_type,
+        entity_id=entity_id,
+        details={"info": details_str},
+        user=user,
+    )
+
+
+def log_import_strict(
+    import_type: str,
+    details_str: str,
+    user: str | None = None,
+    entity_id: int | None = None,
+) -> None:
+    """Log an import action and re-raise failures."""
+    log_action_strict(
         "IMPORT",
         import_type,
         entity_id=entity_id,

@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.audit import (
@@ -9,6 +10,7 @@ from backend.audit import (
     get_client_ip,
     get_entity_history,
     log_action,
+    log_action_strict,
     log_create,
     log_delete,
     log_import,
@@ -260,6 +262,22 @@ class TestAuditLogModel:
             db.session.delete(log_entry)
             db.session.commit()
 
+    def test_audit_log_uses_caller_transaction(self, app):
+        """Test audit rows roll back with the caller transaction."""
+        with app.app_context():
+            log_action(
+                action="CREATE",
+                entity_type="RollbackTest",
+                entity_id=1,
+                details={"state": "pending"},
+                user="Rollback User",
+            )
+
+            db.session.rollback()
+
+            log_entry = AuditLog.query.filter_by(entity_type="RollbackTest").first()
+            assert log_entry is None
+
 
 class TestGetClientIP:
     """Tests for get_client_ip function."""
@@ -298,8 +316,8 @@ class TestLogActionExceptionHandling:
 
     def test_log_action_handles_db_error(self, app):
         """Test that log_action handles database errors gracefully."""
-        with app.app_context(), patch.object(db.session, "flush") as mock_flush:
-            mock_flush.side_effect = SQLAlchemyError("Database error")
+        with app.app_context(), patch.object(db.session, "execute") as mock_execute:
+            mock_execute.side_effect = SQLAlchemyError("Database error")
 
             # Should not raise an exception
             log_action("TEST", "TestEntity", entity_id=1, details={})
@@ -309,14 +327,28 @@ class TestLogActionExceptionHandling:
         (caller controls transaction)."""
         with (
             app.app_context(),
-            patch.object(db.session, "flush") as mock_flush,
+            patch.object(db.session, "execute") as mock_execute,
             patch.object(db.session, "rollback") as mock_rollback,
         ):
-            mock_flush.side_effect = SQLAlchemyError("Database error")
+            mock_execute.side_effect = SQLAlchemyError("Database error")
 
             log_action("TEST", "TestEntity", entity_id=1, details={})
 
             mock_rollback.assert_not_called()
+
+    def test_log_action_raises_when_requested(self, app):
+        """Test that strict audit logging re-raises database errors."""
+        with app.app_context(), patch.object(db.session, "execute") as mock_execute:
+            mock_execute.side_effect = SQLAlchemyError("Database error")
+
+            with pytest.raises(SQLAlchemyError) as excinfo:
+                log_action_strict(
+                    "TEST",
+                    "TestEntity",
+                    entity_id=1,
+                    details={},
+                )
+            assert "Database error" in str(excinfo.value)
 
 
 class TestGetAuditTrail:
