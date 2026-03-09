@@ -90,9 +90,17 @@ Create a `.env` file in the project root:
 SECRET_KEY=your-secret-key-here
 DATABASE_URL=sqlite:///ecc_sheet.db
 USER_NAME=Admin
+AUTH_PROXY_USERNAME_HEADER=X-Auth-User
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_HTTPONLY=true
+SESSION_COOKIE_SAMESITE=Lax
 
 # Admin access (comma-separated list)
 ADMIN_USERS=Admin,John Doe,Jane Smith
+
+# Optional: users allowed to pick any resident in reports without unlocking
+# billing/payroll/email actions
+REPORT_VIEW_ALL_USERS=
 
 # Email Configuration (for reports)
 EMAIL_HOST=smtp.example.com
@@ -110,6 +118,18 @@ PORT=5000
 ```
 
 See `.env.example` for a complete template.
+
+## Demo Deployment
+
+For a server-hosted demo with:
+
+- reverse-proxy username auth
+- resident switching in reports
+- owner-only billing/payroll/email/admin access
+- `systemd` startup
+- SSH copy instead of `git clone`
+
+see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Tech Stack
 
@@ -249,6 +269,9 @@ The application uses environment-based authentication:
 - **User Identity**: Set via `USER_NAME` environment variable
 - **Admin Access**: Controlled by `ADMIN_USERS` (comma-separated list)
 - **External Auth**: Designed to work with SSO or reverse proxy
+
+When `AUTH_PROXY_USERNAME_HEADER` is configured, requests that do not include
+that header are rejected instead of silently falling back to `USER_NAME`.
 
 Authentication must be handled externally (e.g., institutional SSO, reverse proxy).
 

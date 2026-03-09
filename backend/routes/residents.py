@@ -191,6 +191,7 @@ def profile(resident_id):
     if resident is None:
         abort(404)
 
+    show_sensitive_ids = is_admin()
     show_hours = is_admin() or is_first_call()
     show_audit = is_admin()
 
@@ -230,6 +231,7 @@ def profile(resident_id):
     return render_template(
         "resident_profile.html",
         resident=resident,
+        show_sensitive_ids=show_sensitive_ids,
         show_hours=show_hours,
         show_audit=show_audit,
         recent_entries=recent_entries,

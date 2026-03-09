@@ -33,7 +33,7 @@ class TestFetchStaffList:
 
         assert "Staff type" in result
         mock_get.assert_called_once_with(
-            "http://www.amion.com/cgi-bin/ocs?Lo=testcode&Rpt=706", timeout=30
+            "https://www.amion.com/cgi-bin/ocs?Lo=testcode&Rpt=706", timeout=30
         )
 
     @patch("backend.staff_import.requests.get")

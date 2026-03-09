@@ -16,6 +16,7 @@ import requests
 from email_validator import EmailNotValidError, validate_email
 
 from backend.audit import log_create, log_import, log_update
+from backend.config import Config
 from backend.errors import ValidationError
 from backend.models import Resident, db
 from backend.type_defs import ImportResult, StaffList, StaffRecord
@@ -48,7 +49,7 @@ def fetch_staff_list(schedule_code: str) -> str:
     Raises:
         requests.RequestException: If the API request fails
     """
-    url = f"http://www.amion.com/cgi-bin/ocs?Lo={schedule_code}&Rpt=706"
+    url = f"{Config.AMION_BASE_URL}?Lo={schedule_code}&Rpt=706"
     response = requests.get(url, timeout=30)
     response.raise_for_status()
 
@@ -115,7 +116,7 @@ def parse_staff_list(csv_content: str) -> StaffList:
                 try:
                     validated_email = validate_email(
                         raw_email, check_deliverability=False
-                    ).normalized
+                    ).normalized.lower()
                 except EmailNotValidError:
                     logger.warning(
                         "Invalid email %r for %r discarded during staff import",

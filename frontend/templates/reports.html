@@ -40,7 +40,7 @@
               required />
           </div>
 
-          {% if can_view_all %}
+          {% if can_filter_reports %}
             <div class="col-md-4">
               <label for="resident_filter" class="form-label">Resident</label>
               <select
@@ -55,7 +55,7 @@
               type="hidden"
               name="resident_id"
               value="{{ current_resident_id or '' }}" />
-            <div class="col-md-4 d-flex align-items-end">
+            <div class="form-control col-md-4 d-flex align-items-end">
               <p class="text-muted mb-0">
                 <i class="bi bi-person-lock me-1"></i>Showing your entries only
               </p>

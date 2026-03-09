@@ -10,10 +10,11 @@ import requests
 from flask import Blueprint, current_app, flash, redirect, url_for
 
 from ..audit import log_create_strict, log_import_strict, log_update_strict
+from ..auth import is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Resident, Role, TimeEntry, db
-
 from ..type_defs import ScheduleImportResult
+
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
 
@@ -27,6 +28,13 @@ def import_schedule(date_str):
     try:
         sheet_date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
 
+        if not (is_admin() or is_first_call(sheet_date)):
+            flash(
+                "Only the first call resident or an admin can import schedules.",
+                "error",
+            )
+            return redirect(url_for("sheets.view", date_str=date_str))
+
         # Check if sheet is locked
         daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
         if daily_sheet and daily_sheet.locked:
@@ -35,11 +43,16 @@ def import_schedule(date_str):
 
         # Get schedule code from config
         schedule_code = current_app.config.get("AMION_SCHEDULE_CODE", "upennane")
+        amion_base_url = current_app.config.get(
+            "AMION_BASE_URL", "https://www.amion.com/cgi-bin/ocs"
+        ).strip()
 
         # Construct Amion URL
         day = sheet_date.day
         month = sheet_date.month
-        amion_url = f"http://www.amion.com/cgi-bin/ocs?Lo={schedule_code}&Rpt=619&Day={day}&Month={month}"
+        amion_url = (
+            f"{amion_base_url}?Lo={schedule_code}&Rpt=619&Day={day}&Month={month}"
+        )
 
         # Fetch data from Amion
         logger.info("Fetching schedule from Amion: %s", amion_url)

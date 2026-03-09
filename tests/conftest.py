@@ -37,6 +37,7 @@ def app() -> Iterator[Flask]:
             "SQLALCHEMY_DATABASE_URI": os.environ["DATABASE_URL"],
             "WTF_CSRF_ENABLED": False,  # Disable CSRF for testing
             "SECRET_KEY": "test-secret-key",
+            "AUTH_PROXY_USERNAME_HEADER": "",
         }
     )
 
