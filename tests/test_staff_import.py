@@ -21,7 +21,7 @@ class TestFetchStaffList:
     """Tests for fetch_staff_list function."""
 
     @patch("backend.staff_import.requests.get")
-    def test_fetch_success(self, mock_get):
+    def test_fetch_success(self, mock_get, app):
         """Test successful staff list fetch."""
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -29,7 +29,8 @@ class TestFetchStaffList:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        result = fetch_staff_list("testcode")
+        with app.app_context():
+            result = fetch_staff_list("testcode")
 
         assert "Staff type" in result
         mock_get.assert_called_once_with(
@@ -37,7 +38,7 @@ class TestFetchStaffList:
         )
 
     @patch("backend.staff_import.requests.get")
-    def test_fetch_with_custom_schedule_code(self, mock_get):
+    def test_fetch_with_custom_schedule_code(self, mock_get, app):
         """Test fetch with custom schedule code."""
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -45,29 +46,58 @@ class TestFetchStaffList:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        fetch_staff_list(schedule_code="custom")
+        with app.app_context():
+            fetch_staff_list(schedule_code="custom")
 
         call_url = mock_get.call_args[0][0]
         assert "Lo=custom" in call_url
         assert "Rpt=706" in call_url
 
     @patch("backend.staff_import.requests.get")
-    def test_fetch_network_error(self, mock_get):
+    def test_fetch_network_error(self, mock_get, app):
         """Test network error handling."""
         mock_get.side_effect = requests.RequestException("Network error")
 
-        with pytest.raises(requests.RequestException, match="Network error"):
+        with app.app_context(), pytest.raises(
+            requests.RequestException, match="Network error"
+        ):
             fetch_staff_list("testcode")
 
     @patch("backend.staff_import.requests.get")
-    def test_fetch_http_error(self, mock_get):
+    def test_fetch_http_error(self, mock_get, app):
         """Test HTTP error handling via raise_for_status."""
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = requests.HTTPError("404 Not Found")
         mock_get.return_value = mock_response
 
-        with pytest.raises(requests.HTTPError, match="404 Not Found"):
+        with app.app_context(), pytest.raises(
+            requests.HTTPError, match="404 Not Found"
+        ):
             fetch_staff_list("testcode")
+
+    @patch("backend.staff_import.requests.get")
+    def test_fetch_uses_runtime_app_config_base_url(self, mock_get, app):
+        """Test fetch reads the Amion base URL from app config at runtime."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        original_base_url = app.config.get("AMION_BASE_URL")
+        try:
+            with app.app_context():
+                app.config["AMION_BASE_URL"] = "https://amion.example.test/custom"
+                fetch_staff_list("testcode")
+        finally:
+            if original_base_url is None:
+                app.config.pop("AMION_BASE_URL", None)
+            else:
+                app.config["AMION_BASE_URL"] = original_base_url
+
+        mock_get.assert_called_once_with(
+            "https://amion.example.test/custom?Lo=testcode&Rpt=706", timeout=30
+        )
 
 
 @pytest.mark.unit

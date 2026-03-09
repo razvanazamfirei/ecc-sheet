@@ -74,6 +74,7 @@ ADMIN_USERS=Razvan Azamfirei
 PAYROLL_ADMIN_USERS=Razvan Azamfirei
 REPORT_VIEW_ALL_USERS=*
 
+AMION_SCHEDULE_CODE=<your_schedule_code>
 TIMEZONE=America/New_York
 FLASK_ENV=production
 PORT=5000
@@ -84,7 +85,8 @@ What this does:
 - Any authenticated demo user can pick any resident on the reports page.
 - Only `Razvan Azamfirei` gets billing, payroll, email, admin, and audit access.
 - The reverse proxy tells Flask who the current user is using `X-Auth-User`.
-- Requests that reach Flask without `X-Auth-User` are rejected.
+- `AMION_SCHEDULE_CODE` overrides the default in `backend/config.py` so schedule and staff imports target your intended Amion schedule.
+- The reverse proxy must enforce authentication and set `X-Auth-User`; if that header is absent, `backend/auth.py:get_current_user()` returns an empty username rather than Flask rejecting the request on its own.
 
 ## Install the systemd Service
 

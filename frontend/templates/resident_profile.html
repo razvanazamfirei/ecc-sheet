@@ -76,7 +76,7 @@
           <span class="text-muted small d-block">Abbreviation</span>
           {{ resident.abbreviation or '-' }}
         </div>
-        {% if show_sensitive_ids %}
+        {% if show_sensitive_fields %}
           <div class="col-md-4">
             <span class="text-muted small d-block">Hire Date</span>
             {{ resident.hire_date.strftime('%B %d, %Y') if resident.hire_date else '-' }}

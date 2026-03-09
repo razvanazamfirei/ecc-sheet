@@ -1,5 +1,6 @@
 from logging import Logger
 from pathlib import Path
+from urllib.parse import urlparse
 
 from flask import Flask, flash, jsonify, redirect, request, session, url_for
 from flask_migrate import Migrate
@@ -58,6 +59,27 @@ def _authentication_required_response():
     return message, 401
 
 
+def _safe_redirect_target(target: str, default: str) -> str:
+    """Return a safe redirect target limited to this site, or a default."""
+    if not target:
+        return default
+
+    # Normalize backslashes which some browsers accept as path separators
+    normalized = target.replace("\\", "")
+    parsed = urlparse(normalized)
+
+    # Allow relative URLs (no scheme or netloc)
+    if not parsed.scheme and not parsed.netloc:
+        return normalized
+
+    # Allow absolute URLs only if they point back to this host
+    if parsed.netloc == request.host:
+        return normalized
+
+    # Fallback to the internal default
+    return default
+
+
 # Setup logging
 logger: Logger = setup_logging()
 
@@ -99,7 +121,7 @@ def require_authenticated_request():
     if not proxy_header or _mock_users_enabled() or request.endpoint == "static":
         return None
 
-    if request.headers.get(proxy_header, "").strip():
+    if get_current_user():
         return None
 
     return _authentication_required_response()
@@ -155,7 +177,8 @@ def handle_csrf_error(error: CSRFError):
         return jsonify({"success": False, "message": message}), 400
 
     flash(message, "error")
-    return redirect(request.referrer or url_for("sheets.index"))
+    safe_target = _safe_redirect_target(request.referrer, url_for("sheets.index"))
+    return redirect(safe_target)
 
 
 @app.after_request

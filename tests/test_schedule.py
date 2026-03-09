@@ -553,7 +553,7 @@ class TestScheduleImport:
             db.session.commit()
 
     @patch("backend.routes.schedule.requests.get")
-    def test_import_creates_new_resident_without_epic_id(
+    def test_import_creates_name_only_resident_and_audit_logs_it(
         self, mock_get, client, app
     ):
         """Test import creates a resident when a matching name-only row is new."""

@@ -10,7 +10,7 @@ from backend.models import DailySheet, Resident, Role, TimeEntry, db
 class TestScheduleImportSecurity:
     """Tests covering schedule import security behavior."""
 
-    def test_import_requires_editor_role(self, client, app):
+    def test_import_requires_editor_role(self, client):
         """Regular non-editor users cannot trigger schedule imports."""
         original_admin_users = os.environ.get("ADMIN_USERS", "")
         original_user_name = os.environ.get("USER_NAME", "")

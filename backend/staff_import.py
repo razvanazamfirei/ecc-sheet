@@ -14,9 +14,9 @@ from typing import Any
 
 import requests
 from email_validator import EmailNotValidError, validate_email
+from flask import current_app
 
 from backend.audit import log_create, log_import, log_update
-from backend.config import Config
 from backend.errors import ValidationError
 from backend.models import Resident, db
 from backend.type_defs import ImportResult, StaffList, StaffRecord
@@ -36,6 +36,14 @@ def _clean_cell(value: str | None) -> str:
     return value.strip() if value else ""
 
 
+def _get_amion_base_url() -> str:
+    """Return the Amion base URL from the active Flask config."""
+    return str(
+        current_app.config.get("AMION_BASE_URL", "https://www.amion.com/cgi-bin/ocs")
+        or ""
+    ).strip()
+
+
 def fetch_staff_list(schedule_code: str) -> str:
     """
     Fetch staff list from Amion API.
@@ -49,7 +57,7 @@ def fetch_staff_list(schedule_code: str) -> str:
     Raises:
         requests.RequestException: If the API request fails
     """
-    url = f"{Config.AMION_BASE_URL}?Lo={schedule_code}&Rpt=706"
+    url = f"{_get_amion_base_url()}?Lo={schedule_code}&Rpt=706"
     response = requests.get(url, timeout=30)
     response.raise_for_status()
 

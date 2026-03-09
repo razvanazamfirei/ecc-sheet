@@ -169,7 +169,7 @@
         </button>
       </form>
 
-      {% if can_view_all %}
+      {% if can_use_extended_reports %}
         <form
           method="POST"
           action="{{ url_for('reports.export_billing_csv') }}"
@@ -215,7 +215,7 @@
         </form>
       {% endif %}
 
-      {% if can_view_all %}
+      {% if can_use_extended_reports %}
         <button
           type="button"
           class="btn btn-info"
@@ -230,7 +230,7 @@
       </button>
     </div>
 
-    {% if can_view_all %}
+    {% if can_use_extended_reports %}
       <!-- Email Report Modal -->
       <div
         class="modal fade"

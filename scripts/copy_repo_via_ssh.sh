@@ -20,6 +20,11 @@ Examples:
 EOF
 }
 
+escape_remote_shell_arg() {
+  local value="$1"
+  printf "'%s'" "${value//\'/\'\"\'\"\'}"
+}
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   usage
   exit 0
@@ -111,11 +116,13 @@ if [[ "$delete_remote" == "true" ]]; then
   rsync_args+=(--delete)
 fi
 
+escaped_remote_dir="$(escape_remote_shell_arg "$remote_dir")"
+
 echo "Creating remote directory ${remote_dir} on ${target_host}"
-ssh -p "$ssh_port" "$target_host" "mkdir -p '$remote_dir'"
+ssh -p "$ssh_port" "$target_host" "mkdir -p -- $escaped_remote_dir"
 
 echo "Syncing ${repo_root} to ${target_host}:${remote_dir}"
 rsync "${rsync_args[@]}" -e "ssh -p ${ssh_port}" \
-  "${repo_root}/" "${target_host}:${remote_dir}/"
+  "${repo_root}/" "${target_host}:$escaped_remote_dir/"
 
 echo "Copy complete"

@@ -606,6 +606,24 @@ class TestReportRestriction:
         assert response.status_code == 200
         assert sample_resident.name.encode() in response.data
 
+    def test_admin_sees_extended_actions_in_report_results(
+        self, client, app, sample_time_entry
+    ):
+        """Admins keep access to extended report actions in the results view."""
+        with app.app_context():
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            date_str = entry.date.strftime("%Y-%m-%d")
+
+        response = client.post(
+            "/api/report",
+            data={"start_date": date_str, "end_date": date_str},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Export Billing CSV" in response.data
+        assert b"Export Payroll XLSX" in response.data
+        assert b"Email Report" in response.data
+
     def test_report_generation_forces_resident_id_for_restricted(
         self, client, app, sample_time_entry, sample_resident, monkeypatch
     ):
