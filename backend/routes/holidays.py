@@ -4,7 +4,7 @@ from datetime import datetime
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
-from ..audit import log_create, log_delete
+from ..audit import log_create, log_delete, log_import
 from ..auth import admin_required
 from ..holidays import get_federal_holidays
 from ..models import Holiday, db
@@ -67,12 +67,13 @@ def delete(holiday_id):
         abort(404)
 
     try:
-        log_delete(
-            "Holiday", holiday.id, {"date": str(holiday.date), "name": holiday.name}
-        )
+        log_details = {"date": str(holiday.date), "name": holiday.name}
+        deleted_holiday_id = holiday.id
+        deleted_holiday_name = holiday.name
         db.session.delete(holiday)
         db.session.commit()
-        flash(f"Holiday '{holiday.name}' deleted successfully", "success")
+        log_delete("Holiday", deleted_holiday_id, log_details)
+        flash(f"Holiday '{deleted_holiday_name}' deleted successfully", "success")
 
     except Exception as e:
         db.session.rollback()
@@ -88,6 +89,7 @@ def refresh_federal():
     try:
         current_year = get_effective_date().year
         added = 0
+        created_holidays: list[Holiday] = []
 
         for year in [current_year, current_year + 1]:
             for holiday_date, holiday_name in get_federal_holidays(year):
@@ -98,9 +100,30 @@ def refresh_federal():
                         is_federal=True,
                     )
                     db.session.add(holiday)
+                    created_holidays.append(holiday)
                     added += 1
 
         db.session.commit()
+
+        if added > 0:
+            for holiday in created_holidays:
+                log_create(
+                    "Holiday",
+                    holiday.id,
+                    {
+                        "date": holiday.date.isoformat(),
+                        "name": holiday.name,
+                        "is_federal": holiday.is_federal,
+                        "source": "federal_refresh",
+                    },
+                )
+            log_import(
+                "Holiday",
+                (
+                    f"Refreshed federal holidays for {current_year} and "
+                    f"{current_year + 1}; added {added}"
+                ),
+            )
 
         if added > 0:
             flash(f"Added {added} federal holidays", "success")

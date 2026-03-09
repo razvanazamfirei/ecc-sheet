@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from backend.models import Resident, db
+from backend.audit import log_create
+from backend.models import AuditLog, Resident, db
 
 
 class TestResidentsIndex:
@@ -632,6 +633,41 @@ class TestResidentProfile:
             response = client.get(f"/residents/{sample_resident.id}/profile")
             assert response.status_code == 200
             assert b"Recent Audit Activity" in response.data
+
+    def test_profile_shows_related_time_entry_audit_logs(
+        self, client, app, sample_time_entry, sample_resident
+    ):
+        """Test resident profile includes related time-entry audit logs."""
+        with app.app_context():
+            assert sample_time_entry.resident_id == sample_resident.id
+            log_create(
+                "TimeEntry",
+                sample_time_entry.id,
+                {
+                    "resident_id": sample_resident.id,
+                    "resident": sample_resident.name,
+                    "role": sample_time_entry.role.name,
+                    "date": sample_time_entry.date.isoformat(),
+                },
+            )
+
+            response = client.get(f"/residents/{sample_resident.id}/profile")
+            assert response.status_code == 200
+            assert sample_time_entry.role.name.encode() in response.data
+            assert b"Time Entry" in response.data
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="TimeEntry",
+                    entity_id=sample_time_entry.id,
+                    action="CREATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            if log:
+                db.session.delete(log)
+                db.session.commit()
 
     def test_profile_hides_audit_for_regular_user(self, client, app, sample_resident):
         """Test that audit section is hidden for non-admin users."""

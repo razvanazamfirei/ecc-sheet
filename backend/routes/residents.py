@@ -14,6 +14,7 @@ from flask import (
     request,
     url_for,
 )
+from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
@@ -202,10 +203,19 @@ def profile(resident_id):
         else None
     )
 
+    resident_id_fragment = f'"resident_id": {resident_id}'
+    resident_name_fragment = f'"resident": {json.dumps(resident.name)}'
     audit_logs = (
         AuditLog.query.filter(
-            AuditLog.entity_type == "Resident",
-            AuditLog.entity_id == resident_id,
+            or_(
+                (AuditLog.entity_type == "Resident")
+                & (AuditLog.entity_id == resident_id),
+                (AuditLog.entity_type == "TimeEntry")
+                & (
+                    AuditLog.details.contains(resident_id_fragment)
+                    | AuditLog.details.contains(resident_name_fragment)
+                ),
+            )
         )
         .order_by(AuditLog.timestamp.desc())
         .limit(50)

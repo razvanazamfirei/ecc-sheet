@@ -2,11 +2,11 @@
 
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, current_app, flash, redirect, render_template, url_for
+from flask import Blueprint, flash, redirect, render_template, url_for
 from sqlalchemy.orm import joinedload
 
 from ..audit import log_lock
-from ..auth import is_admin, is_first_call
+from ..auth import get_current_user, is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Role, TimeEntry, db
 from ..utils import get_effective_date, get_philadelphia_time, handle_db_error
@@ -115,7 +115,7 @@ def lock(date_str):
 
         # Track who and when
         if daily_sheet.locked:
-            daily_sheet.locked_by = current_app.config["USER_NAME"]
+            daily_sheet.locked_by = get_current_user()
             daily_sheet.locked_at = datetime.now()  # noqa: DTZ005
         else:
             daily_sheet.locked_by = None

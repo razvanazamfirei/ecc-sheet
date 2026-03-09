@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from flask import has_request_context, request
-from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import get_current_user
 from .models import AuditLog, db
@@ -51,6 +50,7 @@ def log_action(
         details: Dictionary of additional details to log
         user: User performing the action (defaults to current user)
     """
+    details_json = json.dumps(details) if details else None
     try:
         audit_entry = AuditLog(
             timestamp=datetime.now(UTC),
@@ -58,14 +58,22 @@ def log_action(
             action=action,
             entity_type=entity_type,
             entity_id=entity_id,
-            details=json.dumps(details) if details else None,
+            details=details_json,
             ip_address=get_client_ip(),
         )
-        db.session.add(audit_entry)
-        db.session.flush()
-    except SQLAlchemyError:
-        # Don't let audit logging break the main flow; the caller's transaction
-        # controls commit/rollback.
+        with db.engine.begin() as connection:
+            connection.execute(
+                AuditLog.__table__.insert().values(
+                    timestamp=audit_entry.timestamp,
+                    user=audit_entry.user,
+                    action=audit_entry.action,
+                    entity_type=audit_entry.entity_type,
+                    entity_id=audit_entry.entity_id,
+                    details=audit_entry.details,
+                    ip_address=audit_entry.ip_address,
+                )
+            )
+    except Exception:
         logger.exception("Audit logging failed")
 
 

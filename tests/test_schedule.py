@@ -3,7 +3,7 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from backend.models import DailySheet, Role, db
+from backend.models import AuditLog, DailySheet, Resident, Role, TimeEntry, db
 
 
 class TestScheduleImport:
@@ -492,5 +492,73 @@ class TestScheduleImport:
 
             # Cleanup
             TimeEntry.query.filter_by(resident_id=resident.id).delete()
+            db.session.delete(resident)
+            db.session.commit()
+
+    @patch("backend.routes.schedule.requests.get")
+    def test_import_schedule_creates_audit_logs(self, mock_get, client, app):
+        """Test schedule imports persist resident, entry, and import audit logs."""
+        with app.app_context():
+            test_date = date(2024, 4, 10)
+
+            sheet = DailySheet.query.filter_by(date=test_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            resident = Resident(name="Audit Schedule", active=True)
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = (
+                '"Audit Schedule","EPICID:R454545","","ECC 1","","","","",""\n'
+            )
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            response = client.post(
+                f"/schedule/{test_date.strftime('%Y-%m-%d')}/import",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            resident = db.session.get(Resident, resident_id)
+            assert resident is not None
+            assert resident.epic_id == "R454545"
+            entry = TimeEntry.query.filter_by(
+                date=test_date, resident_id=resident.id
+            ).first()
+            assert entry is not None
+
+            resident_log = (
+                AuditLog.query.filter_by(
+                    entity_type="Resident", entity_id=resident.id, action="UPDATE"
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            entry_log = (
+                AuditLog.query.filter_by(
+                    entity_type="TimeEntry", entity_id=entry.id, action="CREATE"
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            import_log = (
+                AuditLog.query.filter_by(entity_type="Schedule", action="IMPORT")
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert resident_log is not None
+            assert entry_log is not None
+            assert import_log is not None
+
+            db.session.delete(resident_log)
+            db.session.delete(entry_log)
+            db.session.delete(import_log)
+            db.session.delete(entry)
             db.session.delete(resident)
             db.session.commit()

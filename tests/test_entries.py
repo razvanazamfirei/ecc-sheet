@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from backend.models import DailySheet, TimeEntry, db
+from backend.models import AuditLog, DailySheet, TimeEntry, db
 from backend.utils import get_effective_date
 
 
@@ -216,6 +216,116 @@ class TestEntryDelete:
             )
             assert response.status_code == 200
             assert b"deleted" in response.data.lower()
+
+
+class TestEntryAuditLogging:
+    """Tests that entry mutations persist audit logs."""
+
+    def test_add_entry_creates_audit_log(
+        self, client, app, sample_resident, sample_role
+    ):
+        """Test adding an entry creates a persisted audit record."""
+        with app.app_context():
+            entry_date = get_effective_date()
+            sheet = DailySheet.query.filter_by(date=entry_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            response = client.post(
+                "/entries/add",
+                data={
+                    "date": entry_date.strftime("%Y-%m-%d"),
+                    "resident_id": sample_resident.id,
+                    "role_id": sample_role.id,
+                    "exit_time": "20:00",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            entry = (
+                TimeEntry.query.filter_by(
+                    date=entry_date,
+                    resident_id=sample_resident.id,
+                    role_id=sample_role.id,
+                )
+                .order_by(TimeEntry.id.desc())
+                .first()
+            )
+            assert entry is not None
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="TimeEntry", entity_id=entry.id, action="CREATE"
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert log is not None
+
+            db.session.delete(log)
+            db.session.delete(entry)
+            db.session.commit()
+
+    def test_update_entry_creates_audit_log(self, client, app, sample_time_entry):
+        """Test updating an entry creates a persisted audit record."""
+        with app.app_context():
+            entry_date = sample_time_entry.date
+            sheet = DailySheet.query.filter_by(date=entry_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            response = client.post(
+                f"/entries/{sample_time_entry.id}/update",
+                data={"exit_time": "21:15"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="TimeEntry",
+                    entity_id=sample_time_entry.id,
+                    action="UPDATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert log is not None
+            assert "21:15" in (log.details or "")
+
+            db.session.delete(log)
+            db.session.commit()
+
+    def test_delete_entry_creates_audit_log(self, client, app, sample_time_entry):
+        """Test deleting an entry creates a persisted audit record."""
+        with app.app_context():
+            entry_id = sample_time_entry.id
+            entry_date = sample_time_entry.date
+            sheet = DailySheet.query.filter_by(date=entry_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            response = client.post(
+                f"/entries/{entry_id}/delete",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="TimeEntry", entity_id=entry_id, action="DELETE"
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert log is not None
+
+            db.session.delete(log)
+            db.session.commit()
 
 
 class TestEntryEdgeCases:

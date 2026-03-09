@@ -2,6 +2,7 @@
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
+from ..audit import log_update
 from ..auth import admin_required
 from ..models import Role, db
 from ..utils import handle_db_error
@@ -27,6 +28,11 @@ def update(role_id):
         abort(404)
 
     try:
+        before = {
+            "cutoff_hour": role.cutoff_hour,
+            "cutoff_minute": role.cutoff_minute,
+            "is_backup": role.is_backup,
+        }
         cutoff_hour = int(request.form.get("cutoff_hour", 17))
         cutoff_minute = int(request.form.get("cutoff_minute", 30))
         is_backup = request.form.get("is_backup") == "on"
@@ -41,6 +47,15 @@ def update(role_id):
         role.cutoff_minute = cutoff_minute
         role.is_backup = is_backup
         db.session.commit()
+
+        changes = {
+            field: {"old": before[field], "new": getattr(role, field)}
+            for field in before
+            if before[field] != getattr(role, field)
+        }
+        if changes:
+            log_update("Role", role.id, changes=changes, details={"name": role.name})
+
         flash(f"Role {role.name} updated successfully", "success")
 
     except Exception as e:
