@@ -11,13 +11,39 @@ from ..audit import log_lock
 from ..auth import get_current_user, is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Role, TimeEntry, db
-from ..utils import get_effective_date, get_philadelphia_time, handle_db_error
+from ..utils import get_effective_date, get_philadelphia_time
 
 bp: Blueprint = Blueprint(
     "sheets",
     __name__,
 )
 logger = logging.getLogger(__name__)
+
+
+def _sheets_index_redirect():
+    """Return a redirect to the sheet index."""
+    return redirect(url_for("sheets.index"))
+
+
+def _sheet_view_redirect(date_str: str):
+    """Return a redirect to a specific sheet."""
+    return redirect(url_for("sheets.view", date_str=date_str))
+
+
+def _parse_sheet_date(date_str: str) -> date | None:
+    """Parse a sheet date or flash an error when invalid."""
+    try:
+        return date.fromisoformat(date_str)
+    except ValueError:
+        flash("Invalid date format", "error")
+        return None
+
+
+def _lock_error_response(date_str: str):
+    """Rollback a failed lock mutation and redirect back to the sheet."""
+    db.session.rollback()
+    flash("An unexpected error occurred. Please try again.", "error")
+    return _sheet_view_redirect(date_str)
 
 
 def _get_or_create_daily_sheet(sheet_date: date, *, commit: bool = True) -> DailySheet:
@@ -121,53 +147,57 @@ def index():
 @bp.route("/sheets/<date_str>")
 def view(date_str):
     """View sheet for a specific date."""
-    try:
-        sheet_date = date.fromisoformat(date_str)
-    except ValueError:
-        flash("Invalid date format", "error")
-        return redirect(url_for("sheets.index"))
+    sheet_date = _parse_sheet_date(date_str)
+    if sheet_date is None:
+        return _sheets_index_redirect()
 
     daily_sheet = _get_or_create_daily_sheet(sheet_date)
     return _render_sheet(daily_sheet, sheet_date)
 
 
 @bp.route("/sheets/<date_str>/lock", methods=["POST"])
-@handle_db_error
 def lock(date_str):
     """Lock/unlock a daily sheet."""
-    try:
-        sheet_date = date.fromisoformat(date_str)
-    except ValueError:
-        flash("Invalid date format", "error")
-        return redirect(url_for("sheets.index"))
+    sheet_date = _parse_sheet_date(date_str)
+    if sheet_date is None:
+        return _sheets_index_redirect()
 
     if not (is_admin() or is_first_call(sheet_date)):
         flash(
             "Only the first call resident or an admin can lock/unlock the sheet.",
             "error",
         )
-        return redirect(url_for("sheets.view", date_str=date_str))
+        return _sheet_view_redirect(date_str)
 
-    daily_sheet = _get_or_create_daily_sheet(sheet_date, commit=False)
+    try:
+        daily_sheet = _get_or_create_daily_sheet(sheet_date, commit=False)
 
-    daily_sheet.locked = not daily_sheet.locked
+        daily_sheet.locked = not daily_sheet.locked
 
-    # Track who and when
-    if daily_sheet.locked:
-        daily_sheet.locked_by = get_current_user()
-        daily_sheet.locked_at = get_philadelphia_time()
-    else:
-        daily_sheet.locked_by = None
-        daily_sheet.locked_at = None
+        # Track who and when
+        if daily_sheet.locked:
+            daily_sheet.locked_by = get_current_user()
+            daily_sheet.locked_at = get_philadelphia_time()
+        else:
+            daily_sheet.locked_by = None
+            daily_sheet.locked_at = None
+
+    except Exception:
+        logger.exception("Failed to toggle sheet lock for %s", date_str)
+        return _lock_error_response(date_str)
 
     try:
         log_lock(date_str, locked=daily_sheet.locked)
     except Exception:
         logger.warning("Audit log failed for sheet %s", date_str, exc_info=True)
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        logger.exception("Failed to toggle sheet lock for %s", date_str)
+        return _lock_error_response(date_str)
 
     status = "locked" if daily_sheet.locked else "unlocked"
     flash(f"Sheet {status} successfully", "success")
 
-    return redirect(url_for("sheets.view", date_str=date_str))
+    return _sheet_view_redirect(date_str)

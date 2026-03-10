@@ -113,7 +113,8 @@ class TestScheduleImport:
                 follow_redirects=True,
             )
             assert response.status_code == 200
-            # Should show error message
+            assert b"Error fetching data from Amion." in response.data
+            assert b"Network error" not in response.data
 
     @patch("backend.routes.schedule.requests.get")
     def test_import_schedule_empty_response(self, mock_get, client, app):
@@ -913,7 +914,8 @@ class TestScheduleImport:
                 )
 
             assert response.status_code == 200
-            assert b"Error importing schedule: audit failure" in response.data
+            assert b"Error importing schedule." in response.data
+            assert b"audit failure" not in response.data
 
             resident = db.session.get(Resident, resident_id)
             assert resident is not None

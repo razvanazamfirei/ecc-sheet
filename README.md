@@ -37,7 +37,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Resident-specific filtering
   - Detailed CSV export (date, role, times, overtime)
   - Billing CSV export (resident name, total overtime)
-  - Email reports with payroll-style summaries
+  - Payroll XLSX export for Lawson/UPHS workflows
 
 - **Audit Trail**
 
@@ -52,7 +52,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Role configuration with customizable cutoff times (hour and minute)
   - Holiday management
   - Full audit log access
-  - Email reporting
+  - Payroll export settings
 
 ## Quick Start
 
@@ -105,15 +105,8 @@ SESSION_COOKIE_SAMESITE=Lax
 ADMIN_USERS=Admin,John Doe,Jane Smith
 
 # Optional: users allowed to pick any resident in reports without unlocking
-# billing/payroll/email actions
+# billing/payroll actions
 REPORT_VIEW_ALL_USERS=
-
-# Email Configuration (for reports)
-EMAIL_HOST=smtp.example.com
-EMAIL_PORT=587
-EMAIL_USERNAME=user@example.com
-EMAIL_PASSWORD=password
-EMAIL_RECIPIENT=recipient@example.com
 
 # Amion Integration (for schedule/staff imports)
 AMION_SCHEDULE_CODE=your-schedule-code-here
@@ -131,7 +124,7 @@ For a server-hosted demo with:
 
 - reverse-proxy username auth
 - resident switching in reports
-- owner-only billing/payroll/email/admin access
+- owner-only billing/payroll/admin access
 - `systemd` startup
 - SSH copy instead of `git clone`
 
@@ -145,7 +138,7 @@ see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - **SQLite** - File-based database with migration support
 - **SQLAlchemy** - ORM with relationship management
 - **Flask-Migrate 4.1.0 (Alembic)** - Database version control
-- **Flask-WTF 1.2.2** - Form validation with CSRF protection
+- **Flask-WTF 1.2.2** - CSRF protection
 - **pytz 2025.2** - Timezone handling
 - **holidays 0.89** - US federal holiday tracking
 
@@ -250,7 +243,6 @@ ecc-sheet/
 │   ├── audit.py            # Audit logging
 │   ├── auth.py             # Authorization utilities
 │   ├── config.py           # Configuration
-│   ├── email_service.py    # Email reporting
 │   ├── holidays.py         # Holiday utilities
 │   ├── report_utils.py     # Report generation utilities
 │   └── staff_import.py     # Amion staff parsing
@@ -262,7 +254,7 @@ ecc-sheet/
 │       │   └── __tests__/  # Jest test suites
 │       └── css/            # Stylesheets
 ├── migrations/              # Database migrations
-├── tests/                   # Python test suite (26 modules)
+├── tests/                   # Python test suite (25 modules)
 ├── docs/                    # Documentation
 ├── scripts/                 # Utility scripts
 └── instance/                # Instance files (database)
@@ -289,10 +281,9 @@ proxy).
 - CSRF protection for all forms
 - SQL injection prevention via SQLAlchemy ORM
 - XSS protection via Jinja2 auto-escaping
-- Input validation with WTForms
+- Input validation in route handlers and model validators
 - Complete audit trail with IP tracking
 - Confirmation dialogs for destructive actions
-- Email validation for reports
 
 ### Production Requirements
 
@@ -326,7 +317,6 @@ proxy).
 - `/api/report` - Generate overtime reports
 - `/api/report/export_csv` - Export detailed report as CSV
 - `/api/report/export_billing_csv` - Export billing/payroll summary as CSV
-- `/api/report/send_email` - Send reports via email
 
 All POST endpoints require CSRF token.
 
@@ -391,11 +381,6 @@ GitHub Actions workflow includes:
 - **Schedule import fails**: Verify Amion URL accessibility
 - **Staff import fails**: Check Amion API access and Report 706 format
 - **Missing residents**: Ensure EPIC IDs are populated
-
-### Email Issues
-
-- **Email reports not sending**: Verify SMTP configuration in `.env`
-- **Check credentials**: EMAIL_HOST, EMAIL_PORT, EMAIL_USERNAME, EMAIL_PASSWORD
 
 See `CLAUDE.md` for detailed troubleshooting.
 

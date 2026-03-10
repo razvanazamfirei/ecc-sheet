@@ -55,25 +55,6 @@ class TestConfig:
             reload(backend.config)
             assert backend.config.Config.USER_NAME == "Admin"
 
-    def test_email_host_default(self):
-        """Test EMAIL_HOST has default value."""
-        assert backend.config.Config.EMAIL_HOST == "smtp.gmail.com"
-
-    def test_email_port_from_env(self):
-        """Test EMAIL_PORT is read from environment."""
-        with patch.dict(os.environ, {"EMAIL_PORT": "465"}):
-            reload(backend.config)
-            assert backend.config.Config.EMAIL_PORT == 465
-
-    def test_email_port_default(self):
-        """Test EMAIL_PORT defaults to 587."""
-        env = os.environ.copy()
-        env.pop("EMAIL_PORT", None)
-
-        with patch.dict(os.environ, env, clear=True):
-            reload(backend.config)
-            assert backend.config.Config.EMAIL_PORT == 587
-
     def test_auth_proxy_username_header_from_env(self):
         """Test AUTH_PROXY_USERNAME_HEADER is read from environment."""
         with patch.dict(os.environ, {"AUTH_PROXY_USERNAME_HEADER": "X-Auth-User"}):

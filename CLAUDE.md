@@ -11,14 +11,14 @@ coverage
 
 - Holiday management system with US federal holidays and custom holiday support
 - Staff import from Amion API (Report 706) with class year, email, phone
-- Email reporting service with CSV attachments
+- Billing CSV and payroll XLSX exports
 - Backup role support with start/exit times
 - Route blueprint architecture for modular code organization
 - Extended test coverage: 99% backend, 78% frontend
 
 ### Test Infrastructure
 
-- Comprehensive pytest suite with 26 test modules
+- Comprehensive pytest suite with 22 test modules
 - Jest frontend testing with 4 test suites
 - GitHub Actions CI/CD with automated testing
 - Codecov integration for coverage tracking
@@ -103,10 +103,8 @@ ecc-sheet/
 │   ├── audit.py            # Audit logging utilities
 │   ├── auth.py             # Environment-based authorization
 │   ├── config.py           # Configuration from environment
-│   ├── forms.py            # WTForms validation
 │   ├── errors.py           # Custom exception classes
 │   ├── utils.py            # Logging, backups, error handling
-│   ├── email_service.py    # Email report functionality
 │   ├── holidays.py         # Holiday utilities
 │   ├── report_utils.py     # Report generation and CSV export
 │   ├── staff_import.py     # Amion staff list parsing
@@ -134,7 +132,6 @@ ecc-sheet/
 │   │   ├── report_results.html  # Report display with CSV export
 │   │   ├── audit.html      # Audit log viewer
 │   │   ├── holidays.html   # Holiday management
-│   │   ├── email_report.html    # Email report template
 │   │   └── import_warning.html  # Schedule import confirmation
 │   └── static/
 │       ├── dist/           # Vite build output (vendor bundles)
@@ -160,19 +157,17 @@ ecc-sheet/
 ├── instance/                # Instance-specific files
 │   └── ecc_sheet.db        # SQLite database (git-ignored)
 │
-├── tests/                   # Python test suite (26 modules, 99% coverage)
+├── tests/                   # Python test suite (25 modules, 99% coverage)
 │   ├── conftest.py         # Pytest fixtures
 │   ├── test_models.py
 │   ├── test_models_extended.py
 │   ├── test_audit.py
 │   ├── test_auth.py
-│   ├── test_forms.py
 │   ├── test_entries.py
 │   ├── test_schedule.py
 │   ├── test_residents_routes.py
 │   ├── test_roles_routes.py
 │   ├── test_reports_routes.py
-│   ├── test_email_service.py
 │   ├── test_holidays_routes.py
 │   ├── test_api_routes.py
 │   └── ... (additional test modules)
@@ -471,9 +466,8 @@ uv run flask --app backend.app db history
 
 - Click resident name to expand/collapse details
 - Clean two-column layout
-- Export to CSV
+- Export to detailed CSV, billing CSV, or payroll XLSX
 - Print-friendly formatting
-- Email reports with CSV attachments
 
 **CSV Export:**
 
@@ -481,24 +475,7 @@ uv run flask --app backend.app db history
 - Filename includes date range: `overtime_report_YYYY-MM-DD_to_YYYY-MM-DD.csv`
 - Preserves filter selections
 
-### 8. Email Reporting (backend/email_service.py)
-
-**Features:**
-
-- Send overtime reports via email
-- HTML email with summary statistics
-- CSV attachment with detailed data
-- Configurable recipient list
-- SMTP configuration via environment variables
-
-**Email Contents:**
-
-- Date range summary
-- Total overtime hours
-- Breakdown by resident
-- Attached CSV for detailed analysis
-
-### 9. Audit Trail (frontend/templates/audit.html, backend/audit.py)
+### 8. Audit Trail (frontend/templates/audit.html, backend/audit.py)
 
 **Tracked Actions:**
 
@@ -545,7 +522,7 @@ uv run flask --app backend.app db history
 - Roles configuration (admin only)
 - Audit log (admin only)
 - Holiday management (admin only)
-- Email reporting (admin only)
+- Payroll settings (payroll admin only)
 
 ### Configuration
 
@@ -559,13 +536,6 @@ USER_NAME=Admin
 
 # Admin access (comma-separated)
 ADMIN_USERS=Admin,John Doe
-
-# Email Configuration (for reports)
-EMAIL_HOST=smtp.example.com
-EMAIL_PORT=587
-EMAIL_USERNAME=user@example.com
-EMAIL_PASSWORD=password
-EMAIL_RECIPIENT=recipient@example.com
 
 # Amion Integration (for schedule/staff imports)
 AMION_SCHEDULE_CODE=your-schedule-code-here
@@ -770,20 +740,18 @@ uv run pytest tests/test_models.py -v
 uv run pytest tests/test_models.py::test_overtime_calculation -v
 ```
 
-**Test Modules (26 total):**
+**Test Modules (25 total):**
 
 - `conftest.py` - Shared fixtures
 - `test_models.py` - Database models
 - `test_models_extended.py` - Extended model tests
 - `test_audit.py` - Audit logging
 - `test_auth.py` - Authorization
-- `test_forms.py` - Form validation
 - `test_entries.py` - Time entry routes
 - `test_schedule.py` - Schedule import
 - `test_residents_routes.py` - Resident management
 - `test_roles_routes.py` - Role management
 - `test_reports_routes.py` - Report generation
-- `test_email_service.py` - Email functionality
 - `test_holidays_routes.py` - Holiday management
 - `test_api_routes.py` - API endpoints
 - And more...
@@ -832,7 +800,7 @@ bun test frontend/static/js/__tests__/luxon-utils.test.js
 - **CSRF Protection** - Flask-WTF active on all forms
 - **SQL Injection** - SQLAlchemy ORM with parameterized queries
 - **XSS Protection** - Jinja2 auto-escaping
-- **Input Validation** - WTForms validation with required fields
+- **Input Validation** - Route-level parsing plus model validators
 - **Audit Trail** - Complete change tracking with IP addresses
 - **Data Backups** - Database files can be backed up via file copy
 - **Confirmation Dialogs** - For all destructive actions
@@ -1015,16 +983,6 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 - Review error logs
 - Ensure network connectivity
 
-### Email Issues
-
-**Problem:** Email reports not sending
-
-- Verify SMTP configuration in .env
-- Check EMAIL_HOST, EMAIL_PORT, EMAIL_USERNAME, EMAIL_PASSWORD
-- Test email credentials
-- Check firewall/network settings
-- Review error logs
-
 ## File References
 
 ### Core Application Files
@@ -1068,12 +1026,6 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 - Main log_action function
 - Helper functions for each action type
 - Automatic IP address and user capture
-
-**`backend/email_service.py`** - Email reporting
-
-- Send overtime reports via SMTP
-- HTML email templates
-- CSV attachment generation
 
 **`backend/holidays.py`** - Holiday utilities
 

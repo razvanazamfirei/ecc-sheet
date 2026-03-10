@@ -195,19 +195,11 @@ class TestRolesUpdate:
 
     def test_update_nonexistent_role(self, client):
         """Test updating a role that doesn't exist returns 404."""
-        import werkzeug.exceptions
-        import werkzeug.routing.exceptions
-
-        try:
-            response = client.post(
-                "/roles/99999/update",
-                data={"cutoff_hour": "17", "cutoff_minute": "30"},
-            )
-            assert response.status_code == 404
-        except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
-            # 404 raised directly or BuildError from redirect is acceptable
-            # (The handle_db_error decorator tries to redirect which may fail)
-            pass
+        response = client.post(
+            "/roles/99999/update",
+            data={"cutoff_hour": "17", "cutoff_minute": "30"},
+        )
+        assert response.status_code == 404
 
     def test_update_role_defaults_when_missing_values(self, client, app, sample_role):
         """Test updating role uses defaults for missing values."""
@@ -288,6 +280,8 @@ class TestRolesEdgeCases:
             )
             assert response.status_code == 200
             assert b"error" in response.data.lower()
+            assert b"Cutoff hour and minute must be whole numbers." in response.data
+            assert b"invalid literal" not in response.data
 
     def test_update_role_with_non_numeric_minute(self, client, app, sample_role):
         """Test updating role with non-numeric minute."""
@@ -299,6 +293,8 @@ class TestRolesEdgeCases:
             )
             assert response.status_code == 200
             assert b"error" in response.data.lower()
+            assert b"Cutoff hour and minute must be whole numbers." in response.data
+            assert b"invalid literal" not in response.data
 
     def test_update_role_with_float_values(self, client, app, sample_role):
         """Test updating role with float values."""

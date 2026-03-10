@@ -5,15 +5,12 @@ Utility functions for logging, validation, and error handling
 import logging
 import shutil
 from datetime import date, datetime, timedelta
-from functools import wraps
 from pathlib import Path
 
 import pytz
-from flask import flash, jsonify, redirect, request, url_for
-from werkzeug.exceptions import HTTPException
+from flask import request
 
 from .config import Config
-from .models import db
 
 logger = logging.getLogger("ecc_sheet")
 
@@ -78,36 +75,6 @@ def backup_database(
     except OSError:
         logger.exception("Database backup failed")
         return False
-
-
-def handle_db_error(func):
-    """Decorator for handling database errors gracefully"""
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except HTTPException:
-            raise
-        except Exception:
-            function_name = getattr(func, "__name__", func.__class__.__name__)
-            logger.exception("Database error in %s", function_name)
-            db.session.rollback()
-            message = "An unexpected error occurred. Please try again."
-            if _wants_json_response():
-                return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "message": message,
-                        }
-                    ),
-                    500,
-                )
-            flash(message, "error")
-            return redirect(url_for("sheets.index"))
-
-    return wrapper
 
 
 def get_philadelphia_time() -> datetime:

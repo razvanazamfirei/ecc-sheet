@@ -484,54 +484,6 @@
       {% endif %}
     </div>
   </div>
-
-  {% if false %}
-    <div class="d-flex justify-content-center gap-3 mt-4 mb-4 sheet-actions">
-      <div
-        class="btn-wrapper"
-        {% if not daily_sheet.locked %}
-          data-tooltip="Disabled until sheet is locked"
-        {% endif %}>
-        <button
-          type="button"
-          class="btn btn-outline-primary"
-          onclick="copyToClipboard(event)"
-          {% if not daily_sheet.locked %}disabled{% endif %}>
-          <i class="bi bi-clipboard me-2"></i>Copy to Clipboard
-        </button>
-      </div>
-      <div
-        class="btn-wrapper"
-        {% if not daily_sheet.locked %}
-          data-tooltip="Disabled until sheet is locked"
-        {% endif %}>
-        <button
-          type="button"
-          class="btn btn-outline-secondary"
-          onclick="window.print()"
-          {% if not daily_sheet.locked %}disabled{% endif %}>
-          <i class="bi bi-printer me-2"></i>Print for Signing
-        </button>
-      </div>
-    </div>
-
-    <div class="signature-section print-only">
-      <div class="row mt-5">
-        <div class="col-6">
-          <div class="signature-line">
-            <div class="signature-label">Attending Signature</div>
-            <div class="signature-underline"></div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="signature-line">
-            <div class="signature-label">First Call Signature</div>
-            <div class="signature-underline"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  {% endif %}
 {% endblock %}
 
 {% block scripts %}

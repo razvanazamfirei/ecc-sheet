@@ -203,15 +203,8 @@ class TestToggleResident:
 
     def test_toggle_nonexistent_resident(self, client):
         """Test toggling a resident that doesn't exist returns 404."""
-        import werkzeug.exceptions
-        import werkzeug.routing.exceptions
-
-        try:
-            response = client.post("/residents/99999/toggle")
-            assert response.status_code == 404
-        except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
-            # 404 raised directly or BuildError from redirect is acceptable
-            pass
+        response = client.post("/residents/99999/toggle")
+        assert response.status_code == 404
 
     def test_toggle_requires_admin(self, client, app, sample_resident):
         """Test that toggle requires admin privileges."""
@@ -283,8 +276,8 @@ class TestImportStaff:
             ):
                 response = client.post("/residents/import", follow_redirects=True)
                 assert response.status_code == 200
-                assert b"Import failed" in response.data
-                assert b"Connection failed" in response.data
+                assert b"Staff list import failed." in response.data
+                assert b"Connection failed" not in response.data
 
     def test_import_staff_exception(self, client, app):
         """Test staff import with exception."""
@@ -297,7 +290,8 @@ class TestImportStaff:
         ):
             response = client.post("/residents/import", follow_redirects=True)
             assert response.status_code == 200
-            assert b"Error importing staff list" in response.data
+            assert b"Error importing staff list." in response.data
+            assert b"Network error" not in response.data
 
 
 # noinspection DuplicatedCode
@@ -507,17 +501,11 @@ class TestEditResident:
 
     def test_edit_save_404_for_missing_resident(self, client):
         """Test that POST to edit_save fails gracefully for non-existent resident."""
-        import werkzeug.exceptions
-        import werkzeug.routing.exceptions
-
-        try:
-            response = client.post(
-                "/residents/99999/edit",
-                data={"name": "Ghost"},
-            )
-            assert response.status_code == 404
-        except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
-            pass
+        response = client.post(
+            "/residents/99999/edit",
+            data={"name": "Ghost"},
+        )
+        assert response.status_code == 404
 
     def test_edit_page_shows_lawson_id_and_hire_date(self, client, app):
         """Test that edit page renders lawson_id and hire_date values."""

@@ -15,21 +15,28 @@ function getTodayPhilly() {
 }
 
 /**
+ * Normalizes a date-like value to a Luxon DateTime
+ * @param {string|Date|DateTime} date - Value to normalize
+ * @returns {DateTime} Luxon DateTime in the configured timezone
+ */
+function toDateTime(date) {
+  if (typeof date === "string") {
+    return DateTime.fromISO(date, { zone: TIMEZONE });
+  }
+  if (date instanceof DateTime) {
+    return date;
+  }
+  return DateTime.fromJSDate(date, { zone: TIMEZONE });
+}
+
+/**
  * Formats a date string or DateTime to display format
  * @param {string|DateTime} date - Date to format
  * @param {string} format - Luxon format string (default: 'MMMM dd, yyyy')
  * @returns {string} Formatted date string
  */
 function formatDate(date, format = "MMMM dd, yyyy") {
-  let dt;
-  if (typeof date === "string") {
-    dt = DateTime.fromISO(date, { zone: TIMEZONE });
-  } else if (date instanceof DateTime) {
-    dt = date;
-  } else {
-    dt = DateTime.fromJSDate(date, { zone: TIMEZONE });
-  }
-  return dt.toFormat(format);
+  return toDateTime(date).toFormat(format);
 }
 
 /**
@@ -142,13 +149,7 @@ function roundToFiveMinutes(time) {
  * @returns {boolean} Whether date is valid
  */
 function isValidDateRange(date, yearsBack = 1, yearsForward = 1) {
-  let dt;
-  if (typeof date === "string") {
-    dt = DateTime.fromISO(date, { zone: TIMEZONE });
-  } else {
-    dt = date;
-  }
-
+  const dt = toDateTime(date);
   const today = getTodayPhilly();
   const minDate = today.minus({ years: yearsBack });
   const maxDate = today.plus({ years: yearsForward });
@@ -162,13 +163,7 @@ function isValidDateRange(date, yearsBack = 1, yearsForward = 1) {
  * @returns {string} Relative format (e.g., "2 days ago", "in 3 days")
  */
 function toRelative(date) {
-  let dt;
-  if (typeof date === "string") {
-    dt = DateTime.fromISO(date, { zone: TIMEZONE });
-  } else {
-    dt = date;
-  }
-  return dt.toRelative();
+  return toDateTime(date).toRelative();
 }
 
 // Export functions for use in other modules

@@ -4,15 +4,6 @@
  */
 
 /**
- * Rounds a time string to the nearest 5-minute increment using Luxon
- * @param {string} time - Time string in HH:MM format
- * @returns {string} Rounded time string
- */
-function roundToFiveMinutes(time) {
-  return window.LuxonUtils.roundToFiveMinutes(time);
-}
-
-/**
  * Applies 5-minute rounding to all time inputs
  */
 function initializeTimeInputs() {
@@ -21,7 +12,7 @@ function initializeTimeInputs() {
   timeInputs.forEach((input) => {
     input.addEventListener("change", function () {
       if (this.value) {
-        this.value = roundToFiveMinutes(this.value);
+        this.value = window.LuxonUtils.roundToFiveMinutes(this.value);
       }
     });
   });
@@ -357,35 +348,63 @@ function updateDisplayedDate(dateString) {
 }
 
 /**
+ * Appends active residents to a select element
+ * @param {HTMLSelectElement} select - Select element to populate
+ * @param {Array<{id: string|number, name: string}>} residents - Resident list
+ * @param {string} placeholder - Placeholder option label
+ */
+function populateResidentSelect(select, residents, placeholder) {
+  select.innerHTML = `<option value="">${placeholder}</option>`;
+  residents.forEach((resident) => {
+    const option = document.createElement("option");
+    option.value = resident.id.toString();
+    option.textContent = resident.name;
+    select.appendChild(option);
+  });
+}
+
+/**
+ * Fetches the active resident list from the API
+ * @returns {Promise<Array<{id: string|number, name: string}>>}
+ */
+async function fetchActiveResidents() {
+  const response = await fetch("/api/residents/active");
+  if (!response.ok) {
+    throw new Error("Failed to fetch residents");
+  }
+  return response.json();
+}
+
+/**
+ * Loads active residents into a select by element id
+ * @param {string} selectId - Target select element id
+ * @param {string} placeholder - Placeholder option label
+ * @returns {Promise<boolean>} Whether a select was found and updated
+ */
+async function loadResidentsIntoSelect(selectId, placeholder) {
+  const select = document.getElementById(selectId);
+  if (!select) {
+    return false;
+  }
+
+  populateResidentSelect(select, await fetchActiveResidents(), placeholder);
+  return true;
+}
+
+/**
  * Loads active residents from API and populates dropdown
  * @returns {Promise<void>}
  */
 async function loadActiveResidents() {
   try {
-    const response = await fetch("/api/residents/active");
-    if (!response.ok) {
-      throw new Error("Failed to fetch residents");
-    }
-
-    const residents = await response.json();
-    const select = document.getElementById("resident_id");
-
-    if (!select) {
-      return;
-    }
-
-    select.innerHTML = '<option value="">Select Resident</option>';
-    residents.forEach((resident) => {
-      const option = document.createElement("option");
-      option.value = resident.id.toString();
-      option.textContent = resident.name;
-      select.appendChild(option);
-    });
+    await loadResidentsIntoSelect("resident_id", "Select Resident");
   } catch (error) {
     console.error("Error loading residents:", error);
     showNotification("Failed to load residents", "error");
   }
 }
+
+window.loadResidentsIntoSelect = loadResidentsIntoSelect;
 
 /**
  * Validates form inputs before submission

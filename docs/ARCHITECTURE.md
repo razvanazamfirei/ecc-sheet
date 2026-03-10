@@ -11,44 +11,40 @@ comprehensive audit logging.
 └──────┬──────┘
        │ HTTP
        ▼
-┌─────────────────────────────────┐
-│      Flask Application          │
-│  ┌─────────────────────────┐   │
-│  │   Routes (Blueprints)   │   │
-│  │   - CSRF Protected      │   │
-│  │   - Form Validation     │   │
-│  └────────┬────────────────┘   │
-│           ▼                     │
-│  ┌─────────────────────────┐   │
-│  │   Business Logic        │   │
-│  │   - Overtime calc       │   │
-│  │   - Sheet locking       │   │
-│  │   - Holiday mgmt        │   │
-│  │   - Email reporting     │   │
-│  └────────┬────────────────┘   │
-│           ▼                     │
-│  ┌─────────────────────────┐   │
-│  │  SQLAlchemy ORM         │   │
-│  └────────┬────────────────┘   │
-└───────────┼─────────────────────┘
+┌───────────────────────────────┐
+│      Flask Application        │
+│  ┌─────────────────────────┐  │
+│  │   Routes (Blueprints)   │  │
+│  │   - CSRF Protected      │  │
+│  │   - Form Validation     │  │
+│  └────────┬────────────────┘  │
+│           ▼                   │
+│  ┌─────────────────────────┐  │
+│  │   Business Logic        │  │
+│  │   - Overtime calc       │  │
+│  │   - Sheet locking       │  │
+│  │   - Holiday mgmt        │  │
+│  │   - Report exports      │  │
+│  └────────┬────────────────┘  │
+│           ▼                   │
+│  ┌─────────────────────────┐  │
+│  │  SQLAlchemy ORM         │  │
+│  └────────┬────────────────┘  │
+└───────────┼───────────────────┘
             ▼
     ┌──────────────┐
     │    SQLite    │
     │  (instance/) │
     └──────────────┘
 
-┌─────────────────────────────────┐
-│   External Services             │
-│  ┌─────────────────────────┐   │
-│  │  Amion API              │   │
-│  │  - Schedule import      │   │
-│  │  - Staff import         │   │
-│  └─────────────────────────┘   │
-│  ┌─────────────────────────┐   │
-│  │  SMTP Server            │   │
-│  │  - Email reports        │   │
-│  └─────────────────────────┘   │
-└─────────────────────────────────┘
+┌───────────────────────────────┐
+│   External Services           │
+│  ┌─────────────────────────┐  │
+│  │  Amion API              │  │
+│  │  - Schedule import      │  │
+│  │  - Staff import         │  │
+│  └─────────────────────────┘  │
+└───────────────────────────────┘
 ```
 
 ## Directory Structure
@@ -58,13 +54,11 @@ ecc-sheet/
 ├── backend/
 │   ├── app.py                  # Flask app initialization, DB setup
 │   ├── models.py               # Database models (Resident, Role, TimeEntry, DailySheet, AuditLog, Holiday)
-│   ├── forms.py                # WTForms (CSRF + validation)
 │   ├── config.py               # Environment configuration
 │   ├── auth.py                 # Authorization (@admin_required)
 │   ├── audit.py                # Audit logging utilities
 │   ├── errors.py               # Custom exception classes
 │   ├── utils.py                # Logging, backups, timezone helpers
-│   ├── email_service.py        # Email report functionality
 │   ├── holidays.py             # Holiday utilities
 │   ├── report_utils.py         # Report generation and CSV export
 │   ├── staff_import.py         # Amion staff list parsing
@@ -91,7 +85,6 @@ ecc-sheet/
 │   │   ├── report_results.html # Report display
 │   │   ├── audit.html         # Audit log viewer
 │   │   ├── holidays.html      # Holiday management
-│   │   ├── email_report.html  # Email report template
 │   │   └── import_warning.html # Schedule import confirmation
 │   └── static/
 │       ├── js/
@@ -107,19 +100,17 @@ ecc-sheet/
 ├── scripts/
 │   └── logs/                   # Script execution logs
 │
-├── tests/                      # Pytest test suite (26 modules)
+├── tests/                      # Pytest test suite (25 modules)
 │   ├── conftest.py
 │   ├── test_models.py
 │   ├── test_models_extended.py
 │   ├── test_audit.py
 │   ├── test_auth.py
-│   ├── test_forms.py
 │   ├── test_entries.py
 │   ├── test_schedule.py
 │   ├── test_residents_routes.py
 │   ├── test_roles_routes.py
 │   ├── test_reports_routes.py
-│   ├── test_email_service.py
 │   ├── test_holidays_routes.py
 │   ├── test_api_routes.py
 │   └── ... (additional test modules)
@@ -229,7 +220,7 @@ CREATE TABLE holiday (
 
 - `CSRFProtect` enabled globally
 - Debug mode disabled in production
-- Input sanitization via WTForms
+- Input sanitization via route parsing and model validation
 - SQLAlchemy parameterized queries (SQL injection prevention)
 - Jinja2 auto-escaping (XSS prevention)
 
@@ -295,7 +286,6 @@ Modular route organization for better code structure:
 - `GET /reports` - Report generation page
 - `POST /generate_report` - Generate report
 - `POST /export_report_csv` - CSV export
-- `POST /email_report` - Send email report
 
 **Holiday Routes (`holidays.py`):**
 
@@ -389,23 +379,7 @@ def log_import(date, entries_count):
 - Timestamp in UTC
 - Change details serialized to JSON
 
-### 6. Email Service (`backend/email_service.py`)
-
-**Functionality:**
-
-- Send overtime reports via SMTP
-- HTML email templates
-- CSV attachment generation
-- Configurable recipient list
-
-**Process:**
-
-1. Generate report data for date range
-2. Build HTML email with summary statistics
-3. Create CSV attachment with detailed data
-4. Send via SMTP server
-
-### 7. Holiday Management (`backend/holidays.py`)
+### 6. Holiday Management (`backend/holidays.py`)
 
 **Features:**
 
@@ -420,7 +394,7 @@ def log_import(date, entries_count):
 - Independence Day, Labor Day, Columbus Day
 - Veterans Day, Thanksgiving, Christmas Day
 
-### 8. Utilities (`backend/utils.py`)
+### 7. Utilities (`backend/utils.py`)
 
 **Functions:**
 
@@ -429,17 +403,13 @@ def log_import(date, entries_count):
 - Database backup utilities
 - Error handling helpers
 
-### 9. Forms (`backend/forms.py`)
+### 8. Request Validation
 
-**Form Classes:**
+**Validation Layers:**
 
-- `TimeEntryForm` - Validates time entries with CSRF
-- `ResidentForm` - Validates resident names
-- `RoleUpdateForm` - Validates role cutoff hours
-- `ReportForm` - Validates date ranges
-- `HolidayForm` - Validates holiday data
-
-All forms include CSRF protection via Flask-WTF.
+- `flask_wtf.CSRFProtect` enforces CSRF tokens on POST forms
+- Route helpers parse and validate `request.form` data
+- SQLAlchemy model validators enforce field-level constraints
 
 ## Data Flow
 
@@ -452,7 +422,7 @@ Flask route (POST /entries/add)
     ↓
 CSRF token validation ✅
     ↓
-Form validation (WTForms)
+Route validation (request parsing + model validators)
     ↓
 Parse form data
     ↓
@@ -519,28 +489,6 @@ Log IMPORT action
 Redirect with success message
 ```
 
-### Email Report Process
-
-```
-Admin generates report
-    ↓
-Admin clicks "Email Report"
-    ↓
-Flask route (POST /email_report)
-    ↓
-Generate report data for date range
-    ↓
-Build HTML email template
-    ↓
-Create CSV attachment
-    ↓
-Send via SMTP
-    ↓
-Log action
-    ↓
-Show success/failure message
-```
-
 ## Configuration
 
 ### Environment Variables
@@ -551,13 +499,6 @@ SECRET_KEY                    # Flask secret (CSRF, sessions)
 DATABASE_URL                  # SQLite database path
 USER_NAME                     # Current user identity
 ADMIN_USERS                   # Comma-separated admin list
-
-# Email Configuration
-EMAIL_HOST                    # SMTP server
-EMAIL_PORT                    # SMTP port (587)
-EMAIL_USERNAME                # SMTP username
-EMAIL_PASSWORD                # SMTP password
-EMAIL_RECIPIENT               # Report recipient
 
 # Optional
 TIMEZONE                      # Default: America/New_York
@@ -588,7 +529,7 @@ Configured in database, editable via UI:
 
 2. **Input Validation**
 
-   - WTForms schema validation
+   - Route-level parsing and model validation
    - Type coercion (strings → dates/times)
    - Length limits enforced
 
@@ -712,7 +653,7 @@ GitHub Actions workflow:
 ### Logs
 
 - **Location:** Application logs in `logs/`
-- **Contents:** Errors, imports, email sends, audit actions
+- **Contents:** Errors, imports, payroll exports, audit actions
 - **Format:** Structured logging with timestamps
 
 ### Backups
@@ -735,8 +676,6 @@ uv run flask --app backend.app shell
 >>> from backend.models import Resident
 >>> Resident.query.count()
 
-# Test email
-# Configure SMTP and test via UI
 ```
 
 ## Technology Decisions

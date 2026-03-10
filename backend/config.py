@@ -4,40 +4,14 @@ from typing import ClassVar
 
 from dotenv import load_dotenv
 
+from .env_utils import env_flag, env_int, env_str
+
 load_dotenv()
-
-
-def _int_env(name: str) -> int | None:
-    """Parse an integer environment variable; return None if unset or non-numeric."""
-    v = os.getenv(name)
-    if not v:
-        return None
-    try:
-        return int(v)
-    except ValueError:
-        return None
-
-
-def _bool_env(name: str, *, default: bool = False) -> bool:
-    """Parse a boolean environment variable."""
-    v = os.getenv(name)
-    if v is None:
-        return default
-    return v.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _str_env(name: str) -> str | None:
-    """Return a trimmed environment variable or None when blank/unset."""
-    v = os.getenv(name)
-    if v is None:
-        return None
-    stripped = v.strip()
-    return stripped or None
 
 
 def _same_site_env(name: str, *, default: str | None = "Lax") -> str | None:
     """Parse Flask's session same-site cookie policy."""
-    v = _str_env(name)
+    v = env_str(name)
     if v is None:
         return default
 
@@ -52,61 +26,52 @@ def _same_site_env(name: str, *, default: str | None = "Lax") -> str | None:
 
 
 class Config:
-    SECRET_KEY: ClassVar[str] = _str_env("SECRET_KEY") or os.urandom(32).hex()
-    SQLALCHEMY_DATABASE_URI: ClassVar[str] = os.getenv(
-        "DATABASE_URL", "sqlite:///ecc_sheet.db"
+    SECRET_KEY: ClassVar[str] = env_str("SECRET_KEY") or os.urandom(32).hex()
+    SQLALCHEMY_DATABASE_URI: ClassVar[str] = (
+        env_str("DATABASE_URL") or "sqlite:///ecc_sheet.db"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS: ClassVar[bool] = False
-    FLASK_ENV: ClassVar[str] = os.getenv("FLASK_ENV", "development").strip().lower()
-    USER_NAME: ClassVar[str] = os.getenv("USER_NAME", "Admin")
-    AUTH_PROXY_USERNAME_HEADER: ClassVar[str] = os.getenv(
-        "AUTH_PROXY_USERNAME_HEADER", ""
-    ).strip()
+    FLASK_ENV: ClassVar[str] = (env_str("FLASK_ENV") or "development").lower()
+    USER_NAME: ClassVar[str] = env_str("USER_NAME") or "Admin"
+    AUTH_PROXY_USERNAME_HEADER: ClassVar[str] = (
+        env_str("AUTH_PROXY_USERNAME_HEADER") or ""
+    )
 
     # Session / browser security
-    SESSION_COOKIE_SECURE: ClassVar[bool] = _bool_env(
+    SESSION_COOKIE_SECURE: ClassVar[bool] = env_flag(
         "SESSION_COOKIE_SECURE", default=(FLASK_ENV == "production")
     )
-    SESSION_COOKIE_HTTPONLY: ClassVar[bool] = _bool_env(
+    SESSION_COOKIE_HTTPONLY: ClassVar[bool] = env_flag(
         "SESSION_COOKIE_HTTPONLY", default=True
     )
     SESSION_COOKIE_SAMESITE: ClassVar[str | None] = _same_site_env(
         "SESSION_COOKIE_SAMESITE", default="Lax"
     )
     PERMANENT_SESSION_LIFETIME: ClassVar[timedelta] = timedelta(
-        seconds=_int_env("PERMANENT_SESSION_LIFETIME") or 2_678_400
+        seconds=env_int("PERMANENT_SESSION_LIFETIME") or 2_678_400
     )
-    CSP_POLICY: ClassVar[str | None] = _str_env("CSP_POLICY")
-
-    # Email configuration
-    EMAIL_HOST: ClassVar[str] = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-    EMAIL_PORT: ClassVar[int] = int(os.getenv("EMAIL_PORT", "587"))
-    EMAIL_USERNAME: ClassVar[str | None] = os.getenv("EMAIL_USERNAME")
-    EMAIL_PASSWORD: ClassVar[str | None] = os.getenv("EMAIL_PASSWORD")
-    EMAIL_RECIPIENT: ClassVar[str | None] = os.getenv("EMAIL_RECIPIENT")
+    CSP_POLICY: ClassVar[str | None] = env_str("CSP_POLICY")
 
     # Amion integration
-    AMION_BASE_URL: ClassVar[str] = os.getenv(
-        "AMION_BASE_URL", "https://www.amion.com/cgi-bin/ocs"
-    ).strip()
-    AMION_SCHEDULE_CODE: ClassVar[str] = os.getenv("AMION_SCHEDULE_CODE", "upennane")
+    AMION_BASE_URL: ClassVar[str] = (
+        env_str("AMION_BASE_URL") or "https://www.amion.com/cgi-bin/ocs"
+    )
+    AMION_SCHEDULE_CODE: ClassVar[str] = env_str("AMION_SCHEDULE_CODE") or "upennane"
 
     # Payroll export defaults (used to seed the DB on first run via PayrollSettings)
-    PAYROLL_PROGRAM: ClassVar[str | None] = os.getenv("PAYROLL_PROGRAM")
-    PAYROLL_COMPANY: ClassVar[str | None] = os.getenv("PAYROLL_COMPANY")
-    PAYROLL_BATCH: ClassVar[int | None] = _int_env("PAYROLL_BATCH")
-    PAYROLL_PAY_CODE: ClassVar[int | None] = _int_env("PAYROLL_PAY_CODE")
-    PAYROLL_DEPT: ClassVar[int | None] = _int_env("PAYROLL_DEPT")
-    PAYROLL_EXPENSE: ClassVar[int | None] = _int_env("PAYROLL_EXPENSE")
-    PAYROLL_ACCT_UNIT: ClassVar[int | None] = _int_env("PAYROLL_ACCT_UNIT")
-    PAYROLL_LABEL_SUFFIX: ClassVar[str | None] = os.getenv("PAYROLL_LABEL_SUFFIX")
+    PAYROLL_PROGRAM: ClassVar[str | None] = env_str("PAYROLL_PROGRAM")
+    PAYROLL_COMPANY: ClassVar[str | None] = env_str("PAYROLL_COMPANY")
+    PAYROLL_BATCH: ClassVar[int | None] = env_int("PAYROLL_BATCH")
+    PAYROLL_PAY_CODE: ClassVar[int | None] = env_int("PAYROLL_PAY_CODE")
+    PAYROLL_DEPT: ClassVar[int | None] = env_int("PAYROLL_DEPT")
+    PAYROLL_EXPENSE: ClassVar[int | None] = env_int("PAYROLL_EXPENSE")
+    PAYROLL_ACCT_UNIT: ClassVar[int | None] = env_int("PAYROLL_ACCT_UNIT")
+    PAYROLL_LABEL_SUFFIX: ClassVar[str | None] = env_str("PAYROLL_LABEL_SUFFIX")
 
     # Time tracking configuration
     DEFAULT_CUTOFF_HOUR: ClassVar[int] = int(os.getenv("DEFAULT_CUTOFF_HOUR", "17"))
     DEFAULT_CUTOFF_MINUTE: ClassVar[int] = int(os.getenv("DEFAULT_CUTOFF_MINUTE", "30"))
-    TIMEZONE: ClassVar[str] = os.getenv(
-        "TIMEZONE", "America/New_York"
-    )  # Philadelphia time
+    TIMEZONE: ClassVar[str] = env_str("TIMEZONE") or "America/New_York"
     DAY_RESET_HOUR: ClassVar[int] = int(
         os.getenv("DAY_RESET_HOUR", "8")
     )  # Day resets at 8 AM

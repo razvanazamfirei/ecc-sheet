@@ -202,14 +202,14 @@ class TestAddHoliday:
     def test_add_holiday_exception_handling(self, client, app):
         """Test that exceptions during add are handled."""
         with app.app_context():
-            # Invalid date format will raise an exception
+            # Invalid date format should fail validation cleanly.
             response = client.post(
                 "/holidays/add",
                 data={"date": "invalid-date", "name": "Test Holiday"},
                 follow_redirects=True,
             )
             assert response.status_code == 200
-            assert b"Error" in response.data or b"error" in response.data
+            assert b"Invalid date format" in response.data
 
 
 class TestDeleteHoliday:
@@ -273,16 +273,8 @@ class TestDeleteHoliday:
 
     def test_delete_nonexistent_holiday(self, client):
         """Test deleting nonexistent holiday returns 404."""
-        import werkzeug.exceptions
-        import werkzeug.routing.exceptions
-
-        try:
-            response = client.post("/holidays/99999/delete")
-            assert response.status_code == 404
-        except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
-            # Some configurations may raise these exceptions instead of returning
-            # a 404 response object; treat them as equivalent to a 404 for this test.
-            pass
+        response = client.post("/holidays/99999/delete")
+        assert response.status_code == 404
 
     def test_delete_holiday_requires_admin(self, client, app):
         """Test that deleting holiday requires admin."""

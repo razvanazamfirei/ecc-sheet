@@ -33,6 +33,7 @@ beforeAll(async () => {
         return ranges[period] || ranges.week;
       },
     },
+    loadResidentsIntoSelect: () => Promise.resolve(true),
   };
 
   global.fetch = () =>

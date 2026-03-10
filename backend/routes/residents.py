@@ -16,17 +16,79 @@ from flask import (
     url_for,
 )
 from sqlalchemy import or_
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 from ..audit import log_create, log_update
 from ..auth import admin_required, get_current_user, is_admin, is_first_call
 from ..models import AuditLog, Resident, TimeEntry, db
 from ..staff_import import import_staff_list
-from ..utils import handle_db_error
 
 bp: Blueprint = Blueprint("residents", __name__, url_prefix="/residents")
 logger: Logger = logging.getLogger(__name__)
+SAFE_STAFF_IMPORT_ERRORS = frozenset(
+    {
+        "No staff records found in import",
+        "Failed to fetch staff list from Amion.",
+        "Staff import failed.",
+    }
+)
+
+
+def _residents_index_redirect():
+    """Return a redirect to the residents index."""
+    return redirect(url_for("residents.index"))
+
+
+def _form_text(key: str) -> str:
+    """Return a trimmed form value."""
+    return request.form.get(key, "").strip()
+
+
+def _optional_form_text(key: str) -> str | None:
+    """Return a trimmed optional form value."""
+    return _form_text(key) or None
+
+
+def _optional_form_int(key: str) -> int | None:
+    """Return an optional integer form value."""
+    value = _form_text(key)
+    try:
+        return int(value) if value else None
+    except ValueError:
+        return None
+
+
+def _optional_form_date(key: str) -> date | None:
+    """Return an optional ISO date form value."""
+    value = _form_text(key)
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _resident_snapshot(resident: Resident) -> dict[str, str | int | None]:
+    """Return the resident fields tracked in edit audit logs."""
+    return {
+        "name": resident.name,
+        "first_name": resident.first_name,
+        "last_name": resident.last_name,
+        "class_year": resident.class_year,
+        "email": resident.email,
+        "phone": resident.phone,
+        "abbreviation": resident.abbreviation,
+        "lawson_id": resident.lawson_id,
+        "hire_date": resident.hire_date.isoformat() if resident.hire_date else None,
+    }
+
+
+def _staff_import_error_message(error: str | None) -> str:
+    """Return a sanitized user-facing staff import error."""
+    if error in SAFE_STAFF_IMPORT_ERRORS:
+        return error
+    return "Staff list import failed."
 
 
 @bp.route("/")
@@ -39,14 +101,13 @@ def index():
 
 @bp.route("/add", methods=["POST"])
 @admin_required
-@handle_db_error
 def add():
     """Add a new resident."""
-    name = request.form.get("name", "").strip()
+    name = _form_text("name")
 
     if not name:
         flash("Resident name is required", "error")
-        return redirect(url_for("residents.index"))
+        return _residents_index_redirect()
 
     try:
         resident = Resident(name=name)
@@ -54,18 +115,16 @@ def add():
         db.session.commit()
         log_create("Resident", resident.id, {"name": name})
         flash(f"Resident {name} added successfully", "success")
-
-    except SQLAlchemyError:
+    except Exception:
         db.session.rollback()
         logger.exception("Error adding resident")
         flash("Error adding resident. Check logs for details.", "error")
 
-    return redirect(url_for("residents.index"))
+    return _residents_index_redirect()
 
 
 @bp.route("/<int:resident_id>/toggle", methods=["POST"])
 @admin_required
-@handle_db_error
 def toggle(resident_id):
     """Toggle resident active status."""
     resident = db.session.get(Resident, resident_id)
@@ -83,13 +142,12 @@ def toggle(resident_id):
             changes={"active": {"before": previous_active, "after": resident.active}},
         )
         flash(f"Resident {resident.name} {status}", "success")
-
-    except SQLAlchemyError:
+    except Exception:
         db.session.rollback()
         logger.exception("Error toggling resident status")
         flash("Error updating resident. Check logs for details.", "error")
 
-    return redirect(url_for("residents.index"))
+    return _residents_index_redirect()
 
 
 @bp.route("/<int:resident_id>/edit", methods=["GET"])
@@ -106,62 +164,25 @@ def edit(resident_id):
 
 @bp.route("/<int:resident_id>/edit", methods=["POST"])
 @admin_required
-@handle_db_error
 def edit_save(resident_id):
     """Save resident details."""
     resident = db.session.get(Resident, resident_id)
     if resident is None:
         abort(404)
 
-    before = {
-        "name": resident.name,
-        "first_name": resident.first_name,
-        "last_name": resident.last_name,
-        "class_year": resident.class_year,
-        "email": resident.email,
-        "phone": resident.phone,
-        "abbreviation": resident.abbreviation,
-        "lawson_id": resident.lawson_id,
-        "hire_date": resident.hire_date.isoformat() if resident.hire_date else None,
-    }
+    before = _resident_snapshot(resident)
 
-    resident.name = request.form.get("name", "").strip() or resident.name
-    resident.first_name = request.form.get("first_name", "").strip() or None
-    resident.last_name = request.form.get("last_name", "").strip() or None
+    resident.name = _form_text("name") or resident.name
+    resident.first_name = _optional_form_text("first_name")
+    resident.last_name = _optional_form_text("last_name")
+    resident.class_year = _optional_form_text("class_year")
+    resident.email = _optional_form_text("email")
+    resident.phone = _optional_form_text("phone")
+    resident.abbreviation = _optional_form_text("abbreviation")
+    resident.lawson_id = _optional_form_int("lawson_id")
+    resident.hire_date = _optional_form_date("hire_date")
 
-    class_year_val = request.form.get("class_year", "").strip()
-    resident.class_year = class_year_val or None
-
-    resident.email = request.form.get("email", "").strip() or None
-    resident.phone = request.form.get("phone", "").strip() or None
-    resident.abbreviation = request.form.get("abbreviation", "").strip() or None
-
-    lawson_val = request.form.get("lawson_id", "").strip()
-    try:
-        resident.lawson_id = int(lawson_val) if lawson_val else None
-    except ValueError:
-        resident.lawson_id = None
-
-    hire_date_val = request.form.get("hire_date", "").strip()
-    if hire_date_val:
-        try:
-            resident.hire_date = date.fromisoformat(hire_date_val)
-        except ValueError:
-            resident.hire_date = None
-    else:
-        resident.hire_date = None
-
-    after = {
-        "name": resident.name,
-        "first_name": resident.first_name,
-        "last_name": resident.last_name,
-        "class_year": resident.class_year,
-        "email": resident.email,
-        "phone": resident.phone,
-        "abbreviation": resident.abbreviation,
-        "lawson_id": resident.lawson_id,
-        "hire_date": resident.hire_date.isoformat() if resident.hire_date else None,
-    }
+    after = _resident_snapshot(resident)
     changes = {
         field: {"before": before[field], "after": after[field]}
         for field in before
@@ -170,18 +191,18 @@ def edit_save(resident_id):
 
     if not changes:
         flash("No changes to save.", "info")
-        return redirect(url_for("residents.index"))
+        return _residents_index_redirect()
 
     try:
         db.session.commit()
         log_update("Resident", resident.id, changes=changes)
         flash(f"Resident {resident.name} updated successfully.", "success")
-    except SQLAlchemyError:
+    except Exception:
         db.session.rollback()
         logger.exception("Error saving resident")
         flash("Error updating resident. Check logs for details.", "error")
 
-    return redirect(url_for("residents.index"))
+    return _residents_index_redirect()
 
 
 @bp.route("/<int:resident_id>/profile")
@@ -241,7 +262,6 @@ def profile(resident_id):
 
 @bp.route("/import", methods=["POST"])
 @admin_required
-@handle_db_error
 def import_staff():
     """Import staff list from Amion to populate resident information."""
     try:
@@ -259,9 +279,9 @@ def import_staff():
                 "success",
             )
         else:
-            flash(f"Import failed: {result['error']}", "error")
+            flash(_staff_import_error_message(result.get("error")), "error")
+    except Exception:
+        logger.exception("Error importing staff list")
+        flash("Error importing staff list.", "error")
 
-    except Exception as e:
-        flash(f"Error importing staff list: {e!s}", "error")
-
-    return redirect(url_for("residents.index"))
+    return _residents_index_redirect()
