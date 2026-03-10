@@ -247,8 +247,8 @@ def add():
 
     try:
         sheet_date = _parse_sheet_date_value(sheet_date_str)
-    except ValidationError:
-        flash("Invalid date", "error")
+    except ValidationError as exc:
+        flash(str(exc), "error")
         return redirect(url_for("sheets.index"))
 
     if not (is_admin() or is_first_call(sheet_date)):
