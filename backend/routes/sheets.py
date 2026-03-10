@@ -4,6 +4,7 @@ import logging
 from datetime import date, timedelta
 
 from flask import Blueprint, flash, redirect, render_template, url_for
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from ..audit import log_lock
@@ -19,13 +20,26 @@ bp: Blueprint = Blueprint(
 logger = logging.getLogger(__name__)
 
 
-def _get_or_create_daily_sheet(sheet_date: date) -> DailySheet:
-    """Return an existing daily sheet or create one for the given date."""
+def _get_or_create_daily_sheet(sheet_date: date, *, commit: bool = True) -> DailySheet:
+    """Return the sheet for a date, handling concurrent inserts safely."""
     daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
-    if daily_sheet is None:
-        daily_sheet = DailySheet(date=sheet_date)
-        db.session.add(daily_sheet)
+    if daily_sheet is not None:
+        return daily_sheet
+
+    daily_sheet = DailySheet(date=sheet_date)
+    db.session.add(daily_sheet)
+    try:
+        db.session.flush()
+    except IntegrityError:
+        db.session.rollback()
+        existing_sheet = DailySheet.query.filter_by(date=sheet_date).first()
+        if existing_sheet is None:
+            raise
+        return existing_sheet
+
+    if commit:
         db.session.commit()
+
     return daily_sheet
 
 
@@ -134,27 +148,24 @@ def lock(date_str):
         )
         return redirect(url_for("sheets.view", date_str=date_str))
 
-    daily_sheet: DailySheet | None = DailySheet.query.filter_by(date=sheet_date).first()
-    if not daily_sheet:
-        daily_sheet = DailySheet(date=sheet_date)
-        db.session.add(daily_sheet)
+    daily_sheet = _get_or_create_daily_sheet(sheet_date, commit=False)
 
     daily_sheet.locked = not daily_sheet.locked
 
     # Track who and when
     if daily_sheet.locked:
         daily_sheet.locked_by = get_current_user()
-        daily_sheet.locked_at = get_philadelphia_time().replace(tzinfo=None)
+        daily_sheet.locked_at = get_philadelphia_time()
     else:
         daily_sheet.locked_by = None
         daily_sheet.locked_at = None
-
-    db.session.commit()
 
     try:
         log_lock(date_str, locked=daily_sheet.locked)
     except Exception:
         logger.warning("Audit log failed for sheet %s", date_str, exc_info=True)
+
+    db.session.commit()
 
     status = "locked" if daily_sheet.locked else "unlocked"
     flash(f"Sheet {status} successfully", "success")

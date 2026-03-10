@@ -3,9 +3,12 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from backend.models import AuditLog, DailySheet, Resident, Role, TimeEntry, db
 
 
+@pytest.mark.integration
 class TestScheduleImport:
     """Tests for schedule import routes."""
 
@@ -927,6 +930,7 @@ class TestScheduleImport:
             db.session.commit()
 
 
+@pytest.mark.integration
 def test_import_invalid_date(client):
     """Test import with invalid date format."""
     response = client.post(
@@ -937,6 +941,7 @@ def test_import_invalid_date(client):
 
 
 @patch("backend.routes.schedule.requests.get")
+@pytest.mark.integration
 def test_import_requires_editor_role(mock_get, client, app, monkeypatch):
     """Regular non-editor users cannot trigger schedule imports."""
     monkeypatch.setenv("USER_NAME", "Regular User")

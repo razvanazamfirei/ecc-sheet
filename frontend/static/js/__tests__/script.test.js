@@ -251,6 +251,78 @@ describe("Script Functions", () => {
       expect(form.dataset.confirmBypass).toBeUndefined();
     });
 
+    test("confirmed forms use the DOM dialog path before requestSubmit", async () => {
+      let prevented = false;
+      let requestSubmitCalled = false;
+      let submitCalled = false;
+      const dialogHandlers = {};
+      const bodyClasses = new Set();
+
+      global.document.body = {
+        classList: {
+          add: (className) => bodyClasses.add(className),
+          remove: (className) => bodyClasses.delete(className),
+        },
+      };
+
+      mockElements["page-dialog-root"] = { hidden: true, dataset: {} };
+      mockElements["page-dialog-backdrop"] = {
+        addEventListener: (eventName, handler) => {
+          dialogHandlers[`backdrop:${eventName}`] = handler;
+        },
+      };
+      mockElements["page-dialog-title"] = { textContent: "" };
+      mockElements["page-dialog-message"] = { textContent: "" };
+      mockElements["page-dialog-confirm"] = {
+        textContent: "",
+        className: "",
+        addEventListener: (eventName, handler) => {
+          dialogHandlers[`confirm:${eventName}`] = handler;
+        },
+        focus: () => {},
+      };
+      mockElements["page-dialog-cancel"] = {
+        textContent: "",
+        className: "",
+        addEventListener: (eventName, handler) => {
+          dialogHandlers[`cancel:${eventName}`] = handler;
+        },
+      };
+
+      const form = {
+        dataset: { confirmMessage: "Continue?" },
+        matches: (selector) => selector === "form",
+        requestSubmit: () => {
+          requestSubmitCalled = true;
+        },
+        submit: () => {
+          submitCalled = true;
+        },
+      };
+
+      documentEventListeners.submit({
+        target: form,
+        defaultPrevented: false,
+        preventDefault: () => {
+          prevented = true;
+        },
+      });
+      await Promise.resolve();
+
+      expect(prevented).toBe(true);
+      expect(requestSubmitCalled).toBe(false);
+      expect(submitCalled).toBe(false);
+      expect(bodyClasses.has("page-dialog-open")).toBe(true);
+
+      dialogHandlers["confirm:click"]();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(requestSubmitCalled).toBe(true);
+      expect(submitCalled).toBe(false);
+      expect(form.dataset.confirmBypass).toBeUndefined();
+    });
+
     test("confirmed forms fall back to submit when requestSubmit is unavailable", async () => {
       global.confirm = () => true;
       let submitCalled = false;

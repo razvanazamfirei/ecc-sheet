@@ -38,7 +38,7 @@ function escapeHtml(text) {
  * @param {Event} event - The click event
  */
 async function copyToClipboard(event) {
-  const rows = document.querySelectorAll("[data-entry-id]");
+  const rows = document.querySelectorAll("tr[data-entry-id]");
   const dateElement = document.getElementById("sheet-date");
   const isWeekendOrHoliday =
     document.querySelector(".start-time-cell") !== null;
@@ -293,7 +293,7 @@ function applyEntryUpdate(entryId, entry) {
  */
 function updateTotalOvertime() {
   let total = 0;
-  const rows = document.querySelectorAll("[data-entry-id]");
+  const rows = document.querySelectorAll("tr[data-entry-id]");
 
   rows.forEach((row) => {
     const overtimeText =
@@ -475,7 +475,7 @@ function toggleEditAll() {
     saveAllBtn.style.display = "inline-block";
 
     // Get all entry rows and enable editing
-    const rows = document.querySelectorAll("[data-entry-id]");
+    const rows = document.querySelectorAll("tr[data-entry-id]");
     rows.forEach((row) => {
       const entryId = row.dataset.entryId;
       editEntry(entryId);
@@ -489,7 +489,7 @@ function toggleEditAll() {
     saveAllBtn.style.display = "none";
 
     // Cancel all edits
-    const rows = document.querySelectorAll("[data-entry-id]");
+    const rows = document.querySelectorAll("tr[data-entry-id]");
     rows.forEach((row) => {
       const entryId = row.dataset.entryId;
       cancelEdit(entryId);
@@ -565,7 +565,7 @@ function setBulkSaveDisabled(controls, disabled) {
  * Saves all entries asynchronously
  */
 async function saveAll() {
-  const rows = document.querySelectorAll("[data-entry-id]");
+  const rows = document.querySelectorAll("tr[data-entry-id]");
   const saveAllBtn = document.getElementById("save-all-btn");
   const editAllBtn = document.getElementById("edit-all-btn");
   const { csrfToken, entries, controls } = buildBulkSaveRequest(rows);

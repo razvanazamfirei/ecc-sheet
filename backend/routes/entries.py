@@ -15,8 +15,9 @@ from flask import (
 )
 from sqlalchemy.orm import joinedload
 
-from ..audit import log_create, log_delete, log_update
+from ..audit import log_create_strict, log_delete, log_update_strict
 from ..auth import is_admin, is_first_call
+from ..errors import ValidationError
 from ..models import DailySheet, TimeEntry, db
 from ..utils import _wants_json_response, handle_db_error
 
@@ -24,15 +25,23 @@ bp = Blueprint("entries", __name__, url_prefix="/entries")
 logger = logging.getLogger(__name__)
 
 
-def _parse_time_value(raw: str | None, field_label: str):
+def _parse_sheet_date_value(raw: str) -> date:
+    """Parse a sheet date from an ISO date string."""
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValidationError("Date must use YYYY-MM-DD format.") from exc
+
+
+def _parse_time_value(raw: str | None, field_label: str) -> time | None:
     """Parse a time input, raising a validation error on bad formats."""
     if not raw:
         return None
 
     try:
         return time.fromisoformat(raw)
-    except ValueError as exc:
-        raise ValueError(f"{field_label} must use HH:MM format.") from exc
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"{field_label} must use HH:MM format.") from exc
 
 
 def _parse_add_entry_ids(
@@ -112,22 +121,19 @@ def _log_entry_update(entry: "TimeEntry", changes: dict) -> None:
     if not changes:
         return
 
-    try:
-        resident_name, role_name = _entry_names(entry)
-        log_update(
-            "TimeEntry",
-            entry.id,
-            changes=changes,
-            details={
-                "entry_id": entry.id,
-                "resident_id": entry.resident_id,
-                "resident": resident_name,
-                "role": role_name,
-                "date": entry.date.strftime("%Y-%m-%d"),
-            },
-        )
-    except Exception:
-        logger.warning("Audit log failed for entry %s", entry.id, exc_info=True)
+    resident_name, role_name = _entry_names(entry)
+    log_update_strict(
+        "TimeEntry",
+        entry.id,
+        changes=changes,
+        details={
+            "entry_id": entry.id,
+            "resident_id": entry.resident_id,
+            "resident": resident_name,
+            "role": role_name,
+            "date": entry.date.strftime("%Y-%m-%d"),
+        },
+    )
 
 
 def _json_error(message: str, status_code: int) -> tuple[Response, int]:
@@ -184,6 +190,7 @@ def _normalize_bulk_updates_payload(
         normalized_updates.append(
             {
                 "id": entry_id,
+                "has_exit_time": "exit_time" in update,
                 "exit_time": update.get("exit_time"),
                 "has_start_time": "start_time" in update,
                 "start_time": update.get("start_time"),
@@ -211,7 +218,7 @@ def _load_validated_bulk_entries(
     ]
     if missing_entry_ids:
         return _json_error(
-            "Entries not found: " + ", ".join(missing_entry_ids) + ".",
+            "Some entries were not found.",
             404,
         )
 
@@ -238,7 +245,11 @@ def add():
         flash("Date is required", "error")
         return redirect(url_for("sheets.index"))
 
-    sheet_date = date.fromisoformat(sheet_date_str)
+    try:
+        sheet_date = _parse_sheet_date_value(sheet_date_str)
+    except ValidationError:
+        flash("Invalid date", "error")
+        return redirect(url_for("sheets.index"))
 
     if not (is_admin() or is_first_call(sheet_date)):
         flash("Only the first call resident or an admin can add entries.", "error")
@@ -261,35 +272,25 @@ def add():
     try:
         exit_time = _parse_time_value(exit_time_str, "Exit time")
         start_time = _parse_time_value(start_time_str, "Start time")
-    except ValueError as exc:
-        db.session.rollback()
-        flash(str(exc), "error")
-        return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
-    entry = TimeEntry(
-        date=sheet_date,
-        resident_id=resident_id,
-        role_id=role_id,
-        exit_time=exit_time,
-        start_time=start_time,
-    )
+        entry = TimeEntry(
+            date=sheet_date,
+            resident_id=resident_id,
+            role_id=role_id,
+            exit_time=exit_time,
+            start_time=start_time,
+        )
 
-    db.session.add(entry)
-    # Resolve relationship names before commit so they are available for audit
-    # logging even if the session state changes after commit.
-    resident_name = str(resident_id)
-    role_name = str(role_id)
-    db.session.flush()
-    if entry.resident:
-        resident_name = entry.resident.name
-    if entry.role:
-        role_name = entry.role.name
-    db.session.commit()
+        db.session.add(entry)
+        resident_name = str(resident_id)
+        role_name = str(role_id)
+        db.session.flush()
+        if entry.resident:
+            resident_name = entry.resident.name
+        if entry.role:
+            role_name = entry.role.name
 
-    # Log the action - wrapped separately so audit failure does not
-    # roll back the committed entry or flash a false failure message.
-    try:
-        log_create(
+        log_create_strict(
             "TimeEntry",
             entry.id,
             {
@@ -301,8 +302,15 @@ def add():
                 "start_time": start_time_str or None,
             },
         )
+        db.session.commit()
+    except ValidationError:
+        db.session.rollback()
+        flash("Exit time must use HH:MM format", "error")
+        return redirect(url_for("sheets.view", date_str=sheet_date_str))
     except Exception:
-        logger.warning("Audit log failed for entry %s", entry.id, exc_info=True)
+        db.session.rollback()
+        flash("Error adding entry", "error")
+        return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
     flash("Entry added successfully", "success")
     return redirect(url_for("sheets.view", date_str=sheet_date_str))
@@ -336,17 +344,30 @@ def update(entry_id):
             entry.start_time.strftime("%H:%M") if entry.start_time else None
         )
 
-        changes = _apply_time_field(
-            entry, "exit_time", request.form.get("exit_time"), old_exit_time
-        )
-
-        # Handle start_time for backup roles (only update if field was submitted)
-        start_time_str = request.form.get("start_time")
-        if start_time_str is not None:
+        changes = {}
+        if "exit_time" in request.form:
             changes.update(
-                _apply_time_field(entry, "start_time", start_time_str, old_start_time)
+                _apply_time_field(
+                    entry,
+                    "exit_time",
+                    request.form.get("exit_time"),
+                    old_exit_time,
+                )
             )
 
+        if "start_time" in request.form:
+            changes.update(
+                _apply_time_field(
+                    entry,
+                    "start_time",
+                    request.form.get("start_time"),
+                    old_start_time,
+                )
+            )
+
+        if changes:
+            db.session.flush()
+            _log_entry_update(entry, changes)
         db.session.commit()
         if _wants_json_response():
             response: Response | tuple[Response, int] = jsonify(
@@ -359,14 +380,19 @@ def update(entry_id):
         else:
             flash("Entry updated successfully", "success")
             response = redirect(url_for("sheets.view", date_str=sheet_date_str))
-
-        _log_entry_update(entry, changes)
-    except ValueError as exc:
+    except ValidationError:
         db.session.rollback()
         if _wants_json_response():
-            response = _json_error(str(exc), 400)
+            response = _json_error("Exit time must use HH:MM format.", 400)
         else:
-            flash(str(exc), "error")
+            flash("Invalid input provided for time fields.", "error")
+            response = redirect(url_for("sheets.view", date_str=sheet_date_str))
+    except Exception:
+        db.session.rollback()
+        if _wants_json_response():
+            response = _json_error("An error occurred while updating the entry", 500)
+        else:
+            flash("An error occurred while updating the entry.", "error")
             response = redirect(url_for("sheets.view", date_str=sheet_date_str))
 
     return response
@@ -395,12 +421,16 @@ def update_all():
                 entry.start_time.strftime("%H:%M") if entry.start_time else None
             )
 
-            changes = _apply_time_field(
-                entry,
-                "exit_time",
-                update["exit_time"],
-                old_exit_time,
-            )
+            changes = {}
+            if update["has_exit_time"]:
+                changes.update(
+                    _apply_time_field(
+                        entry,
+                        "exit_time",
+                        update["exit_time"],
+                        old_exit_time,
+                    )
+                )
 
             if update["has_start_time"]:
                 changes.update(
@@ -413,14 +443,17 @@ def update_all():
                 )
 
             entry_updates.append((entry, changes))
-    except ValueError as exc:
+
+        db.session.flush()
+        for entry, changes in entry_updates:
+            _log_entry_update(entry, changes)
+        db.session.commit()
+    except ValidationError:
         db.session.rollback()
-        return _json_error(str(exc), 400)
-
-    db.session.commit()
-
-    for entry, changes in entry_updates:
-        _log_entry_update(entry, changes)
+        return _json_error("Exit time must use HH:MM format.", 400)
+    except Exception:
+        db.session.rollback()
+        return _json_error("An error occurred while updating entries", 500)
 
     return jsonify(
         {

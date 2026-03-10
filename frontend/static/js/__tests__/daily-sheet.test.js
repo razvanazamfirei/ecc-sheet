@@ -608,7 +608,7 @@ describe("Daily Sheet Functions", () => {
       };
 
       global.document.querySelectorAll = (selector) => {
-        if (selector === "[data-entry-id]") return [mockRow];
+        if (selector === "tr[data-entry-id]") return [mockRow];
         return [];
       };
 
@@ -671,7 +671,7 @@ describe("Daily Sheet Functions", () => {
       };
 
       global.document.querySelectorAll = (selector) => {
-        if (selector === "[data-entry-id]") return [mockRow];
+        if (selector === "tr[data-entry-id]") return [mockRow];
         return [];
       };
 
@@ -722,7 +722,7 @@ describe("Daily Sheet Functions", () => {
       };
 
       global.document.querySelectorAll = (selector) => {
-        if (selector === "[data-entry-id]")
+        if (selector === "tr[data-entry-id]")
           return [mockRowWithExit, mockRowMissing];
         return [];
       };
@@ -763,7 +763,7 @@ describe("Daily Sheet Functions", () => {
       });
 
       global.document.querySelectorAll = (selector) => {
-        if (selector === "[data-entry-id]")
+        if (selector === "tr[data-entry-id]")
           return [
             createMockRow("Person 1", "2.50 hrs"),
             createMockRow("Person 2", "3.25 hrs"),
@@ -808,7 +808,7 @@ describe("Daily Sheet Functions", () => {
       };
 
       global.document.querySelectorAll = (selector) => {
-        if (selector === "[data-entry-id]") return [mockRow];
+        if (selector === "tr[data-entry-id]") return [mockRow];
         return [];
       };
 
@@ -856,7 +856,7 @@ describe("Daily Sheet Functions", () => {
       };
 
       global.document.querySelectorAll = (selector) => {
-        if (selector === "[data-entry-id]") return [mockRow];
+        if (selector === "tr[data-entry-id]") return [mockRow];
         return [];
       };
 

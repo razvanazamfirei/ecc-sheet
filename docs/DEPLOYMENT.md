@@ -92,12 +92,16 @@ What this does:
 - Any authenticated demo user can pick any resident on the reports page.
 - Only `Razvan Azamfirei` gets billing, payroll, email, admin, and audit access.
 - The reverse proxy tells Flask who the current user is using `X-Auth-User`.
-- `AMION_SCHEDULE_CODE` overrides the default in `backend/config.py` so schedule and staff imports target your intended Amion schedule.
-- The reverse proxy must enforce authentication and set `X-Auth-User`; if that header is absent, `backend/auth.py:get_current_user()` returns an empty username rather than Flask rejecting the request on its own.
+- `AMION_SCHEDULE_CODE` overrides the default in `backend/config.py` so schedule
+  and staff imports target your intended Amion schedule.
+- The reverse proxy must enforce authentication and set `X-Auth-User`; if that
+  header is absent, `backend/auth.py:get_current_user()` returns an empty
+  username rather than Flask rejecting the request on its own.
 
 ## Install the systemd Service
 
-The repo includes [../deploy/systemd/ecc-sheet.service](../deploy/systemd/ecc-sheet.service).
+The repo includes
+[../deploy/systemd/ecc-sheet.service](../deploy/systemd/ecc-sheet.service).
 
 Install it like this:
 
@@ -129,7 +133,8 @@ Your reverse proxy should:
 
 - Require authentication for the demo
 - Pass the authenticated username to Flask via `X-Auth-User`
-- Overwrite any client-supplied `X-Auth-User`, `X-Forwarded-For`, and `X-Real-IP`
+- Overwrite any client-supplied `X-Auth-User`, `X-Forwarded-For`, and
+  `X-Real-IP`
 - Proxy traffic to `127.0.0.1:5000`
 
 If you use Caddy, that is the same pattern described in the root

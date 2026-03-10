@@ -77,8 +77,7 @@
           {% if not daily_sheet.locked and missing_count > 0 %}
             data-confirm-title="Lock Sheet?"
             data-confirm-message="{{ lock_confirm_message }}"
-            data-confirm-label="Lock Sheet"
-            data-confirm-variant="warning"
+            data-confirm-label="Lock Sheet" data-confirm-variant="warning"
             data-missing-count="{{ missing_count }}"
             data-missing-residents='{{ missing_residents|tojson }}'
           {% endif %}>

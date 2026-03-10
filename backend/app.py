@@ -1,12 +1,12 @@
-import os as _os
+import os
 import warnings as _warnings
 from logging import Logger
 from pathlib import Path
 from urllib.parse import urlparse
 
-from flask import Flask, flash, jsonify, redirect, request, session, url_for
+from flask import Flask, jsonify, request, session
 from flask_migrate import Migrate
-from flask_wtf.csrf import CSRFError, CSRFProtect
+from flask_wtf.csrf import CSRFProtect
 from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import get_current_user, is_admin
@@ -28,7 +28,7 @@ app: Flask = Flask(
 app.config.from_object(Config)
 
 if app.config.get("FLASK_ENV") == "production":
-    configured_secret_key = (_os.getenv("SECRET_KEY") or "").strip()
+    configured_secret_key = (os.getenv("SECRET_KEY") or "").strip()
     if not configured_secret_key:
         raise RuntimeError(
             "A strong SECRET_KEY must be set in production. "
@@ -79,16 +79,16 @@ logger: Logger = setup_logging()
 # Register all route blueprints
 register_blueprints(app)
 
-_mock_enabled = _os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
+_mock_enabled = os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
 
 
 def _mock_users_enabled() -> bool:
     """Return True when dev mock-user switching is enabled."""
-    return _os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
+    return os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
 
 
 if _mock_enabled:
-    if _os.getenv("FLASK_ENV", "").lower() == "production":
+    if os.getenv("FLASK_ENV", "").lower() == "production":
         raise RuntimeError(
             "MOCK_USERS_ENABLED is set in a production environment. "
             "This enables unauthenticated user impersonation. Refusing to start."
@@ -124,16 +124,14 @@ def inject_auth():
 @app.context_processor
 def inject_dev():
     """Inject dev mock-user context (only when MOCK_USERS_ENABLED is set)."""
-    if _os.getenv("MOCK_USERS_ENABLED", "").lower() not in {"1", "true", "yes"}:
+    if os.getenv("MOCK_USERS_ENABLED", "").lower() not in {"1", "true", "yes"}:
         return {"mock_users_enabled": False}
 
     admin_users = [
-        u.strip() for u in _os.getenv("ADMIN_USERS", "Admin").split(",") if u.strip()
+        u.strip() for u in os.getenv("ADMIN_USERS", "Admin").split(",") if u.strip()
     ]
     payroll_users = [
-        u.strip()
-        for u in _os.getenv("PAYROLL_ADMIN_USERS", "").split(",")
-        if u.strip()
+        u.strip() for u in os.getenv("PAYROLL_ADMIN_USERS", "").split(",") if u.strip()
     ]
 
     personas = [{"name": admin_users[0] if admin_users else "Admin", "label": "Admin"}]
@@ -154,18 +152,6 @@ def inject_dev():
         "mock_residents": resident_names,
         "dev_user_override": session.get("dev_user"),
     }
-
-
-@app.errorhandler(CSRFError)
-def handle_csrf_error(error: CSRFError):
-    """Return JSON for async CSRF failures and redirect for normal forms."""
-    message = "Your form session expired. Reload the page and try again."
-    if _wants_json_response():
-        return jsonify({"success": False, "message": message}), 400
-
-    flash(message, "error")
-    safe_target = _safe_redirect_target(request.referrer, url_for("sheets.index"))
-    return redirect(safe_target)
 
 
 @app.after_request
