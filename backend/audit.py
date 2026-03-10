@@ -71,9 +71,7 @@ def log_action(
     user: str | None = None,
 ) -> None:
     """Log an action to the audit trail without interrupting the caller."""
-    _write_audit_log(
-        _build_audit_values(action, entity_type, entity_id, details, user)
-    )
+    _write_audit_log(_build_audit_values(action, entity_type, entity_id, details, user))
 
 
 def log_action_strict(

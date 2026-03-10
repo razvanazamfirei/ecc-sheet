@@ -61,9 +61,9 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS: ClassVar[bool] = False
     FLASK_ENV: ClassVar[str] = os.getenv("FLASK_ENV", "development").strip().lower()
     USER_NAME: ClassVar[str] = os.getenv("USER_NAME", "Admin")
-    AUTH_PROXY_USERNAME_HEADER: ClassVar[str] = (
-        os.getenv("AUTH_PROXY_USERNAME_HEADER", "").strip()
-    )
+    AUTH_PROXY_USERNAME_HEADER: ClassVar[str] = os.getenv(
+        "AUTH_PROXY_USERNAME_HEADER", ""
+    ).strip()
 
     # Session / browser security
     SESSION_COOKIE_SECURE: ClassVar[bool] = _bool_env(

@@ -52,6 +52,10 @@ while [[ $# -gt 0 ]]; do
         echo "Missing value for --port" >&2
         exit 1
       fi
+      if ! [[ "$ssh_port" =~ ^[0-9]+$ ]] || (( ssh_port < 1 || ssh_port > 65535 )); then
+        echo "Invalid port: must be a number between 1 and 65535" >&2
+        exit 1
+      fi
       shift 2
       ;;
     --include-env)

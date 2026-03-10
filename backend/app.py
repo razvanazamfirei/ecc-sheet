@@ -72,8 +72,8 @@ def _safe_redirect_target(target: str, default: str) -> str:
     if not parsed.scheme and not parsed.netloc:
         return normalized
 
-    # Allow absolute URLs only if they point back to this host
-    if parsed.netloc == request.host:
+    # Allow absolute URLs only if they point back to this host over HTTP(S)
+    if parsed.netloc == request.host and parsed.scheme in {"http", "https"}:
         return normalized
 
     # Fallback to the internal default

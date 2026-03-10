@@ -1,11 +1,13 @@
 """Security tests for app-level request handling."""
 
+import pytest
 from flask import url_for
 from flask_wtf.csrf import CSRFError
 
 from backend.app import handle_csrf_error
 
 
+@pytest.mark.unit
 class TestCsrfErrorHandling:
     """Tests for CSRF failure responses."""
 
@@ -26,6 +28,19 @@ class TestCsrfErrorHandling:
         with app.test_request_context(
             "/reports",
             headers={"Referer": "https://evil.example/phish"},
+            base_url="http://localhost",
+        ):
+            response = handle_csrf_error(CSRFError("expired"))
+            expected_location = url_for("sheets.index")
+
+        assert response.status_code == 302
+        assert response.headers["Location"] == expected_location
+
+    def test_csrf_redirect_rejects_same_host_non_http_scheme(self, app):
+        """Same-host referrers still fall back unless they use HTTP(S)."""
+        with app.test_request_context(
+            "/reports",
+            headers={"Referer": "javascript://localhost/reports"},
             base_url="http://localhost",
         ):
             response = handle_csrf_error(CSRFError("expired"))

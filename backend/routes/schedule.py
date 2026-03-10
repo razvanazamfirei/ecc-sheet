@@ -8,9 +8,9 @@ from logging import Logger
 
 import requests
 from flask import Blueprint, current_app, flash, redirect, url_for
+from sqlalchemy.exc import IntegrityError
 
 from ..audit import log_create_strict, log_import_strict, log_update_strict
-from ..auth import is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Resident, Role, TimeEntry, db
 from ..type_defs import ScheduleImportResult
@@ -54,13 +54,6 @@ def _sheet_view_redirect(date_str: str):
 
 def _validate_schedule_import_access(sheet_date: date, date_str: str):
     """Return a redirect response when schedule import is not allowed."""
-    if not (is_admin() or is_first_call(sheet_date)):
-        flash(
-            "Only the first call resident or an admin can import schedules.",
-            "error",
-        )
-        return _sheet_view_redirect(date_str)
-
     daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
     if daily_sheet and daily_sheet.locked:
         flash("Cannot import schedule - sheet is locked", "error")
@@ -268,7 +261,27 @@ def _create_time_entry_if_missing(
         role_id=role.id,
         exit_time=None,
     )
-    db.session.add(entry)
+    try:
+        with db.session.begin_nested():
+            db.session.add(entry)
+            db.session.flush()
+    except IntegrityError:
+        with db.session.no_autoflush:
+            duplicate_entry = TimeEntry.query.filter_by(
+                date=sheet_date,
+                resident_id=resident.id,
+                role_id=role.id,
+            ).first()
+        if duplicate_entry:
+            logger.info(
+                "Skipped duplicate time entry for resident %s, role %s on %s",
+                resident.id,
+                role.id,
+                sheet_date,
+            )
+            return False
+        raise
+
     created_entries.append(entry)
     return True
 

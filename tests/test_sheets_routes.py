@@ -46,6 +46,17 @@ class TestSheetsIndex:
         assert response.status_code == 200
         assert b"Lock Sheet" in response.data or b"Unlock Sheet" in response.data
 
+    def test_index_shows_import_button_for_regular_user(self, client, monkeypatch):
+        """Regular users still see schedule import even without edit rights."""
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+
+        response = client.get("/")
+        assert response.status_code == 200
+        assert b"Import Schedule" in response.data
+        assert b"Lock Sheet" not in response.data
+        assert b"Unlock Sheet" not in response.data
+
 
 class TestSheetsView:
     """Tests for viewing specific date sheets."""

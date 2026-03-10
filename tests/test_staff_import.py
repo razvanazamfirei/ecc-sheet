@@ -58,8 +58,9 @@ class TestFetchStaffList:
         """Test network error handling."""
         mock_get.side_effect = requests.RequestException("Network error")
 
-        with app.app_context(), pytest.raises(
-            requests.RequestException, match="Network error"
+        with (
+            app.app_context(),
+            pytest.raises(requests.RequestException, match="Network error"),
         ):
             fetch_staff_list("testcode")
 
@@ -70,8 +71,9 @@ class TestFetchStaffList:
         mock_response.raise_for_status.side_effect = requests.HTTPError("404 Not Found")
         mock_get.return_value = mock_response
 
-        with app.app_context(), pytest.raises(
-            requests.HTTPError, match="404 Not Found"
+        with (
+            app.app_context(),
+            pytest.raises(requests.HTTPError, match="404 Not Found"),
         ):
             fetch_staff_list("testcode")
 
@@ -97,6 +99,25 @@ class TestFetchStaffList:
 
         mock_get.assert_called_once_with(
             "https://amion.example.test/custom?Lo=testcode&Rpt=706", timeout=30
+        )
+
+    @patch("backend.staff_import.requests.get")
+    def test_fetch_uses_config_base_url_without_app_context(self, mock_get):
+        """Test fetch falls back to Config outside a Flask app context."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        with patch(
+            "backend.staff_import.Config.AMION_BASE_URL",
+            "https://amion.example.test/fallback",
+        ):
+            fetch_staff_list("testcode")
+
+        mock_get.assert_called_once_with(
+            "https://amion.example.test/fallback?Lo=testcode&Rpt=706", timeout=30
         )
 
 

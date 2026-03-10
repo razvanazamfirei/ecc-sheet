@@ -35,6 +35,13 @@ and `.env`.
 
 Run these commands on the server after the files are copied:
 
+For a demo, the commands below use vendor `curl | sh` installers for `uv` and
+`bun`. For production, prefer official package managers or signed binary
+releases from the vendor site instead of piping installers directly to a shell.
+If you do use the installer scripts, verify the published checksums or GPG
+signatures from the vendor's release page first and review the installer before
+running it.
+
 ```bash
 sudo useradd --system --home-dir /opt/ecc-sheet --shell /usr/sbin/nologin eccsheet || true
 sudo chown -R eccsheet:eccsheet /opt/ecc-sheet
@@ -77,7 +84,7 @@ REPORT_VIEW_ALL_USERS=*
 AMION_SCHEDULE_CODE=<your_schedule_code>
 TIMEZONE=America/New_York
 FLASK_ENV=production
-PORT=5000
+PORT=5000  # Used for local/non-systemd runs; the systemd unit binds 127.0.0.1:5000 directly
 ```
 
 What this does:

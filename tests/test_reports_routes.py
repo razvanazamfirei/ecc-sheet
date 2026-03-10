@@ -593,23 +593,71 @@ class TestReportRestriction:
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
             date_str = entry.date.strftime("%Y-%m-%d")
+            other_resident = Resident(name="Other Report Resident", active=True)
+            db.session.add(other_resident)
+            db.session.commit()
+            other_resident_name = other_resident.name
+            other_resident_id = other_resident.id
 
-        response = client.post(
-            "/api/report",
-            data={
-                "start_date": date_str,
-                "end_date": date_str,
-                "resident_id": sample_resident.id,
-            },
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
-        assert sample_resident.name.encode() in response.data
+            other_entry = TimeEntry(
+                date=entry.date,
+                resident_id=other_resident_id,
+                role_id=entry.role_id,
+                exit_time=entry.exit_time,
+            )
+            db.session.add(other_entry)
+            db.session.commit()
+            other_entry_id = other_entry.id
+
+        try:
+            response = client.post(
+                "/api/report",
+                data={
+                    "start_date": date_str,
+                    "end_date": date_str,
+                    "resident_id": sample_resident.id,
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert sample_resident.name.encode() in response.data
+            assert other_resident_name.encode() not in response.data
+        finally:
+            with app.app_context():
+                other_entry = db.session.get(TimeEntry, other_entry_id)
+                if other_entry is not None:
+                    db.session.delete(other_entry)
+                other_resident = db.session.get(Resident, other_resident_id)
+                if other_resident is not None:
+                    db.session.delete(other_resident)
+                db.session.commit()
 
     def test_admin_sees_extended_actions_in_report_results(
         self, client, app, sample_time_entry
     ):
         """Admins keep access to extended report actions in the results view."""
+        with app.app_context():
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            date_str = entry.date.strftime("%Y-%m-%d")
+
+        response = client.post(
+            "/api/report",
+            data={"start_date": date_str, "end_date": date_str},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Export Billing CSV" in response.data
+        assert b"Export Payroll XLSX" in response.data
+        assert b"Email Report" in response.data
+
+    def test_payroll_admin_sees_extended_actions_in_report_results(
+        self, client, app, sample_time_entry, monkeypatch
+    ):
+        """Payroll admins share the extended report actions branch."""
+        monkeypatch.setenv("USER_NAME", "Payroll Person")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "Payroll Person")
+
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
             date_str = entry.date.strftime("%Y-%m-%d")
