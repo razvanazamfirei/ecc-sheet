@@ -1,6 +1,5 @@
 """Tests for sheet routes."""
 
-import os
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
@@ -150,6 +149,63 @@ class TestSheetsView:
 
         assert b"This sheet will auto-lock at 09:00 AM" in previous_response.data
         assert b"This sheet will auto-lock at 09:00 AM" not in current_response.data
+
+    def test_view_renders_lock_confirmation_fallback_when_exit_times_missing(
+        self, client, app, sample_resident
+    ):
+        """Lock confirmation metadata should be present even before JS initializes."""
+        with app.app_context():
+            test_date = get_effective_date() + timedelta(days=30)
+            overtime_role = Role.query.filter_by(name="ECC 1").first()
+            assert overtime_role is not None
+            overtime_role_id = overtime_role.id
+
+            sheet = DailySheet.query.filter_by(date=test_date).first()
+            if sheet is None:
+                sheet = DailySheet(date=test_date, locked=False)
+                db.session.add(sheet)
+            else:
+                sheet.locked = False
+
+            entry = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=overtime_role.id,
+                exit_time=None,
+            )
+            db.session.add(entry)
+            db.session.commit()
+            db.session.remove()
+
+        try:
+            response = client.get(f"/sheets/{test_date.strftime('%Y-%m-%d')}")
+
+            assert response.status_code == 200
+            html = response.data.decode()
+            lock_form_index = html.index('id="lock-sheet-form"')
+            lock_form_markup = html[lock_form_index : lock_form_index + 800]
+
+            assert "data-confirm-title=" in lock_form_markup
+            assert "data-confirm-message=" in lock_form_markup
+            assert (
+                "These residents will not receive overtime credit:"
+                in lock_form_markup
+            )
+            assert sample_resident.name in lock_form_markup
+            assert html.count('class="btn-close"') >= 1
+        finally:
+            with app.app_context():
+                persisted_entry = TimeEntry.query.filter_by(
+                    date=test_date,
+                    resident_id=sample_resident.id,
+                    role_id=overtime_role_id,
+                ).first()
+                if persisted_entry is not None:
+                    db.session.delete(persisted_entry)
+                persisted_sheet = DailySheet.query.filter_by(date=test_date).first()
+                if persisted_sheet is not None:
+                    db.session.delete(persisted_sheet)
+                db.session.commit()
 
     def test_overtime_entries_are_sorted_by_role_then_resident(self, client, app):
         """Manual overtime additions should render in role/name order."""

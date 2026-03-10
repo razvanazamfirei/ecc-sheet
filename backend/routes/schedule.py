@@ -2,7 +2,8 @@
 
 import csv
 import logging
-from datetime import date, datetime
+import os
+from datetime import date
 from io import StringIO
 from logging import Logger
 
@@ -11,6 +12,7 @@ from flask import Blueprint, current_app, flash, redirect, url_for
 from sqlalchemy.exc import IntegrityError
 
 from ..audit import log_create_strict, log_import_strict, log_update_strict
+from ..auth import is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Resident, Role, TimeEntry, db
 from ..type_defs import ScheduleImportResult
@@ -54,6 +56,24 @@ def _sheet_view_redirect(date_str: str):
 
 def _validate_schedule_import_access(sheet_date: date, date_str: str):
     """Return a redirect response when schedule import is not allowed."""
+    first_call_roles = [
+        role_name.strip()
+        for role_name in os.getenv("FIRST_CALL_ROLES", "First Call").split(",")
+        if role_name.strip()
+    ]
+    first_call_is_known = (
+        TimeEntry.query.join(Role)
+        .filter(
+            TimeEntry.date == sheet_date,
+            Role.name.in_(first_call_roles),
+        )
+        .first()
+        is not None
+    )
+    if first_call_is_known and not (is_admin() or is_first_call(sheet_date)):
+        flash("Only the first call resident or an admin can import schedules", "error")
+        return _sheet_view_redirect(date_str)
+
     daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
     if daily_sheet and daily_sheet.locked:
         flash("Cannot import schedule - sheet is locked", "error")
@@ -179,7 +199,7 @@ def _build_schedule_import_flash(
 def import_schedule(date_str):
     """Import schedule from Amion for a specific date."""
     try:
-        sheet_date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
+        sheet_date = date.fromisoformat(date_str)
         denial_response = _validate_schedule_import_access(sheet_date, date_str)
         if denial_response is not None:
             return denial_response

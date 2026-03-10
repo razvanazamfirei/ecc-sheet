@@ -2,11 +2,13 @@
 {% block title %}Daily Sheet - {{ today.strftime('%B %d, %Y') }}{% endblock %}
 {% block content %}
   {% set missing_count = overtime_entries|selectattr('exit_time', 'none')|list|length %}
+  {% set missing_residents = overtime_entries|selectattr('exit_time', 'none')|map(attribute='resident.name')|list %}
+  {% set lock_confirm_message = 'Warning: ' ~ missing_count ~ ' entries are missing exit times. These residents will not receive overtime credit: ' ~ (missing_residents|join(', ')) ~ '. Lock anyway?' %}
 
   {# Auto-lock warning banner (8 AM - 9 AM) #}
   {% if show_auto_lock_warning %}
     <div
-      class="alert alert-warning auto-lock-warning"
+      class="alert alert-warning alert-dismissible fade show auto-lock-warning"
       role="alert"
       data-auto-dismiss="false">
       <i class="bi bi-clock-fill me-2"></i>
@@ -14,13 +16,26 @@
       <span id="countdown-timer" data-minutes="{{ minutes_until_lock }}">
         ({{ minutes_until_lock }} minutes remaining)
       </span>
+      <button
+        type="button"
+        class="btn-close"
+        data-bs-dismiss="alert"
+        aria-label="Close"></button>
     </div>
   {% endif %}
 
   {% if missing_count > 0 %}
-    <div class="alert alert-warning" role="alert" data-auto-dismiss="false">
+    <div
+      class="alert alert-warning alert-dismissible fade show"
+      role="alert"
+      data-auto-dismiss="false">
       <i class="bi bi-exclamation-triangle-fill me-2"></i>
       <strong>{{ missing_count }} entries missing exit times</strong>
+      <button
+        type="button"
+        class="btn-close"
+        data-bs-dismiss="alert"
+        aria-label="Close"></button>
     </div>
   {% endif %}
 
@@ -60,8 +75,12 @@
           class="d-inline"
           id="lock-sheet-form"
           {% if not daily_sheet.locked and missing_count > 0 %}
+            data-confirm-title="Lock Sheet?"
+            data-confirm-message="{{ lock_confirm_message }}"
+            data-confirm-label="Lock Sheet"
+            data-confirm-variant="warning"
             data-missing-count="{{ missing_count }}"
-            data-missing-residents="{{ overtime_entries|selectattr('exit_time', 'none')|map(attribute='resident.name')|list|tojson }}"
+            data-missing-residents='{{ missing_residents|tojson }}'
           {% endif %}>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button

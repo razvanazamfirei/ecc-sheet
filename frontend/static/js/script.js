@@ -278,7 +278,15 @@ async function handleConfirmSubmit(event) {
 
   if (confirmed) {
     form.dataset.confirmBypass = "true";
-    form.submit();
+    try {
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+    } finally {
+      delete form.dataset.confirmBypass;
+    }
   }
 }
 

@@ -8,11 +8,13 @@ from pathlib import Path
 
 import pytest
 import pytz
+from flask import get_flashed_messages
 
 from backend.config import Config
 from backend.utils import (
     get_effective_date,
     get_philadelphia_time,
+    handle_db_error,
 )
 
 
@@ -44,14 +46,23 @@ class TestPhiladelphiaTime:
 class TestEffectiveDate:
     """Test effective date calculation with 8 AM reset"""
 
+    @staticmethod
+    def _naive_now_with_time(hour: int, minute: int) -> datetime:
+        """Return a naive datetime for today at the requested time."""
+        return datetime.now(UTC).replace(
+            tzinfo=None,
+            hour=hour,
+            minute=minute,
+            second=0,
+            microsecond=0,
+        )
+
     def test_effective_date_after_8am(self):
         """Test that times after 8 AM belong to current calendar day"""
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
         # 10:00 AM today - create naive datetime intentionally for localization
-        test_time = datetime.now().replace(  # noqa: DTZ005
-            hour=10, minute=0, second=0, microsecond=0
-        )
+        test_time = self._naive_now_with_time(10, 0)
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -62,9 +73,7 @@ class TestEffectiveDate:
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
         # 6:00 AM today - create naive datetime intentionally for localization
-        test_time = datetime.now().replace(  # noqa: DTZ005
-            hour=6, minute=0, second=0, microsecond=0
-        )
+        test_time = self._naive_now_with_time(6, 0)
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -76,9 +85,7 @@ class TestEffectiveDate:
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
         # Exactly 8:00 AM today - create naive datetime intentionally for localization
-        test_time = datetime.now().replace(  # noqa: DTZ005
-            hour=8, minute=0, second=0, microsecond=0
-        )
+        test_time = self._naive_now_with_time(8, 0)
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -89,9 +96,7 @@ class TestEffectiveDate:
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
         # 7:59 AM today - create naive datetime intentionally for localization
-        test_time = datetime.now().replace(  # noqa: DTZ005
-            hour=7, minute=59, second=0, microsecond=0
-        )
+        test_time = self._naive_now_with_time(7, 59)
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -103,9 +108,7 @@ class TestEffectiveDate:
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
         # Midnight today - create naive datetime intentionally for localization
-        test_time = datetime.now().replace(  # noqa: DTZ005
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        test_time = self._naive_now_with_time(0, 0)
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -117,9 +120,7 @@ class TestEffectiveDate:
         philly_tz = pytz.timezone(Config.TIMEZONE)
 
         # 11:00 PM today - create naive datetime intentionally for localization
-        test_time = datetime.now().replace(  # noqa: DTZ005
-            hour=23, minute=0, second=0, microsecond=0
-        )
+        test_time = self._naive_now_with_time(23, 0)
         test_time = philly_tz.localize(test_time)
 
         effective = get_effective_date(test_time)
@@ -133,9 +134,7 @@ class TestEffectiveDate:
     def test_effective_date_handles_naive_datetime(self):
         """Test that naive datetimes are properly localized"""
         # Create naive datetime intentionally to test localization behavior
-        naive_time = datetime.now().replace(  # noqa: DTZ005
-            hour=10, minute=0, second=0, microsecond=0
-        )
+        naive_time = self._naive_now_with_time(10, 0)
 
         effective = get_effective_date(naive_time)
         assert isinstance(effective, date)
@@ -330,6 +329,43 @@ class TestHandleDbError:
                 # which may not exist. Verify error handling occurred.
                 mock_rollback.assert_called_once()
                 mock_flash.assert_called_once()
+
+    def test_handle_db_error_returns_generic_json_message(self, app):
+        """JSON callers should receive a generic 500 response."""
+
+        @handle_db_error
+        def raise_runtime_error():
+            raise RuntimeError("secret database details")
+
+        with app.test_request_context(
+            "/entries/update-all",
+            headers={
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        ):
+            response, status_code = raise_runtime_error()
+
+            assert status_code == 500
+            assert response.get_json() == {
+                "success": False,
+                "message": "An unexpected error occurred. Please try again.",
+            }
+
+    def test_handle_db_error_flashes_generic_message(self, app):
+        """HTML callers should see a generic flash message."""
+
+        @handle_db_error
+        def raise_runtime_error():
+            raise RuntimeError("secret database details")
+
+        with app.test_request_context("/"):
+            response = raise_runtime_error()
+
+            assert response.status_code == 302
+            assert get_flashed_messages(with_categories=True) == [
+                ("error", "An unexpected error occurred. Please try again.")
+            ]
 
 
 @pytest.mark.unit

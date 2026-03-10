@@ -6,6 +6,7 @@ import { DateTime, Settings } from "luxon";
 
 // Mock DOM elements storage
 const mockElements = {};
+const documentEventListeners = {};
 
 // Store functions that will be exported
 let exportedFunctions = {};
@@ -31,7 +32,9 @@ beforeAll(async () => {
       querySelector: () => null,
     }),
     readyState: "complete",
-    addEventListener: () => {},
+    addEventListener: (eventName, handler) => {
+      documentEventListeners[eventName] = handler;
+    },
   };
 
   global.window = {
@@ -212,6 +215,63 @@ describe("Script Functions", () => {
       expect(typeof exportedFunctions.goToToday).toBe("function");
       expect(typeof exportedFunctions.formatDate).toBe("function");
       expect(typeof exportedFunctions.updateDisplayedDate).toBe("function");
+    });
+  });
+
+  describe("confirmation submit handling", () => {
+    test("confirmed forms prefer requestSubmit", async () => {
+      global.confirm = () => true;
+      let prevented = false;
+      let requestSubmitCalled = false;
+      let submitCalled = false;
+      const form = {
+        dataset: { confirmMessage: "Continue?" },
+        matches: (selector) => selector === "form",
+        requestSubmit: () => {
+          requestSubmitCalled = true;
+        },
+        submit: () => {
+          submitCalled = true;
+        },
+      };
+
+      documentEventListeners.submit({
+        target: form,
+        defaultPrevented: false,
+        preventDefault: () => {
+          prevented = true;
+        },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(prevented).toBe(true);
+      expect(requestSubmitCalled).toBe(true);
+      expect(submitCalled).toBe(false);
+      expect(form.dataset.confirmBypass).toBeUndefined();
+    });
+
+    test("confirmed forms fall back to submit when requestSubmit is unavailable", async () => {
+      global.confirm = () => true;
+      let submitCalled = false;
+      const form = {
+        dataset: { confirmMessage: "Continue?" },
+        matches: (selector) => selector === "form",
+        submit: () => {
+          submitCalled = true;
+        },
+      };
+
+      documentEventListeners.submit({
+        target: form,
+        defaultPrevented: false,
+        preventDefault: () => {},
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(submitCalled).toBe(true);
+      expect(form.dataset.confirmBypass).toBeUndefined();
     });
   });
 });

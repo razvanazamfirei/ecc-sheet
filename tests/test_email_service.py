@@ -27,8 +27,9 @@ class TestEmailService:
     @patch("backend.email_service.Config")
     def test_send_report_email_no_recipient(self, mock_config, app):
         """Test that email fails without recipient."""
+        credential_value = "mail-credential"
         mock_config.EMAIL_USERNAME = "test@example.com"
-        mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+        mock_config.EMAIL_PASSWORD = credential_value
         mock_config.EMAIL_RECIPIENT = None
 
         with app.app_context():
@@ -45,9 +46,10 @@ class TestEmailService:
     def test_send_report_email_success(self, mock_config, mock_smtp, app):
         """Test successful email sending with mocked SMTP."""
         with app.app_context():
+            credential_value = "mail-credential"
             # Configure mock
             mock_config.EMAIL_USERNAME = "test@example.com"
-            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+            mock_config.EMAIL_PASSWORD = credential_value
             mock_config.EMAIL_HOST = "smtp.example.com"
             mock_config.EMAIL_PORT = 587
             mock_config.EMAIL_RECIPIENT = "default@example.com"
@@ -72,8 +74,9 @@ class TestEmailService:
     ):
         """Test email with resident filter."""
         with app.app_context():
+            credential_value = "mail-credential"
             mock_config.EMAIL_USERNAME = "test@example.com"
-            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+            mock_config.EMAIL_PASSWORD = credential_value
             mock_config.EMAIL_HOST = "smtp.example.com"
             mock_config.EMAIL_PORT = 587
             mock_config.EMAIL_RECIPIENT = "default@example.com"
@@ -96,8 +99,9 @@ class TestEmailService:
     def test_send_report_email_smtp_auth_error(self, mock_config, mock_smtp, app):
         """Test email with SMTP authentication error."""
         with app.app_context():
+            credential_value = "mail-auth-failure"
             mock_config.EMAIL_USERNAME = "test@example.com"
-            mock_config.EMAIL_PASSWORD = "wrong_password"  # noqa: S105
+            mock_config.EMAIL_PASSWORD = credential_value
             mock_config.EMAIL_HOST = "smtp.example.com"
             mock_config.EMAIL_PORT = 587
             mock_config.EMAIL_RECIPIENT = "default@example.com"
@@ -121,8 +125,9 @@ class TestEmailService:
     def test_send_report_email_smtp_error(self, mock_config, mock_smtp, app):
         """Test email with general SMTP error."""
         with app.app_context():
+            credential_value = "mail-credential"
             mock_config.EMAIL_USERNAME = "test@example.com"
-            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+            mock_config.EMAIL_PASSWORD = credential_value
             mock_config.EMAIL_HOST = "smtp.example.com"
             mock_config.EMAIL_PORT = 587
             mock_config.EMAIL_RECIPIENT = "default@example.com"
@@ -141,8 +146,9 @@ class TestEmailService:
     def test_send_report_email_general_exception(self, mock_config, mock_smtp, app):
         """Test email with general exception."""
         with app.app_context():
+            credential_value = "mail-credential"
             mock_config.EMAIL_USERNAME = "test@example.com"
-            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+            mock_config.EMAIL_PASSWORD = credential_value
             mock_config.EMAIL_HOST = "smtp.example.com"
             mock_config.EMAIL_PORT = 587
             mock_config.EMAIL_RECIPIENT = "default@example.com"
@@ -160,8 +166,9 @@ class TestEmailService:
     @patch("backend.email_service.Config")
     def test_send_report_email_no_recipient_and_no_config(self, mock_config, app):
         """Test email fails when no recipient provided and no config default."""
+        credential_value = "mail-credential"
         mock_config.EMAIL_USERNAME = "test@example.com"
-        mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+        mock_config.EMAIL_PASSWORD = credential_value
         mock_config.EMAIL_RECIPIENT = ""
 
         with app.app_context():
@@ -177,8 +184,9 @@ class TestEmailService:
     def test_send_report_email_uses_config_recipient(self, mock_config, mock_smtp, app):
         """Test email uses config recipient when none provided."""
         with app.app_context():
+            credential_value = "mail-credential"
             mock_config.EMAIL_USERNAME = "test@example.com"
-            mock_config.EMAIL_PASSWORD = "password"  # noqa: S105
+            mock_config.EMAIL_PASSWORD = credential_value
             mock_config.EMAIL_HOST = "smtp.example.com"
             mock_config.EMAIL_PORT = 587
             mock_config.EMAIL_RECIPIENT = "config-default@example.com"

@@ -89,21 +89,22 @@ def handle_db_error(func):
             return func(*args, **kwargs)
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             function_name = getattr(func, "__name__", func.__class__.__name__)
             logger.exception("Database error in %s", function_name)
             db.session.rollback()
+            message = "An unexpected error occurred. Please try again."
             if _wants_json_response():
                 return (
                     jsonify(
                         {
                             "success": False,
-                            "message": f"An error occurred: {e!s}",
+                            "message": message,
                         }
                     ),
                     500,
                 )
-            flash(f"An error occurred: {e!s}", "error")
+            flash(message, "error")
             return redirect(url_for("sheets.index"))
 
     return wrapper

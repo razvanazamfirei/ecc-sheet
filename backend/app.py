@@ -1,3 +1,5 @@
+import os as _os
+import warnings as _warnings
 from logging import Logger
 from pathlib import Path
 from urllib.parse import urlparse
@@ -11,12 +13,12 @@ from .auth import get_current_user, is_admin
 from .config import Config
 from .holidays import get_federal_holidays
 from .models import Holiday, Resident, Role, db
+from .routes import dev as _dev_module
 from .routes import register_blueprints
-from .utils import get_effective_date, setup_logging
+from .utils import _wants_json_response, get_effective_date, setup_logging
 
 # Get the project root directory (parent of backend/)
 project_root: Path = Path(__file__).parent.parent
-DEFAULT_SECRET_KEY = "dev-secret-key-change-in-production"  # noqa: S105
 
 app: Flask = Flask(
     __name__,
@@ -26,11 +28,11 @@ app: Flask = Flask(
 app.config.from_object(Config)
 
 if app.config.get("FLASK_ENV") == "production":
-    secret_key = str(app.config.get("SECRET_KEY") or "").strip()
-    if not secret_key or secret_key == DEFAULT_SECRET_KEY:
+    configured_secret_key = (_os.getenv("SECRET_KEY") or "").strip()
+    if not configured_secret_key:
         raise RuntimeError(
             "A strong SECRET_KEY must be set in production. "
-            "Refusing to start with the default development secret."
+            "Refusing to start without an explicit SECRET_KEY."
         )
 
 db.init_app(app)
@@ -40,15 +42,6 @@ migrate: Migrate = Migrate(app, db, render_as_batch=True)
 
 # Enable CSRF protection
 csrf: CSRFProtect = CSRFProtect(app)
-
-
-def _wants_json_response() -> bool:
-    """Return True when the caller expects JSON instead of HTML."""
-    return (
-        request.headers.get("X-Requested-With") == "XMLHttpRequest"
-        or request.headers.get("X-Expect-JSON") == "1"
-        or "application/json" in request.headers.get("Accept", "")
-    )
 
 
 def _authentication_required_response():
@@ -85,12 +78,6 @@ logger: Logger = setup_logging()
 
 # Register all route blueprints
 register_blueprints(app)
-
-# Exempt the dev blueprint from CSRF only when mock users are enabled
-import os as _os  # noqa: E402
-import warnings as _warnings  # noqa: E402
-
-from .routes import dev as _dev_module  # noqa: E402
 
 _mock_enabled = _os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
 
@@ -137,16 +124,16 @@ def inject_auth():
 @app.context_processor
 def inject_dev():
     """Inject dev mock-user context (only when MOCK_USERS_ENABLED is set)."""
-    import os  # noqa: PLC0415
-
-    if os.getenv("MOCK_USERS_ENABLED", "").lower() not in {"1", "true", "yes"}:
+    if _os.getenv("MOCK_USERS_ENABLED", "").lower() not in {"1", "true", "yes"}:
         return {"mock_users_enabled": False}
 
     admin_users = [
-        u.strip() for u in os.getenv("ADMIN_USERS", "Admin").split(",") if u.strip()
+        u.strip() for u in _os.getenv("ADMIN_USERS", "Admin").split(",") if u.strip()
     ]
     payroll_users = [
-        u.strip() for u in os.getenv("PAYROLL_ADMIN_USERS", "").split(",") if u.strip()
+        u.strip()
+        for u in _os.getenv("PAYROLL_ADMIN_USERS", "").split(",")
+        if u.strip()
     ]
 
     personas = [{"name": admin_users[0] if admin_users else "Admin", "label": "Admin"}]

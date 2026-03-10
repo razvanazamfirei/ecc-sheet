@@ -1,6 +1,7 @@
 """Sheet routes for daily sheet management."""
 
-from datetime import date, datetime, timedelta
+import logging
+from datetime import date, timedelta
 
 from flask import Blueprint, flash, redirect, render_template, url_for
 from sqlalchemy.orm import joinedload
@@ -15,6 +16,17 @@ bp: Blueprint = Blueprint(
     "sheets",
     __name__,
 )
+logger = logging.getLogger(__name__)
+
+
+def _get_or_create_daily_sheet(sheet_date: date) -> DailySheet:
+    """Return an existing daily sheet or create one for the given date."""
+    daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
+    if daily_sheet is None:
+        daily_sheet = DailySheet(date=sheet_date)
+        db.session.add(daily_sheet)
+        db.session.commit()
+    return daily_sheet
 
 
 def _get_sheet_context(sheet_date):
@@ -50,7 +62,7 @@ def _get_sheet_context(sheet_date):
     return call_team_entries, overtime_entries, overtime_roles
 
 
-def _render_sheet(daily_sheet: DailySheet | None, sheet_date: date) -> str:
+def _render_sheet(daily_sheet: DailySheet, sheet_date: date) -> str:
     call_team_entries, overtime_entries, overtime_roles = _get_sheet_context(sheet_date)
 
     # Calculate previous and next dates
@@ -88,12 +100,7 @@ def _render_sheet(daily_sheet: DailySheet | None, sheet_date: date) -> str:
 def index():
     """Dashboard showing today's sheet."""
     today = get_effective_date()
-    daily_sheet: DailySheet | None = DailySheet.query.filter_by(date=today).first()
-    if not daily_sheet:
-        daily_sheet = DailySheet(date=today)
-        db.session.add(daily_sheet)
-        db.session.commit()
-
+    daily_sheet = _get_or_create_daily_sheet(today)
     return _render_sheet(daily_sheet, today)
 
 
@@ -101,17 +108,12 @@ def index():
 def view(date_str):
     """View sheet for a specific date."""
     try:
-        sheet_date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
+        sheet_date = date.fromisoformat(date_str)
     except ValueError:
         flash("Invalid date format", "error")
         return redirect(url_for("sheets.index"))
 
-    daily_sheet: DailySheet | None = DailySheet.query.filter_by(date=sheet_date).first()
-    if not daily_sheet:
-        daily_sheet = DailySheet(date=sheet_date)
-        db.session.add(daily_sheet)
-        db.session.commit()
-
+    daily_sheet = _get_or_create_daily_sheet(sheet_date)
     return _render_sheet(daily_sheet, sheet_date)
 
 
@@ -120,41 +122,41 @@ def view(date_str):
 def lock(date_str):
     """Lock/unlock a daily sheet."""
     try:
-        sheet_date: date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
-        if not (is_admin() or is_first_call(sheet_date)):
-            flash(
-                "Only the first call resident or an admin can lock/unlock the sheet.",
-                "error",
-            )
-            return redirect(url_for("sheets.view", date_str=date_str))
-        daily_sheet: DailySheet | None = DailySheet.query.filter_by(
-            date=sheet_date
-        ).first()
+        sheet_date = date.fromisoformat(date_str)
+    except ValueError:
+        flash("Invalid date format", "error")
+        return redirect(url_for("sheets.index"))
 
-        if not daily_sheet:
-            daily_sheet = DailySheet(date=sheet_date)
-            db.session.add(daily_sheet)
+    if not (is_admin() or is_first_call(sheet_date)):
+        flash(
+            "Only the first call resident or an admin can lock/unlock the sheet.",
+            "error",
+        )
+        return redirect(url_for("sheets.view", date_str=date_str))
 
-        daily_sheet.locked = not daily_sheet.locked
+    daily_sheet: DailySheet | None = DailySheet.query.filter_by(date=sheet_date).first()
+    if not daily_sheet:
+        daily_sheet = DailySheet(date=sheet_date)
+        db.session.add(daily_sheet)
 
-        # Track who and when
-        if daily_sheet.locked:
-            daily_sheet.locked_by = get_current_user()
-            daily_sheet.locked_at = datetime.now()  # noqa: DTZ005
-        else:
-            daily_sheet.locked_by = None
-            daily_sheet.locked_at = None
+    daily_sheet.locked = not daily_sheet.locked
 
-        db.session.commit()
+    # Track who and when
+    if daily_sheet.locked:
+        daily_sheet.locked_by = get_current_user()
+        daily_sheet.locked_at = get_philadelphia_time().replace(tzinfo=None)
+    else:
+        daily_sheet.locked_by = None
+        daily_sheet.locked_at = None
 
-        # Log lock/unlock action
+    db.session.commit()
+
+    try:
         log_lock(date_str, locked=daily_sheet.locked)
+    except Exception:
+        logger.warning("Audit log failed for sheet %s", date_str, exc_info=True)
 
-        status = "locked" if daily_sheet.locked else "unlocked"
-        flash(f"Sheet {status} successfully", "success")
-
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error locking sheet: {e!s}", "error")
+    status = "locked" if daily_sheet.locked else "unlocked"
+    flash(f"Sheet {status} successfully", "success")
 
     return redirect(url_for("sheets.view", date_str=date_str))

@@ -1,7 +1,7 @@
 """Tests for authentication and authorization module."""
 
 import os
-from datetime import date, time
+from datetime import time
 
 from backend.auth import (
     can_filter_reports_by_resident,
@@ -10,6 +10,7 @@ from backend.auth import (
     is_first_call,
     is_payroll_admin,
 )
+from backend.utils import get_effective_date
 
 
 class TestGetCurrentUser:
@@ -375,7 +376,7 @@ class TestIsFirstCall:
             original = os.environ.get("USER_NAME")
             try:
                 os.environ["USER_NAME"] = "Nonexistent Person 99999"
-                assert is_first_call(date.today()) is False  # noqa: DTZ011
+                assert is_first_call(get_effective_date()) is False
             finally:
                 if original is not None:
                     os.environ["USER_NAME"] = original
@@ -403,7 +404,7 @@ class TestIsFirstCall:
             db.session.add(resident)
             db.session.commit()
 
-            today = date.today()  # noqa: DTZ011
+            today = get_effective_date()
             entry = TimeEntry(
                 date=today,
                 resident_id=resident.id,
@@ -429,7 +430,6 @@ class TestIsFirstCall:
     def test_false_when_resident_has_no_first_call_entry(self, app):
         """Return False when resident exists but not assigned a first-call role."""
         import os
-        from datetime import date
 
         from backend.models import Resident, db
 
@@ -441,7 +441,7 @@ class TestIsFirstCall:
             original = os.environ.get("USER_NAME")
             try:
                 os.environ["USER_NAME"] = "Non FC User"
-                assert is_first_call(date.today()) is False  # noqa: DTZ011
+                assert is_first_call(get_effective_date()) is False
             finally:
                 if original is not None:
                     os.environ["USER_NAME"] = original

@@ -52,9 +52,7 @@ def _same_site_env(name: str, *, default: str | None = "Lax") -> str | None:
 
 
 class Config:
-    SECRET_KEY: ClassVar[str] = os.getenv(
-        "SECRET_KEY", "dev-secret-key-change-in-production"
-    )
+    SECRET_KEY: ClassVar[str] = _str_env("SECRET_KEY") or os.urandom(32).hex()
     SQLALCHEMY_DATABASE_URI: ClassVar[str] = os.getenv(
         "DATABASE_URL", "sqlite:///ecc_sheet.db"
     )

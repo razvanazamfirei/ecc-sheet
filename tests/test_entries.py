@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from backend.models import AuditLog, DailySheet, TimeEntry, db
+from backend.models import AuditLog, DailySheet, Resident, TimeEntry, db
 from backend.utils import get_effective_date
 
 
@@ -97,9 +97,15 @@ class TestEntryUpdate:
         """Bulk save should update multiple rows in one JSON request."""
         with app.app_context():
             sample_entry_id = sample_time_entry.id
+            temp_resident = Resident(
+                name=f"Bulk Update Extra Resident {sample_entry_id}",
+                active=True,
+            )
+            db.session.add(temp_resident)
+            db.session.commit()
             extra_entry = TimeEntry(
                 date=sample_time_entry.date,
-                resident_id=sample_time_entry.resident_id,
+                resident_id=temp_resident.id,
                 role_id=sample_time_entry.role_id,
                 exit_time=time(19, 0),
             )
@@ -111,37 +117,105 @@ class TestEntryUpdate:
                 sheet.locked = False
                 db.session.commit()
 
-            response = client.post(
-                "/entries/update-all",
-                json={
-                    "entries": [
-                        {"id": sample_entry_id, "exit_time": "21:30"},
-                        {"id": extra_entry.id, "exit_time": "22:00"},
-                    ]
-                },
-                headers={
-                    "Accept": "application/json",
-                    "X-Requested-With": "XMLHttpRequest",
-                },
+            try:
+                response = client.post(
+                    "/entries/update-all",
+                    json={
+                        "entries": [
+                            {"id": sample_entry_id, "exit_time": "21:30"},
+                            {"id": extra_entry.id, "exit_time": "22:00"},
+                        ]
+                    },
+                    headers={
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+
+                assert response.status_code == 200
+                payload = response.get_json()
+                assert payload is not None
+                assert payload["success"] is True
+                assert [entry["id"] for entry in payload["entries"]] == [
+                    sample_entry_id,
+                    extra_entry.id,
+                ]
+
+                updated_sample_entry = db.session.get(TimeEntry, sample_entry_id)
+                assert updated_sample_entry is not None
+                db.session.refresh(extra_entry)
+                assert updated_sample_entry.exit_time == time(21, 30)
+                assert extra_entry.exit_time == time(22, 0)
+            finally:
+                db.session.rollback()
+                extra_entry_id = getattr(extra_entry, "id", None)
+                if extra_entry_id is not None:
+                    persisted_entry = db.session.get(TimeEntry, extra_entry_id)
+                    if persisted_entry is not None:
+                        db.session.delete(persisted_entry)
+                persisted_resident = db.session.get(Resident, temp_resident.id)
+                if persisted_resident is not None:
+                    db.session.delete(persisted_resident)
+                db.session.commit()
+
+    def test_update_all_returns_400_for_invalid_time_and_stays_atomic(
+        self, client, app, sample_time_entry
+    ):
+        """Bulk save should reject invalid times without partially saving."""
+        with app.app_context():
+            sample_entry_id = sample_time_entry.id
+            original_sample_exit_time = sample_time_entry.exit_time
+            temp_resident = Resident(
+                name=f"Bulk Update Invalid Resident {sample_entry_id}",
+                active=True,
             )
-
-            assert response.status_code == 200
-            payload = response.get_json()
-            assert payload is not None
-            assert payload["success"] is True
-            assert [entry["id"] for entry in payload["entries"]] == [
-                sample_entry_id,
-                extra_entry.id,
-            ]
-
-            updated_sample_entry = db.session.get(TimeEntry, sample_entry_id)
-            assert updated_sample_entry is not None
-            db.session.refresh(extra_entry)
-            assert updated_sample_entry.exit_time == time(21, 30)
-            assert extra_entry.exit_time == time(22, 0)
-
-            db.session.delete(extra_entry)
+            db.session.add(temp_resident)
             db.session.commit()
+            extra_entry = TimeEntry(
+                date=sample_time_entry.date,
+                resident_id=temp_resident.id,
+                role_id=sample_time_entry.role_id,
+                exit_time=time(19, 0),
+            )
+            db.session.add(extra_entry)
+            db.session.commit()
+
+            try:
+                response = client.post(
+                    "/entries/update-all",
+                    json={
+                        "entries": [
+                            {"id": sample_entry_id, "exit_time": "21:30"},
+                            {"id": extra_entry.id, "exit_time": "bad-time"},
+                        ]
+                    },
+                    headers={
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+
+                assert response.status_code == 400
+                payload = response.get_json()
+                assert payload is not None
+                assert payload["success"] is False
+                assert payload["message"] == "Exit time must use HH:MM format."
+
+                unchanged_sample_entry = db.session.get(TimeEntry, sample_entry_id)
+                unchanged_extra_entry = db.session.get(TimeEntry, extra_entry.id)
+                assert unchanged_sample_entry is not None
+                assert unchanged_extra_entry is not None
+                assert unchanged_sample_entry.exit_time == original_sample_exit_time
+                assert unchanged_extra_entry.exit_time == time(19, 0)
+            finally:
+                db.session.rollback()
+                persisted_entry = db.session.get(TimeEntry, extra_entry.id)
+                if persisted_entry is not None:
+                    db.session.delete(persisted_entry)
+                persisted_resident = db.session.get(Resident, temp_resident.id)
+                if persisted_resident is not None:
+                    db.session.delete(persisted_resident)
+                db.session.commit()
 
     def test_update_all_is_atomic_when_an_entry_is_missing(
         self, client, app, sample_time_entry

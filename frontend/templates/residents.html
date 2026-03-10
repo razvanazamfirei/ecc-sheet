@@ -159,6 +159,9 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
+                    {% set toggle_title = 'Deactivate Resident?' if resident.active else 'Activate Resident?' %}
+                    {% set toggle_label = 'Deactivate' if resident.active else 'Activate' %}
+                    {% set toggle_variant = 'warning' if resident.active else 'success' %}
                     <a
                       href="{{ url_for('residents.edit', resident_id=resident.id) }}"
                       class="btn btn-sm btn-outline-secondary me-1">
@@ -168,14 +171,10 @@
                       method="POST"
                       action="{{ url_for('residents.toggle', resident_id=resident.id) }}"
                       style="display: inline;"
-                      data-confirm-title="{% if resident.active %}
-                        Deactivate Resident?
-                      {% else %}
-                        Activate Resident?
-                      {% endif %}"
+                      data-confirm-title="{{ toggle_title }}"
                       data-confirm-message="Are you sure you want to {% if resident.active %}deactivate{% else %}activate{% endif %} {{ resident.name }}?"
-                      data-confirm-label="{% if resident.active %}Deactivate{% else %}Activate{% endif %}"
-                      data-confirm-variant="{% if resident.active %}warning{% else %}success{% endif %}">
+                      data-confirm-label="{{ toggle_label }}"
+                      data-confirm-variant="{{ toggle_variant }}">
                       <input
                         type="hidden"
                         name="csrf_token"

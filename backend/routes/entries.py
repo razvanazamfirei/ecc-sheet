@@ -1,7 +1,7 @@
 """Entry routes for time entry management."""
 
 import logging
-from datetime import date, datetime
+from datetime import date, time
 
 from flask import (
     Blueprint,
@@ -13,14 +13,39 @@ from flask import (
     request,
     url_for,
 )
+from sqlalchemy.orm import joinedload
 
 from ..audit import log_create, log_delete, log_update
 from ..auth import is_admin, is_first_call
 from ..models import DailySheet, TimeEntry, db
-from ..utils import handle_db_error
+from ..utils import _wants_json_response, handle_db_error
 
 bp = Blueprint("entries", __name__, url_prefix="/entries")
 logger = logging.getLogger(__name__)
+
+
+def _parse_time_value(raw: str | None, field_label: str):
+    """Parse a time input, raising a validation error on bad formats."""
+    if not raw:
+        return None
+
+    try:
+        return time.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError(f"{field_label} must use HH:MM format.") from exc
+
+
+def _parse_add_entry_ids(
+    resident_id_raw: str | None, role_id_raw: str | None
+) -> tuple[int, int] | None:
+    """Parse resident and role ids for a new entry."""
+    if not resident_id_raw or not role_id_raw:
+        return None
+
+    try:
+        return int(resident_id_raw), int(role_id_raw)
+    except ValueError:
+        return None
 
 
 def _apply_time_field(
@@ -28,7 +53,8 @@ def _apply_time_field(
 ) -> dict:
     """Set a time field on entry and return a change record if it changed."""
     if raw:
-        setattr(entry, field, datetime.strptime(raw, "%H:%M").time())  # noqa: DTZ007
+        field_label = field.replace("_", " ").capitalize()
+        setattr(entry, field, _parse_time_value(raw, field_label))
         return {field: {"old": old_str, "new": raw}} if old_str != raw else {}
     setattr(entry, field, None)
     return {field: {"old": old_str, "new": None}} if old_str is not None else {}
@@ -52,15 +78,6 @@ def _entry_names(entry: "TimeEntry") -> tuple[str, str]:
         entry.role.name
         if entry.role
         else (str(entry.role_id) if entry.role_id else ""),
-    )
-
-
-def _wants_json_response() -> bool:
-    """Return True when the caller expects a JSON response."""
-    return (
-        request.headers.get("X-Requested-With") == "XMLHttpRequest"
-        or request.headers.get("X-Expect-JSON") == "1"
-        or "application/json" in request.headers.get("Accept", "")
     )
 
 
@@ -183,7 +200,9 @@ def _load_validated_bulk_entries(
     entry_ids = {update["id"] for update in normalized_updates}
     entries = {
         entry.id: entry
-        for entry in TimeEntry.query.filter(TimeEntry.id.in_(entry_ids)).all()
+        for entry in TimeEntry.query.filter(TimeEntry.id.in_(entry_ids))
+        .options(joinedload(TimeEntry.resident), joinedload(TimeEntry.role))
+        .all()
     }
     missing_entry_ids = [
         str(update["id"])
@@ -214,91 +233,78 @@ def _load_validated_bulk_entries(
 @handle_db_error
 def add():
     """Add a new time entry."""
-    sheet_date_str = ""
+    sheet_date_str = request.form.get("date")
+    if not sheet_date_str:
+        flash("Date is required", "error")
+        return redirect(url_for("sheets.index"))
+
+    sheet_date = date.fromisoformat(sheet_date_str)
+
+    if not (is_admin() or is_first_call(sheet_date)):
+        flash("Only the first call resident or an admin can add entries.", "error")
+        return redirect(url_for("sheets.view", date_str=sheet_date_str))
+
+    if resp := _check_sheet_locked(sheet_date, sheet_date_str, "add entry"):
+        return resp
+
+    resident_id_raw = request.form.get("resident_id")
+    role_id_raw = request.form.get("role_id")
+    exit_time_str = request.form.get("exit_time")
+    start_time_str = request.form.get("start_time")
+
+    parsed_ids = _parse_add_entry_ids(resident_id_raw, role_id_raw)
+    if parsed_ids is None:
+        flash("Resident and role are required and must be valid IDs", "error")
+        return redirect(url_for("sheets.view", date_str=sheet_date_str))
+    resident_id, role_id = parsed_ids
+
     try:
-        sheet_date_str = request.form.get("date")
-        if not sheet_date_str:
-            flash("Date is required", "error")
-            return redirect(url_for("sheets.index"))
-        sheet_date = datetime.strptime(sheet_date_str, "%Y-%m-%d").date()  # noqa: DTZ007
-
-        if not (is_admin() or is_first_call(sheet_date)):
-            flash("Only the first call resident or an admin can add entries.", "error")
-            return redirect(url_for("sheets.view", date_str=sheet_date_str))
-
-        if resp := _check_sheet_locked(sheet_date, sheet_date_str, "add entry"):
-            return resp
-
-        resident_id_raw = request.form.get("resident_id")
-        role_id_raw = request.form.get("role_id")
-        exit_time_str = request.form.get("exit_time")
-        start_time_str = request.form.get("start_time")
-
-        # Validate required fields
-        if not resident_id_raw or not role_id_raw:
-            flash("Resident and role are required", "error")
-            return redirect(url_for("sheets.view", date_str=sheet_date_str))
-        try:
-            resident_id = int(resident_id_raw)
-            role_id = int(role_id_raw)
-        except ValueError:
-            flash("Resident and role must be valid IDs", "error")
-            return redirect(url_for("sheets.view", date_str=sheet_date_str))
-
-        # Parse exit time
-        exit_time = None
-        if exit_time_str:
-            exit_time = datetime.strptime(exit_time_str, "%H:%M").time()  # noqa: DTZ007
-
-        # Parse start time (for backup roles)
-        start_time = None
-        if start_time_str:
-            start_time = datetime.strptime(start_time_str, "%H:%M").time()  # noqa: DTZ007
-
-        entry = TimeEntry(
-            date=sheet_date,
-            resident_id=resident_id,
-            role_id=role_id,
-            exit_time=exit_time,
-            start_time=start_time,
-        )
-
-        db.session.add(entry)
-        # Resolve relationship names before commit so they are available for audit
-        # logging even if the session state changes after commit.
-        resident_name = str(resident_id)
-        role_name = str(role_id)
-        db.session.flush()
-        if entry.resident:
-            resident_name = entry.resident.name
-        if entry.role:
-            role_name = entry.role.name
-        db.session.commit()
-
-        # Log the action - wrapped separately so audit failure does not
-        # roll back the committed entry or flash a false failure message.
-        try:
-            log_create(
-                "TimeEntry",
-                entry.id,
-                {
-                    "date": sheet_date_str,
-                    "resident_id": resident_id,
-                    "resident": resident_name,
-                    "role": role_name,
-                    "exit_time": exit_time_str or None,
-                    "start_time": start_time_str or None,
-                },
-            )
-        except Exception:
-            logger.warning("Audit log failed for entry %s", entry.id, exc_info=True)
-
-        flash("Entry added successfully", "success")
-
-    except Exception as e:
+        exit_time = _parse_time_value(exit_time_str, "Exit time")
+        start_time = _parse_time_value(start_time_str, "Start time")
+    except ValueError as exc:
         db.session.rollback()
-        flash(f"Error adding entry: {e!s}", "error")
+        flash(str(exc), "error")
+        return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
+    entry = TimeEntry(
+        date=sheet_date,
+        resident_id=resident_id,
+        role_id=role_id,
+        exit_time=exit_time,
+        start_time=start_time,
+    )
+
+    db.session.add(entry)
+    # Resolve relationship names before commit so they are available for audit
+    # logging even if the session state changes after commit.
+    resident_name = str(resident_id)
+    role_name = str(role_id)
+    db.session.flush()
+    if entry.resident:
+        resident_name = entry.resident.name
+    if entry.role:
+        role_name = entry.role.name
+    db.session.commit()
+
+    # Log the action - wrapped separately so audit failure does not
+    # roll back the committed entry or flash a false failure message.
+    try:
+        log_create(
+            "TimeEntry",
+            entry.id,
+            {
+                "date": sheet_date_str,
+                "resident_id": resident_id,
+                "resident": resident_name,
+                "role": role_name,
+                "exit_time": exit_time_str or None,
+                "start_time": start_time_str or None,
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for entry %s", entry.id, exc_info=True)
+
+    flash("Entry added successfully", "success")
     return redirect(url_for("sheets.view", date_str=sheet_date_str))
 
 
@@ -324,7 +330,6 @@ def update(entry_id):
             return _json_error("Cannot update entry - sheet is locked", 409)
         return resp
 
-    response: Response | tuple[Response, int]
     try:
         old_exit_time = entry.exit_time.strftime("%H:%M") if entry.exit_time else None
         old_start_time = (
@@ -344,7 +349,7 @@ def update(entry_id):
 
         db.session.commit()
         if _wants_json_response():
-            response = jsonify(
+            response: Response | tuple[Response, int] = jsonify(
                 {
                     "success": True,
                     "message": "Entry updated successfully",
@@ -356,13 +361,12 @@ def update(entry_id):
             response = redirect(url_for("sheets.view", date_str=sheet_date_str))
 
         _log_entry_update(entry, changes)
-
-    except Exception as e:
+    except ValueError as exc:
         db.session.rollback()
         if _wants_json_response():
-            response = _json_error(f"Error updating entry: {e!s}", 400)
+            response = _json_error(str(exc), 400)
         else:
-            flash(f"Error updating entry: {e!s}", "error")
+            flash(str(exc), "error")
             response = redirect(url_for("sheets.view", date_str=sheet_date_str))
 
     return response
@@ -381,31 +385,37 @@ def update_all():
         return entries
 
     entry_updates: list[tuple[TimeEntry, dict]] = []
-    for update in normalized_updates:
-        entry = entries[update["id"]]
-        old_exit_time = entry.exit_time.strftime("%H:%M") if entry.exit_time else None
-        old_start_time = (
-            entry.start_time.strftime("%H:%M") if entry.start_time else None
-        )
-
-        changes = _apply_time_field(
-            entry,
-            "exit_time",
-            update["exit_time"],
-            old_exit_time,
-        )
-
-        if update["has_start_time"]:
-            changes.update(
-                _apply_time_field(
-                    entry,
-                    "start_time",
-                    update["start_time"],
-                    old_start_time,
-                )
+    try:
+        for update in normalized_updates:
+            entry = entries[update["id"]]
+            old_exit_time = (
+                entry.exit_time.strftime("%H:%M") if entry.exit_time else None
+            )
+            old_start_time = (
+                entry.start_time.strftime("%H:%M") if entry.start_time else None
             )
 
-        entry_updates.append((entry, changes))
+            changes = _apply_time_field(
+                entry,
+                "exit_time",
+                update["exit_time"],
+                old_exit_time,
+            )
+
+            if update["has_start_time"]:
+                changes.update(
+                    _apply_time_field(
+                        entry,
+                        "start_time",
+                        update["start_time"],
+                        old_start_time,
+                    )
+                )
+
+            entry_updates.append((entry, changes))
+    except ValueError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
 
     db.session.commit()
 

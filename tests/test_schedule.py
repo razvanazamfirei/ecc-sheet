@@ -1,6 +1,5 @@
 """Tests for schedule import functionality."""
 
-import os
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -138,20 +137,12 @@ class TestScheduleImport:
             )
             assert response.status_code == 200
 
-    def test_import_invalid_date(self, client):
-        """Test import with invalid date format."""
-        response = client.post(
-            "/schedule/invalid-date/import",
-            follow_redirects=True,
-        )
-        # Should handle the error
-        assert response.status_code in {200, 400, 404}
-
     @patch("backend.routes.schedule.requests.get")
     def test_import_skips_unknown_residents(self, mock_get, client, app):
         """Test that import skips rows for residents who are not in the database."""
         with app.app_context():
             test_date = date(2024, 4, 1)
+            unknown_resident_name = "Unknown Resident 99999"
 
             # Ensure sheet is unlocked
             sheet = DailySheet.query.filter_by(date=test_date).first()
@@ -170,7 +161,8 @@ class TestScheduleImport:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.text = (
-                '"New Resident","EPICID:R999999","","ECC 1","","","","",""\n'
+                f'"{unknown_resident_name}","EPICID:R999999","","ECC 1","","","",'
+                '"",""\n'
             )
             mock_response.raise_for_status = MagicMock()
             mock_get.return_value = mock_response
@@ -374,30 +366,6 @@ class TestScheduleImport:
             db.session.commit()
 
     @patch("backend.routes.schedule.requests.get")
-    def test_import_requires_editor_role(self, mock_get, client, app):
-        """Regular non-editor users cannot trigger schedule imports."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
-
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            response = client.post(
-                "/schedule/2024-04-07/import",
-                follow_redirects=True,
-            )
-            assert response.status_code == 200
-            assert (
-                b"Only the first call resident or an admin can import schedules"
-                in response.data
-            )
-            mock_get.assert_not_called()
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
-
-    @patch("backend.routes.schedule.requests.get")
     def test_import_finds_resident_by_epic_id(self, mock_get, client, app):
         """Test that import finds existing resident by EPIC ID."""
         with app.app_context():
@@ -540,9 +508,7 @@ class TestScheduleImport:
                 db.session.commit()
 
     @patch("backend.routes.schedule.requests.get")
-    def test_import_uses_existing_resident_without_epic_id(
-        self, mock_get, client, app
-    ):
+    def test_import_uses_existing_resident_without_epic_id(self, mock_get, client, app):
         """Test import matches an existing resident by name when EPIC is absent."""
         with app.app_context():
             test_date = date(2024, 4, 9)
@@ -958,4 +924,73 @@ class TestScheduleImport:
             )
 
             db.session.delete(resident)
+            db.session.commit()
+
+
+def test_import_invalid_date(client):
+    """Test import with invalid date format."""
+    response = client.post(
+        "/schedule/invalid-date/import",
+        follow_redirects=True,
+    )
+    assert response.status_code in {200, 400, 404}
+
+
+@patch("backend.routes.schedule.requests.get")
+def test_import_requires_editor_role(mock_get, client, app, monkeypatch):
+    """Regular non-editor users cannot trigger schedule imports."""
+    monkeypatch.setenv("USER_NAME", "Regular User")
+    monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+    test_date = date(2024, 4, 7)
+
+    with app.app_context():
+        first_call_role = Role.query.filter_by(name="First Call").first()
+        if first_call_role is None:
+            first_call_role = Role(
+                name="First Call",
+                cutoff_hour=17,
+                cutoff_minute=30,
+                is_call_team=True,
+            )
+            db.session.add(first_call_role)
+            db.session.commit()
+
+        first_call_resident = Resident(name="Assigned First Call", active=True)
+        db.session.add(first_call_resident)
+        db.session.commit()
+
+        first_call_entry = TimeEntry(
+            date=test_date,
+            resident_id=first_call_resident.id,
+            role_id=first_call_role.id,
+            exit_time=None,
+        )
+        db.session.add(first_call_entry)
+        db.session.commit()
+        first_call_resident_id = first_call_resident.id
+        first_call_role_id = first_call_role.id
+
+    try:
+        response = client.post(
+            f"/schedule/{test_date.strftime('%Y-%m-%d')}/import",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert (
+            b"Only the first call resident or an admin can import schedules"
+            in response.data
+        )
+        mock_get.assert_not_called()
+    finally:
+        with app.app_context():
+            persisted_entry = TimeEntry.query.filter_by(
+                date=test_date,
+                resident_id=first_call_resident_id,
+                role_id=first_call_role_id,
+            ).first()
+            if persisted_entry is not None:
+                db.session.delete(persisted_entry)
+            persisted_resident = db.session.get(Resident, first_call_resident_id)
+            if persisted_resident is not None:
+                db.session.delete(persisted_resident)
             db.session.commit()
