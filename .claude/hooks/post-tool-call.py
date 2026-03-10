@@ -38,7 +38,7 @@ def http_request(
 
 def get_server_port():
     claude_root = os.getenv("CLAUDE_PROJECT_DIR")
-    path_hash = hashlib.md5(claude_root.encode("utf-8")).hexdigest()  # noqa: S324
+    path_hash = hashlib.sha256(claude_root.encode("utf-8")).hexdigest()
     port_file = Path(tempfile.gettempdir()) / (path_hash + PORT_FILE_SUFFIX)
 
     return int(port_file.read_text("utf-8").strip())

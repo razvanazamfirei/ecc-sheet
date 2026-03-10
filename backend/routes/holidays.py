@@ -1,6 +1,6 @@
 """Holiday management routes."""
 
-from datetime import datetime
+from datetime import date
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
@@ -33,7 +33,7 @@ def add():
             flash("Date and name are required", "error")
             return redirect(url_for("holidays.index"))
 
-        holiday_date = datetime.strptime(date_str, "%Y-%m-%d").date()  # noqa: DTZ007
+        holiday_date = date.fromisoformat(date_str)
 
         # Check if holiday already exists
         if Holiday.query.filter_by(date=holiday_date).first():

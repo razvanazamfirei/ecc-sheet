@@ -12,9 +12,10 @@ class TestConfig:
 
     def test_secret_key_from_env(self):
         """Test SECRET_KEY is read from environment."""
-        with patch.dict(os.environ, {"SECRET_KEY": "test-secret-123"}):
+        expected_value = os.urandom(16).hex()
+        with patch.dict(os.environ, {"SECRET_KEY": expected_value}):
             reload(backend.config)
-            assert backend.config.Config.SECRET_KEY == "test-secret-123"  # noqa: S105
+            assert expected_value == backend.config.Config.SECRET_KEY
 
     def test_secret_key_default(self):
         """Test SECRET_KEY has a default value when not in environment."""

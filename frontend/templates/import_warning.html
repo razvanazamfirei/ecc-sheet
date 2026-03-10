@@ -80,8 +80,11 @@
           <form
             method="POST"
             action="{{ url_for('schedule.import_schedule', date_str=date_str) }}"
-            onsubmit="return confirm('Are you SURE? This will permanently delete {{ conflicts.data_loss|length }} exit times that have already been entered. This cannot be undone.')"
-            class="mb-3">
+            class="mb-3"
+            data-confirm-title="Overwrite Existing Entries?"
+            data-confirm-message="Are you SURE? This will permanently delete {{ conflicts.data_loss|length }} exit times that have already been entered. This cannot be undone."
+            data-confirm-label="Overwrite All"
+            data-confirm-variant="danger">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="confirmed" value="true" />
             <input type="hidden" name="skip_existing" value="false" />

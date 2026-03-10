@@ -20,7 +20,6 @@
     <nav class="navbar navbar-expand-lg bg-body-tertiary mb-3">
       <div class="container">
         <a class="navbar-brand" href="{{ url_for('sheets.index') }}">
-          <span class="fs-3">&#9201;</span>
           ECC Sheet
         </a>
         <button
@@ -187,6 +186,8 @@
     </nav>
 
     <div class="container">
+      <div id="notification-container" class="flash-messages mb-3"></div>
+
       <!-- Flash Messages -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -211,6 +212,35 @@
 
       <!-- Main Content -->
       {% block content %}{% endblock %}
+    </div>
+
+    <div id="page-dialog-root" class="page-dialog-root" hidden>
+      <div id="page-dialog-backdrop" class="page-dialog-backdrop"></div>
+      <div
+        class="page-dialog-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="page-dialog-title"
+        aria-describedby="page-dialog-message">
+        <div class="page-dialog-header">
+          <h2 id="page-dialog-title" class="h5 mb-0">Confirm Action</h2>
+        </div>
+        <p id="page-dialog-message" class="page-dialog-message mb-0"></p>
+        <div class="page-dialog-actions">
+          <button
+            id="page-dialog-cancel"
+            type="button"
+            class="btn btn-outline-secondary">
+            Cancel
+          </button>
+          <button
+            id="page-dialog-confirm"
+            type="button"
+            class="btn btn-primary">
+            Continue
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Footer -->

@@ -9,13 +9,22 @@ from functools import wraps
 from pathlib import Path
 
 import pytz
-from flask import flash, redirect, url_for
+from flask import flash, jsonify, redirect, request, url_for
 from werkzeug.exceptions import HTTPException
 
 from .config import Config
 from .models import db
 
 logger = logging.getLogger("ecc_sheet")
+
+
+def _wants_json_response() -> bool:
+    """Return True when the caller expects a JSON response."""
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or request.headers.get("X-Expect-JSON") == "1"
+        or "application/json" in request.headers.get("Accept", "")
+    )
 
 
 def setup_logging() -> logging.Logger:
@@ -80,11 +89,22 @@ def handle_db_error(func):
             return func(*args, **kwargs)
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             function_name = getattr(func, "__name__", func.__class__.__name__)
             logger.exception("Database error in %s", function_name)
             db.session.rollback()
-            flash(f"An error occurred: {e!s}", "error")
+            message = "An unexpected error occurred. Please try again."
+            if _wants_json_response():
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": message,
+                        }
+                    ),
+                    500,
+                )
+            flash(message, "error")
             return redirect(url_for("sheets.index"))
 
     return wrapper

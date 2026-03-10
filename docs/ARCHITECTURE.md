@@ -581,31 +581,37 @@ Configured in database, editable via UI:
 ### Implemented ✅
 
 1. **CSRF Protection**
+
    - Flask-WTF CSRFProtect enabled
    - All POST requests require token
    - Tokens in all templates
 
 2. **Input Validation**
+
    - WTForms schema validation
    - Type coercion (strings → dates/times)
    - Length limits enforced
 
 3. **SQL Injection Prevention**
+
    - SQLAlchemy ORM (parameterized queries)
    - No raw SQL execution
    - Use of `db.session.get()` for safe queries
 
 4. **XSS Prevention**
+
    - Jinja2 auto-escaping enabled
    - All user input escaped
 
 5. **Error Handling**
+
    - Custom exception classes
    - Try-catch blocks on all DB operations
    - Graceful degradation
    - Error logging
 
 6. **Logging**
+
    - Application logging configured
    - All errors logged
    - Audit trail for all actions
@@ -618,15 +624,18 @@ Configured in database, editable via UI:
 ### Not Implemented ❌
 
 1. **Authentication**
+
    - No user login system
    - No password management
    - Must use external auth (SSO, reverse proxy)
 
 2. **Rate Limiting**
+
    - No request throttling
    - Vulnerable to abuse without external protection
 
 3. **HTTPS**
+
    - HTTP only (local dev)
    - Must configure SSL/TLS in production
 

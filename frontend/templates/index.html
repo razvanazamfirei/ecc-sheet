@@ -2,13 +2,15 @@
 {% block title %}Daily Sheet - {{ today.strftime('%B %d, %Y') }}{% endblock %}
 {% block content %}
   {% set missing_count = overtime_entries|selectattr('exit_time', 'none')|list|length %}
+  {% set missing_residents = overtime_entries|selectattr('exit_time', 'none')|map(attribute='resident.name')|list %}
+  {% set lock_confirm_message = 'Warning: ' ~ missing_count ~ ' entries are missing exit times. These residents will not receive overtime credit: ' ~ (missing_residents|join(', ')) ~ '. Lock anyway?' %}
 
   {# Auto-lock warning banner (8 AM - 9 AM) #}
-  {% if not daily_sheet.locked and current_time.hour == 8 %}
-    {% set minutes_until_lock = 60 - current_time.minute %}
+  {% if show_auto_lock_warning %}
     <div
       class="alert alert-warning alert-dismissible fade show auto-lock-warning"
-      role="alert">
+      role="alert"
+      data-auto-dismiss="false">
       <i class="bi bi-clock-fill me-2"></i>
       <strong>Warning: This sheet will auto-lock at 09:00 AM</strong>
       <span id="countdown-timer" data-minutes="{{ minutes_until_lock }}">
@@ -23,7 +25,10 @@
   {% endif %}
 
   {% if missing_count > 0 %}
-    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <div
+      class="alert alert-warning alert-dismissible fade show"
+      role="alert"
+      data-auto-dismiss="false">
       <i class="bi bi-exclamation-triangle-fill me-2"></i>
       <strong>{{ missing_count }} entries missing exit times</strong>
       <button
@@ -52,12 +57,13 @@
         <form
           method="POST"
           action="{{ url_for('schedule.import_schedule', date_str=today.strftime('%Y-%m-%d')) }}"
-          class="d-inline">
+          class="d-inline"
+          data-confirm-title="Import Schedule?"
+          data-confirm-message="Import schedule from Amion? This will add entries for residents assigned to roles."
+          data-confirm-label="Import"
+          data-confirm-variant="info">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button
-            type="submit"
-            class="btn btn-info btn-sm"
-            onclick="return confirm('Import schedule from Amion? This will add entries for residents assigned to roles.')">
+          <button type="submit" class="btn btn-info btn-sm">
             <i class="bi bi-cloud-download me-1"></i>Import Schedule
           </button>
         </form>
@@ -69,9 +75,11 @@
           class="d-inline"
           id="lock-sheet-form"
           {% if not daily_sheet.locked and missing_count > 0 %}
+            data-confirm-title="Lock Sheet?"
+            data-confirm-message="{{ lock_confirm_message }}"
+            data-confirm-label="Lock Sheet" data-confirm-variant="warning"
             data-missing-count="{{ missing_count }}"
-            data-missing-residents="{{ overtime_entries|selectattr('exit_time', 'none')|map(attribute='resident.name')|list|tojson }}"
-            onsubmit="return confirmLockWithMissing(this)"
+            data-missing-residents='{{ missing_residents|tojson }}'
           {% endif %}>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button
@@ -325,6 +333,7 @@
                           id="start-input-{{ entry.id }}"
                           value="{{ entry.start_time.strftime('%H:%M') if entry.start_time else '' }}"
                           step="300"
+                          enterkeyhint="done"
                           class="form-control"
                           style="display: none; width: 150px;" />
                       {% else %}
@@ -366,6 +375,7 @@
                       action="{{ url_for('entries.update', entry_id=entry.id) }}"
                       class="time-edit-form"
                       id="form-{{ entry.id }}"
+                      data-entry-id="{{ entry.id }}"
                       style="display: none;">
                       <input
                         type="hidden"
@@ -377,8 +387,16 @@
                         id="input-{{ entry.id }}"
                         value="{{ entry.exit_time.strftime('%H:%M') if entry.exit_time else '' }}"
                         step="300"
+                        enterkeyhint="done"
                         class="form-control"
                         style="width: 150px;" />
+                      <button
+                        type="submit"
+                        class="visually-hidden"
+                        tabindex="-1"
+                        aria-hidden="true">
+                        Save
+                      </button>
                     </form>
                   </td>
                   <td class="overtime-cell">
@@ -394,11 +412,13 @@
                         id="edit-controls-{{ entry.id }}"
                         style="display: none;">
                         <button
+                          type="button"
                           onclick="saveEntry({{ entry.id }})"
                           class="btn btn-outline-success save-btn">
                           <i class="bi bi-check fs-6"></i>
                         </button>
                         <button
+                          type="button"
                           onclick="cancelEdit({{ entry.id }})"
                           class="btn btn-outline-secondary cancel-btn">
                           <i class="bi bi-x fs-6"></i>
@@ -410,6 +430,7 @@
                         id="action-buttons-{{ entry.id }}">
                         <div class="btn-group">
                           <button
+                            type="button"
                             onclick="editEntry({{ entry.id }})"
                             class="btn btn-outline-primary edit-btn">
                             <i class="bi bi-pencil fs-6"></i>
@@ -418,15 +439,16 @@
                         <form
                           method="POST"
                           action="{{ url_for('entries.delete', entry_id=entry.id) }}"
-                          class="btn-group delete-form">
+                          class="btn-group delete-form"
+                          data-confirm-title="Delete Entry?"
+                          data-confirm-message="Delete this entry?"
+                          data-confirm-label="Delete"
+                          data-confirm-variant="danger">
                           <input
                             type="hidden"
                             name="csrf_token"
                             value="{{ csrf_token() }}" />
-                          <button
-                            type="submit"
-                            class="btn btn-outline-danger"
-                            onclick="return confirm('Delete this entry?')">
+                          <button type="submit" class="btn btn-outline-danger">
                             <i class="bi bi-trash fs-6"></i>
                           </button>
                         </form>
@@ -463,51 +485,53 @@
     </div>
   </div>
 
-  <div class="d-flex justify-content-center gap-3 mt-4 mb-4 sheet-actions">
-    <div
-      class="btn-wrapper"
-      {% if not daily_sheet.locked %}
-        data-tooltip="Disabled until sheet is locked"
-      {% endif %}>
-      <button
-        type="button"
-        class="btn btn-outline-primary"
-        onclick="copyToClipboard(event)"
-        {% if not daily_sheet.locked %}disabled{% endif %}>
-        <i class="bi bi-clipboard me-2"></i>Copy to Clipboard
-      </button>
+  {% if false %}
+    <div class="d-flex justify-content-center gap-3 mt-4 mb-4 sheet-actions">
+      <div
+        class="btn-wrapper"
+        {% if not daily_sheet.locked %}
+          data-tooltip="Disabled until sheet is locked"
+        {% endif %}>
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          onclick="copyToClipboard(event)"
+          {% if not daily_sheet.locked %}disabled{% endif %}>
+          <i class="bi bi-clipboard me-2"></i>Copy to Clipboard
+        </button>
+      </div>
+      <div
+        class="btn-wrapper"
+        {% if not daily_sheet.locked %}
+          data-tooltip="Disabled until sheet is locked"
+        {% endif %}>
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          onclick="window.print()"
+          {% if not daily_sheet.locked %}disabled{% endif %}>
+          <i class="bi bi-printer me-2"></i>Print for Signing
+        </button>
+      </div>
     </div>
-    <div
-      class="btn-wrapper"
-      {% if not daily_sheet.locked %}
-        data-tooltip="Disabled until sheet is locked"
-      {% endif %}>
-      <button
-        type="button"
-        class="btn btn-outline-secondary"
-        onclick="window.print()"
-        {% if not daily_sheet.locked %}disabled{% endif %}>
-        <i class="bi bi-printer me-2"></i>Print for Signing
-      </button>
-    </div>
-  </div>
 
-  <div class="signature-section print-only">
-    <div class="row mt-5">
-      <div class="col-6">
-        <div class="signature-line">
-          <div class="signature-label">Attending Signature</div>
-          <div class="signature-underline"></div>
+    <div class="signature-section print-only">
+      <div class="row mt-5">
+        <div class="col-6">
+          <div class="signature-line">
+            <div class="signature-label">Attending Signature</div>
+            <div class="signature-underline"></div>
+          </div>
         </div>
-      </div>
-      <div class="col-6">
-        <div class="signature-line">
-          <div class="signature-label">First Call Signature</div>
-          <div class="signature-underline"></div>
+        <div class="col-6">
+          <div class="signature-line">
+            <div class="signature-label">First Call Signature</div>
+            <div class="signature-underline"></div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}

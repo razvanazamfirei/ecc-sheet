@@ -349,7 +349,7 @@ class TestPayrollXlsxExport:
             follow_redirects=True,
         )
         assert response.status_code == 200
-        assert b"error" in response.data.lower()
+        assert b"Invalid start_date: not-a-date" in response.data
 
     def test_export_payroll_xlsx_filename_contains_dates(self, client):
         """Test that Content-Disposition filename includes date range."""

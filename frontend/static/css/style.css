@@ -4,6 +4,61 @@
   --dark: #2c3e50;
 }
 
+#notification-container:empty {
+  display: none;
+}
+
+.page-dialog-root[hidden] {
+  display: none !important;
+}
+
+.page-dialog-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.page-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(16 24 40 / 55%);
+  backdrop-filter: blur(4px);
+}
+
+.page-dialog-card {
+  position: relative;
+  width: min(100%, 32rem);
+  border: 1px solid rgb(15 23 42 / 12%);
+  border-radius: 1rem;
+  background: var(--bs-body-bg, #fff);
+  box-shadow: 0 1.5rem 3rem rgb(15 23 42 / 20%);
+  padding: 1.5rem;
+}
+
+.page-dialog-header {
+  margin-bottom: 0.75rem;
+}
+
+.page-dialog-message {
+  white-space: pre-line;
+  color: var(--bs-secondary-color, #495057);
+}
+
+.page-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+body.page-dialog-open {
+  overflow: hidden;
+}
+
 /* Overtime Highlighting */
 .overtime-cell {
   color: var(--bs-danger);
@@ -58,6 +113,22 @@
 
   .action-buttons {
     flex-direction: column;
+  }
+
+  .page-dialog-root {
+    padding: 1rem;
+  }
+
+  .page-dialog-card {
+    width: 100%;
+  }
+
+  .page-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .page-dialog-actions .btn {
+    width: 100%;
   }
 }
 
@@ -172,7 +243,9 @@
   tfoot,
   footer,
   i.bi,
-  .bi {
+  .bi,
+  .page-dialog-root,
+  #notification-container {
     display: none !important;
   }
 

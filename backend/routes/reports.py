@@ -1,7 +1,7 @@
 """Report routes."""
 
 import logging
-from datetime import date, datetime
+from datetime import date
 from logging import Logger
 
 from flask import (
@@ -46,12 +46,15 @@ def _parse_report_params() -> tuple[date, date, int | None]:
     if not start_date_raw or not end_date_raw:
         raise ValidationError("Start date and end date are required")
 
-    start_date = datetime.strptime(  # noqa: DTZ007
-        start_date_raw, "%Y-%m-%d"
-    ).date()
-    end_date = datetime.strptime(  # noqa: DTZ007
-        end_date_raw, "%Y-%m-%d"
-    ).date()
+    try:
+        start_date = date.fromisoformat(start_date_raw)
+    except ValueError as exc:
+        raise ValidationError(f"Invalid start_date: {start_date_raw}") from exc
+
+    try:
+        end_date = date.fromisoformat(end_date_raw)
+    except ValueError as exc:
+        raise ValidationError(f"Invalid end_date: {end_date_raw}") from exc
 
     if not can_filter_reports_by_resident():
         # -1 is intentional: it is truthy (so build_entries_query applies the

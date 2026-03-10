@@ -12,12 +12,13 @@
       <form
         method="POST"
         action="{{ url_for('residents.import_staff') }}"
-        style="display: inline;">
+        style="display: inline;"
+        data-confirm-title="Import Staff List?"
+        data-confirm-message="This will import staff information from Amion. Existing resident data will be updated. Continue?"
+        data-confirm-label="Import"
+        data-confirm-variant="info">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <button
-          type="submit"
-          class="btn btn-info"
-          onclick="return confirm('This will import staff information from Amion. Existing resident data will be updated. Continue?')">
+        <button type="submit" class="btn btn-info">
           <i class="bi bi-cloud-download me-2"></i>Import Staff List from Amion
         </button>
       </form>
@@ -158,6 +159,9 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
+                    {% set toggle_title = 'Deactivate Resident?' if resident.active else 'Activate Resident?' %}
+                    {% set toggle_label = 'Deactivate' if resident.active else 'Activate' %}
+                    {% set toggle_variant = 'warning' if resident.active else 'success' %}
                     <a
                       href="{{ url_for('residents.edit', resident_id=resident.id) }}"
                       class="btn btn-sm btn-outline-secondary me-1">
@@ -166,15 +170,18 @@
                     <form
                       method="POST"
                       action="{{ url_for('residents.toggle', resident_id=resident.id) }}"
-                      style="display: inline;">
+                      style="display: inline;"
+                      data-confirm-title="{{ toggle_title }}"
+                      data-confirm-message="Are you sure you want to {% if resident.active %}deactivate{% else %}activate{% endif %} {{ resident.name }}?"
+                      data-confirm-label="{{ toggle_label }}"
+                      data-confirm-variant="{{ toggle_variant }}">
                       <input
                         type="hidden"
                         name="csrf_token"
                         value="{{ csrf_token() }}" />
                       <button
                         type="submit"
-                        class="btn btn-sm {% if resident.active %}btn-warning{% else %}btn-success{% endif %}"
-                        onclick="return confirm('Are you sure you want to {% if resident.active %}deactivate{% else %}activate{% endif %} {{ resident.name }}?')">
+                        class="btn btn-sm {% if resident.active %}btn-warning{% else %}btn-success{% endif %}">
                         <i
                           class="bi bi-{% if resident.active %}dash-circle{% else %}check-circle{% endif %} me-1"></i>
                         {% if resident.active %}Deactivate{% else %}Activate{% endif %}

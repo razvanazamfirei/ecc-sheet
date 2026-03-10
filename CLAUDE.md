@@ -365,7 +365,8 @@ uv run flask --app backend.app db history
 **Process:**
 
 1. Fetches CSV from Amion API:
-   `http://www.amion.com/cgi-bin/ocs?Lo={AMION_SCHEDULE_CODE}`http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`Rpt=619`http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`Day={day}`http://www.amion.com/cgi-bin/ocs?Lo=upennane&Rpt=619&Day={day}&Month={month}`Month={month}` (schedule code from config)
+   `http://www.amion.com/cgi-bin/ocs?Lo={AMION_SCHEDULE_CODE}&Rpt=619&Day={day}&Month={month}`
+   (schedule code from config)
 2. Parses CSV data for resident assignments
 3. Extracts EPIC IDs (format: `EPICID:R103348` -> `R103348`)
 4. Finds or creates residents by EPIC ID

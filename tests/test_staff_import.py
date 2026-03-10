@@ -201,18 +201,24 @@ CA3\tJohn Doe\tEPICID:R12345
 
     def test_parse_uses_pager_before_tel(self):
         """Test that Pager field is preferred over Tel. for phone."""
-        csv_content = """Staff type\tName\tUnique ID\tBackup ID\tAbbreviation\tType ID\tPager\tTel.\tEmail
-CA1\tJohn Doe\tEPICID:R12345\t\tJD\t1\t555-PAGER\t555-TEL\tjohn@example.com
-"""  # noqa: E501
+        csv_content = (
+            "Staff type\tName\tUnique ID\tBackup ID\tAbbreviation\tType ID\tPager\t"
+            "Tel.\tEmail\n"
+            "CA1\tJohn Doe\tEPICID:R12345\t\tJD\t1\t555-PAGER\t555-TEL\t"
+            "john@example.com\n"
+        )
         result = parse_staff_list(csv_content)
 
         assert result[0]["phone"] == "555-PAGER"
 
     def test_parse_falls_back_to_tel_when_no_pager(self):
         """Test that Tel. is used when Pager is empty."""
-        csv_content = """Staff type\tName\tUnique ID\tBackup ID\tAbbreviation\tType ID\tPager\tTel.\tEmail
-CA1\tJohn Doe\tEPICID:R12345\t\tJD\t1\t\t555-TEL\tjohn@example.com
-"""  # noqa: E501
+        csv_content = (
+            "Staff type\tName\tUnique ID\tBackup ID\tAbbreviation\tType ID\tPager\t"
+            "Tel.\tEmail\n"
+            "CA1\tJohn Doe\tEPICID:R12345\t\tJD\t1\t\t555-TEL\t"
+            "john@example.com\n"
+        )
         result = parse_staff_list(csv_content)
 
         assert result[0]["phone"] == "555-TEL"
