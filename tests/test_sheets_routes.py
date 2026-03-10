@@ -1,7 +1,10 @@
 """Tests for sheet routes."""
 
-from datetime import timedelta
+import os
+from datetime import datetime, timedelta
 from unittest.mock import patch
+
+import pytz
 
 from backend.models import DailySheet, Resident, Role, TimeEntry, db
 from backend.utils import get_effective_date
@@ -54,6 +57,7 @@ class TestSheetsIndex:
         response = client.get("/")
         assert response.status_code == 200
         assert b"Import Schedule" in response.data
+        assert b"Add New Entry" not in response.data
         assert b"Lock Sheet" not in response.data
         assert b"Unlock Sheet" not in response.data
 
@@ -130,6 +134,75 @@ class TestSheetsView:
 
             # Cleanup
             db.session.delete(entry)
+            db.session.commit()
+
+    def test_auto_lock_warning_only_shows_on_previous_calendar_day(self, client):
+        """The 8 AM banner should appear on the previous calendar day's sheet."""
+        philly_tz = pytz.timezone("America/New_York")
+        current_time = philly_tz.localize(datetime(2026, 3, 9, 8, 21))
+
+        with patch(
+            "backend.routes.sheets.get_philadelphia_time",
+            return_value=current_time,
+        ):
+            previous_response = client.get("/sheets/2026-03-08")
+            current_response = client.get("/sheets/2026-03-09")
+
+        assert b"This sheet will auto-lock at 09:00 AM" in previous_response.data
+        assert b"This sheet will auto-lock at 09:00 AM" not in current_response.data
+
+    def test_overtime_entries_are_sorted_by_role_then_resident(self, client, app):
+        """Manual overtime additions should render in role/name order."""
+        with app.app_context():
+            sheet_date = get_effective_date() - timedelta(days=10)
+            date_str = sheet_date.strftime("%Y-%m-%d")
+
+            residents = [
+                Resident(name="Sort Order Held Resident", active=True),
+                Resident(name="Sort Order Zebra Resident", active=True),
+                Resident(name="Sort Order Alpha Resident", active=True),
+            ]
+            db.session.add_all(residents)
+            db.session.commit()
+
+            ecc_role = Role.query.filter_by(name="ECC 1").first()
+            held_role = Role.query.filter_by(name="Held").first()
+            assert ecc_role is not None
+            assert held_role is not None
+
+            entries = [
+                TimeEntry(
+                    date=sheet_date,
+                    resident_id=residents[0].id,
+                    role_id=held_role.id,
+                ),
+                TimeEntry(
+                    date=sheet_date,
+                    resident_id=residents[1].id,
+                    role_id=ecc_role.id,
+                ),
+                TimeEntry(
+                    date=sheet_date,
+                    resident_id=residents[2].id,
+                    role_id=ecc_role.id,
+                ),
+            ]
+            db.session.add_all(entries)
+            db.session.commit()
+
+            response = client.get(f"/sheets/{date_str}")
+            assert response.status_code == 200
+
+            html = response.data.decode()
+            alpha_index = html.index(f'id="entry-row-{entries[2].id}"')
+            zebra_index = html.index(f'id="entry-row-{entries[1].id}"')
+            held_index = html.index(f'id="entry-row-{entries[0].id}"')
+            assert alpha_index < zebra_index < held_index
+
+            for entry in entries:
+                db.session.delete(entry)
+            for resident in residents:
+                db.session.delete(resident)
             db.session.commit()
 
 

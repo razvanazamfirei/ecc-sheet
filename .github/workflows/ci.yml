@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Backend Tests
@@ -21,32 +24,23 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install UV
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Create virtual environment
-        run: uv venv
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
 
       - name: Install dependencies
-        run: |
-          source .venv/bin/activate
-          uv sync
+        run: uv sync --frozen
 
       - name: Run database migrations
-        run: |
-          source .venv/bin/activate
-          uv run flask --app backend.app db upgrade
+        run: uv run flask --app backend.app db upgrade
         env:
           SECRET_KEY: test-secret-key-for-ci
           DATABASE_URL: sqlite:///test.db
           USER_NAME: CI-Test-User
 
       - name: Run tests with coverage
-        run: |
-          source .venv/bin/activate
-          uv run pytest tests/ -v --tb=short --cov=backend --cov-branch --cov-report=xml --cov-report=term --junitxml=junit.xml -o junit_family=legacy
+        run: uv run pytest tests/ -v --tb=short --cov=backend --cov-branch --cov-report=xml --cov-report=term --junitxml=junit.xml -o junit_family=legacy
         env:
           SECRET_KEY: test-secret-key-for-ci
           DATABASE_URL: sqlite:///test.db
@@ -62,6 +56,16 @@ jobs:
           name: backend-coverage
           fail_ci_if_error: false
 
+      - name: Upload backend test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./junit.xml
+          report_type: test_results
+          name: backend-test-results
+          fail_ci_if_error: false
+
   frontend-tests:
     name: Frontend Tests
     runs-on: ubuntu-latest
@@ -74,7 +78,7 @@ jobs:
         with:
           bun-version: latest
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
       - name: Run tests with coverage
         run: bun run test:coverage
       - name: Upload frontend coverage to Codecov
@@ -86,11 +90,6 @@ jobs:
           flags: frontend
           name: frontend-coverage
           fail_ci_if_error: false
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
 
   frontend-build:
     name: Frontend Build & Lint
@@ -103,20 +102,13 @@ jobs:
         with:
           bun-version: latest
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
       - name: Check Prettier formatting
         run: bun run format:check
       - name: Lint CSS
         run: bun run lint:css
       - name: Build frontend assets
         run: bun run build
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
       - name: Verify build outputs
         run: |
           test -f frontend/static/dist/vendor.css || exit 1
@@ -133,21 +125,14 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - name: Install UV
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Create virtual environment
-        run: uv venv
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
       - name: Install dependencies
-        run: |
-          source .venv/bin/activate
-          uv sync
+        run: uv sync --frozen
       - name: Run Bandit security scan
-        run: |
-          source .venv/bin/activate
-          uv pip install bandit
-          bandit -r backend/ -f json -o bandit-report.json || true
+        run: uv run --with bandit bandit -r backend/ -f json -o bandit-report.json || true
       - name: Upload Bandit report
         uses: actions/upload-artifact@v7
         if: always()

@@ -71,6 +71,7 @@ beforeAll(async () => {
     saveAll: global.window.saveAll,
     copyToClipboard: global.window.copyToClipboard,
     toggleStartTimeField: global.window.toggleStartTimeField,
+    initializeInlineEditors: global.window.initializeInlineEditors,
   };
 });
 
@@ -78,6 +79,7 @@ beforeEach(() => {
   // Reset mock elements
   Object.keys(mockElements).forEach((key) => delete mockElements[key]);
   confirmReturnValue = true;
+  global.FormData = function () {};
 });
 
 describe("Daily Sheet Functions", () => {
@@ -158,14 +160,137 @@ describe("Daily Sheet Functions", () => {
   });
 
   describe("saveEntry", () => {
-    test("submits the form for the entry", () => {
-      let submitted = false;
-      const mockForm = { submit: () => (submitted = true) };
-      mockElements["form-1"] = mockForm;
+    test("saves the form asynchronously and updates the row", async () => {
+      let capturedFormData;
+      global.FormData = function (form) {
+        capturedFormData = form.querySelectorAll("input").map((input) => ({
+          name: input.name,
+          value: input.value,
+          disabled: input.disabled,
+        }));
+        return { capturedFormData };
+      };
 
-      exportedFunctions.saveEntry(1);
+      const formInputs = [
+        {
+          name: "csrf_token",
+          value: "csrf-token-value",
+          disabled: false,
+        },
+        {
+          name: "exit_time",
+          value: "18:00",
+          disabled: false,
+        },
+      ];
 
-      expect(submitted).toBe(true);
+      mockElements["form-1"] = {
+        action: "/update_entry/1",
+        querySelectorAll: (selector) =>
+          selector === "input" ? formInputs : [],
+        style: { display: "inline" },
+      };
+      mockElements["input-1"] = { value: "18:00", focus: () => {} };
+      mockElements["display-1"] = { style: { display: "none" }, innerHTML: "" };
+      mockElements["cell-1"] = {
+        classList: { toggle: () => {}, contains: () => false },
+      };
+      mockElements["entry-row-1"] = {
+        classList: { toggle: () => {} },
+      };
+      mockElements["overtime-1"] = { textContent: "" };
+      mockElements["edit-controls-1"] = { style: { display: "inline-flex" } };
+      mockElements["action-buttons-1"] = { style: { display: "none" } };
+
+      global.fetch = () =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              message: "Entry updated successfully",
+              entry: {
+                exit_time: "21:00",
+                exit_time_display: "09:00 PM",
+                start_time: null,
+                start_time_display: null,
+                missing_exit_time: false,
+                overtime_display: "3.50 hrs",
+              },
+            }),
+        });
+
+      const saved = await exportedFunctions.saveEntry(1);
+
+      expect(saved).toBe(true);
+      expect(mockElements["display-1"].innerHTML).toContain("09:00 PM");
+      expect(mockElements["overtime-1"].textContent).toBe("3.50 hrs");
+      expect(mockElements["form-1"].style.display).toBe("none");
+      expect(capturedFormData).toEqual([
+        {
+          name: "csrf_token",
+          value: "csrf-token-value",
+          disabled: false,
+        },
+        {
+          name: "exit_time",
+          value: "18:00",
+          disabled: false,
+        },
+      ]);
+    });
+  });
+
+  describe("initializeInlineEditors", () => {
+    test("pressing Enter in a time input submits the inline form", async () => {
+      const originalQuerySelectorAll = global.document.querySelectorAll;
+      const formListeners = {};
+      const inputListeners = {};
+      let requestSubmitCalled = false;
+      let prevented = false;
+
+      const mockForm = {
+        dataset: { entryId: "1" },
+        id: "form-1",
+        addEventListener: (eventName, handler) => {
+          formListeners[eventName] = handler;
+        },
+        requestSubmit: () => {
+          requestSubmitCalled = true;
+        },
+      };
+      const mockInput = {
+        id: "input-1",
+        form: mockForm,
+        addEventListener: (eventName, handler) => {
+          inputListeners[eventName] = handler;
+        },
+      };
+
+      global.document.querySelectorAll = (selector) => {
+        if (selector === ".time-edit-form") {
+          return [mockForm];
+        }
+        if (selector === '[id^="input-"], [id^="start-input-"]') {
+          return [mockInput];
+        }
+        return [];
+      };
+
+      exportedFunctions.initializeInlineEditors();
+      await inputListeners.keydown({
+        key: "Enter",
+        code: "Enter",
+        preventDefault: () => {
+          prevented = true;
+        },
+      });
+
+      expect(formListeners.submit).toBeTypeOf("function");
+      expect(prevented).toBe(true);
+      expect(requestSubmitCalled).toBe(true);
+
+      global.document.querySelectorAll = originalQuerySelectorAll;
     });
   });
 
@@ -239,51 +364,163 @@ describe("Daily Sheet Functions", () => {
   });
 
   describe("saveAll", () => {
-    test("submits all forms via fetch and reloads on success", async () => {
-      const editAllBtn = { disabled: false };
+    test("submits all forms via fetch without reloading on success", async () => {
+      const editAllControls = {
+        classList: { remove: () => {} },
+      };
+      const editAllBtn = {
+        disabled: false,
+        classList: { remove: () => {}, add: () => {} },
+      };
       const saveAllBtn = {
         disabled: false,
         innerHTML: '<i class="bi bi-check-all me-1"></i>Save All',
+        style: { display: "inline-block" },
       };
 
+      mockElements["edit-all-controls"] = editAllControls;
       mockElements["edit-all-btn"] = editAllBtn;
       mockElements["save-all-btn"] = saveAllBtn;
 
-      global.document.querySelectorAll = () => [{ dataset: { entryId: "1" } }];
+      global.document.querySelectorAll = () => [
+        {
+          dataset: { entryId: "1" },
+          querySelector: () => ({ textContent: "3.50 hrs" }),
+        },
+        {
+          dataset: { entryId: "2" },
+          querySelector: () => ({ textContent: "1.00 hrs" }),
+        },
+      ];
 
+      const form1Inputs = [{ name: "csrf_token", value: "csrf-token-value" }];
       mockElements["form-1"] = {
         action: "/update_entry/1",
+        querySelectorAll: (selector) =>
+          selector === "input" ? form1Inputs : [],
+        style: { display: "inline" },
       };
+      mockElements["input-1"] = { value: "18:00", focus: () => {} };
+      mockElements["display-1"] = { style: { display: "none" }, innerHTML: "" };
+      mockElements["cell-1"] = {
+        classList: { toggle: () => {}, contains: () => false },
+      };
+      mockElements["entry-row-1"] = {
+        classList: { toggle: () => {} },
+      };
+      mockElements["overtime-1"] = { textContent: "" };
+      mockElements["edit-controls-1"] = { style: { display: "inline-flex" } };
+      mockElements["action-buttons-1"] = { style: { display: "none" } };
 
-      let fetchCalled = false;
-      global.fetch = () => {
-        fetchCalled = true;
-        return Promise.resolve({ ok: true });
+      const form2Inputs = [{ name: "csrf_token", value: "csrf-token-value" }];
+      mockElements["form-2"] = {
+        action: "/update_entry/2",
+        querySelectorAll: (selector) =>
+          selector === "input" ? form2Inputs : [],
+        style: { display: "inline" },
+      };
+      mockElements["input-2"] = { value: "20:30", focus: () => {} };
+      mockElements["start-input-2"] = {
+        value: "09:00",
+        disabled: false,
+        style: { display: "inline" },
+      };
+      mockElements["display-2"] = { style: { display: "none" }, innerHTML: "" };
+      mockElements["cell-2"] = {
+        classList: { toggle: () => {}, contains: () => false },
+      };
+      mockElements["entry-row-2"] = {
+        classList: { toggle: () => {} },
+      };
+      mockElements["overtime-2"] = { textContent: "" };
+      mockElements["edit-controls-2"] = { style: { display: "inline-flex" } };
+      mockElements["action-buttons-2"] = { style: { display: "none" } };
+
+      let fetchCount = 0;
+      let fetchArgs;
+      global.fetch = (url, options) => {
+        fetchCount += 1;
+        fetchArgs = { url, options };
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              entries: [
+                {
+                  id: "1",
+                  exit_time: "21:00",
+                  exit_time_display: "09:00 PM",
+                  start_time: null,
+                  start_time_display: null,
+                  missing_exit_time: false,
+                  overtime_display: "3.50 hrs",
+                },
+                {
+                  id: "2",
+                  exit_time: "20:30",
+                  exit_time_display: "08:30 PM",
+                  start_time: "09:00",
+                  start_time_display: "09:00 AM",
+                  missing_exit_time: false,
+                  overtime_display: "1.00 hrs",
+                },
+              ],
+            }),
+        });
       };
 
       await exportedFunctions.saveAll();
 
-      expect(saveAllBtn.disabled).toBe(true);
-      expect(editAllBtn.disabled).toBe(true);
-      expect(saveAllBtn.innerHTML).toContain("Saving");
-      expect(fetchCalled).toBe(true);
+      expect(saveAllBtn.disabled).toBe(false);
+      expect(editAllBtn.disabled).toBe(false);
+      expect(saveAllBtn.style.display).toBe("none");
+      expect(fetchCount).toBe(1);
+      expect(fetchArgs.url).toBe("/entries/update-all");
+      expect(fetchArgs.options.headers["X-CSRFToken"]).toBe("csrf-token-value");
+      expect(JSON.parse(fetchArgs.options.body)).toEqual({
+        entries: [
+          { id: "1", exit_time: "18:00" },
+          { id: "2", exit_time: "20:30", start_time: "09:00" },
+        ],
+      });
     });
 
     test("re-enables buttons and shows error on failure", async () => {
+      const editAllControls = {
+        classList: { remove: () => {} },
+      };
       const editAllBtn = { disabled: false };
       const saveAllBtn = {
         disabled: false,
         innerHTML: '<i class="bi bi-check-all me-1"></i>Save All',
+        style: { display: "inline-block" },
       };
 
+      mockElements["edit-all-controls"] = editAllControls;
       mockElements["edit-all-btn"] = editAllBtn;
       mockElements["save-all-btn"] = saveAllBtn;
 
       global.document.querySelectorAll = () => [{ dataset: { entryId: "1" } }];
 
+      const formInputs = [{ name: "csrf_token", value: "csrf-token-value" }];
       mockElements["form-1"] = {
         action: "/update_entry/1",
+        querySelectorAll: (selector) =>
+          selector === "input" ? formInputs : [],
+        style: { display: "inline" },
       };
+      mockElements["input-1"] = { value: "18:00", focus: () => {} };
+      mockElements["display-1"] = { style: { display: "none" }, innerHTML: "" };
+      mockElements["cell-1"] = {
+        classList: { toggle: () => {}, contains: () => false },
+      };
+      mockElements["entry-row-1"] = {
+        classList: { toggle: () => {} },
+      };
+      mockElements["overtime-1"] = { textContent: "" };
+      mockElements["edit-controls-1"] = { style: { display: "inline-flex" } };
+      mockElements["action-buttons-1"] = { style: { display: "none" } };
 
       let alertCalled = false;
       global.alert = () => (alertCalled = true);
@@ -334,14 +571,17 @@ describe("Daily Sheet Functions", () => {
           this.data = data;
         }
       };
-      global.navigator = {
-        clipboard: {
-          write: (items) => {
-            mockClipboardWrite = items;
-            return Promise.resolve();
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: {
+          clipboard: {
+            write: (items) => {
+              mockClipboardWrite = items;
+              return Promise.resolve();
+            },
           },
         },
-      };
+      });
     });
 
     test("alerts when no entries exist", async () => {

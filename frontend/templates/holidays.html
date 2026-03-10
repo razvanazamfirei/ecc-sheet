@@ -112,15 +112,18 @@
                         <form
                           method="POST"
                           action="{{ url_for('holidays.delete', holiday_id=holiday.id) }}"
-                          class="d-inline">
+                          class="d-inline"
+                          data-confirm-title="Delete Holiday?"
+                          data-confirm-message="Delete holiday '{{ holiday.name }}'?"
+                          data-confirm-label="Delete"
+                          data-confirm-variant="danger">
                           <input
                             type="hidden"
                             name="csrf_token"
                             value="{{ csrf_token() }}" />
                           <button
                             type="submit"
-                            class="btn btn-outline-danger btn-sm"
-                            onclick="return confirm('Delete holiday \'{{ holiday.name }}\'?')">
+                            class="btn btn-outline-danger btn-sm">
                             <i class="bi bi-trash"></i>
                           </button>
                         </form>

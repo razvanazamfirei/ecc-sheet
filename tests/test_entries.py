@@ -36,6 +36,144 @@ class TestEntryUpdate:
             assert entry is not None
             assert entry.exit_time == time(21, 30)
 
+    def test_update_exit_time_returns_json_for_async_requests(
+        self, client, app, sample_time_entry
+    ):
+        """Test async entry updates return JSON instead of redirecting."""
+        with app.app_context():
+            entry_id = sample_time_entry.id
+            entry_date = sample_time_entry.date
+
+            sheet = DailySheet.query.filter_by(date=entry_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            response = client.post(
+                f"/entries/{entry_id}/update",
+                data={"exit_time": "21:30"},
+                headers={
+                    "Accept": "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+            assert response.status_code == 200
+
+            payload = response.get_json()
+            assert payload is not None
+            assert payload["success"] is True
+            assert payload["entry"]["exit_time"] == "21:30"
+            assert payload["entry"]["overtime_display"].endswith("hrs")
+
+    def test_async_update_returns_json_for_csrf_failures(
+        self, client, app, sample_time_entry
+    ):
+        """Async saves should receive JSON instead of an HTML CSRF page."""
+        original_csrf_enabled = app.config["WTF_CSRF_ENABLED"]
+        app.config["WTF_CSRF_ENABLED"] = True
+
+        try:
+            response = client.post(
+                f"/entries/{sample_time_entry.id}/update",
+                data={"exit_time": "21:30"},
+                headers={
+                    "Accept": "application/json",
+                    "X-Expect-JSON": "1",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+        finally:
+            app.config["WTF_CSRF_ENABLED"] = original_csrf_enabled
+
+        assert response.status_code == 400
+        payload = response.get_json()
+        assert payload is not None
+        assert payload["success"] is False
+        assert "Reload the page and try again" in payload["message"]
+
+    def test_update_all_returns_json_for_async_requests(
+        self, client, app, sample_time_entry
+    ):
+        """Bulk save should update multiple rows in one JSON request."""
+        with app.app_context():
+            sample_entry_id = sample_time_entry.id
+            extra_entry = TimeEntry(
+                date=sample_time_entry.date,
+                resident_id=sample_time_entry.resident_id,
+                role_id=sample_time_entry.role_id,
+                exit_time=time(19, 0),
+            )
+            db.session.add(extra_entry)
+            db.session.commit()
+
+            sheet = DailySheet.query.filter_by(date=sample_time_entry.date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            response = client.post(
+                "/entries/update-all",
+                json={
+                    "entries": [
+                        {"id": sample_entry_id, "exit_time": "21:30"},
+                        {"id": extra_entry.id, "exit_time": "22:00"},
+                    ]
+                },
+                headers={
+                    "Accept": "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+
+            assert response.status_code == 200
+            payload = response.get_json()
+            assert payload is not None
+            assert payload["success"] is True
+            assert [entry["id"] for entry in payload["entries"]] == [
+                sample_entry_id,
+                extra_entry.id,
+            ]
+
+            updated_sample_entry = db.session.get(TimeEntry, sample_entry_id)
+            assert updated_sample_entry is not None
+            db.session.refresh(extra_entry)
+            assert updated_sample_entry.exit_time == time(21, 30)
+            assert extra_entry.exit_time == time(22, 0)
+
+            db.session.delete(extra_entry)
+            db.session.commit()
+
+    def test_update_all_is_atomic_when_an_entry_is_missing(
+        self, client, app, sample_time_entry
+    ):
+        """Bulk save should not partially apply updates when validation fails."""
+        with app.app_context():
+            sample_entry_id = sample_time_entry.id
+            original_exit_time = sample_time_entry.exit_time
+
+            response = client.post(
+                "/entries/update-all",
+                json={
+                    "entries": [
+                        {"id": sample_entry_id, "exit_time": "21:30"},
+                        {"id": 999999, "exit_time": "22:00"},
+                    ]
+                },
+                headers={
+                    "Accept": "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+
+            assert response.status_code == 404
+            payload = response.get_json()
+            assert payload is not None
+            assert payload["success"] is False
+
+            unchanged_entry = db.session.get(TimeEntry, sample_entry_id)
+            assert unchanged_entry is not None
+            assert unchanged_entry.exit_time == original_exit_time
+
     def test_update_clears_exit_time(self, client, app, sample_time_entry):
         """Test clearing exit time."""
         with app.app_context():
