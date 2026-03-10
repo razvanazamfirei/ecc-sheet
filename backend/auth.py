@@ -8,20 +8,47 @@ from datetime import date
 from functools import wraps
 from typing import Any
 
-from flask import flash, redirect, session, url_for
+from flask import (
+    current_app,
+    flash,
+    has_app_context,
+    has_request_context,
+    redirect,
+    request,
+    session,
+    url_for,
+)
 
 from .models import Resident, Role, TimeEntry
 from .utils import get_effective_date
 
 
+def _proxy_header_name() -> str:
+    """Return the configured proxy auth header name."""
+    if has_app_context():
+        return str(current_app.config.get("AUTH_PROXY_USERNAME_HEADER") or "").strip()
+    return os.getenv("AUTH_PROXY_USERNAME_HEADER", "").strip()
+
+
 def get_current_user() -> str:
-    """Get current user; when MOCK_USERS_ENABLED is set, use session override."""
+    """Get current user from mock session, proxy auth header, or env fallback."""
     if os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}:
         try:
             if "dev_user" in session:
                 return session["dev_user"]
         except RuntimeError:
             pass  # No request context (e.g. CLI or tests without a request)
+
+    proxy_header = _proxy_header_name()
+    if proxy_header:
+        try:
+            proxy_user = request.headers.get(proxy_header, "").strip()
+        except RuntimeError:
+            proxy_user = ""
+        if proxy_user:
+            return proxy_user
+        if has_request_context():
+            return ""
     return os.getenv("USER_NAME", "Admin")
 
 
@@ -83,8 +110,21 @@ def is_payroll_admin() -> bool:
 
 
 def can_view_all_reports() -> bool:
-    """Return True if the current user can view reports for all residents."""
+    """Return True if the current user can use extended report actions."""
     return is_admin() or is_payroll_admin()
+
+
+def can_filter_reports_by_resident() -> bool:
+    """Return True if the current user can choose any resident in reports."""
+    if can_view_all_reports():
+        return True
+
+    allowed_users = [
+        user.strip()
+        for user in os.getenv("REPORT_VIEW_ALL_USERS", "").split(",")
+        if user.strip()
+    ]
+    return "*" in allowed_users or get_current_user() in allowed_users
 
 
 def admin_required(f):

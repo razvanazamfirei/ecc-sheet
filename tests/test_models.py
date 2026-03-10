@@ -404,6 +404,36 @@ class TestTimeEntry:
             assert entry.exit_time is None
             assert entry.overtime_hours == 0
 
+    def test_time_entry_unique_date_resident_role(
+        self, app, sample_resident, sample_role
+    ):
+        """Time entries cannot duplicate date/resident/role tuples."""
+        from sqlalchemy.exc import IntegrityError
+
+        with app.app_context():
+            test_date = date(2099, 1, 2)
+            entry = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=sample_role.id,
+            )
+            db.session.add(entry)
+            db.session.commit()
+
+            duplicate = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=sample_role.id,
+            )
+            db.session.add(duplicate)
+
+            with pytest.raises(IntegrityError):
+                db.session.commit()
+
+            db.session.rollback()
+            db.session.delete(entry)
+            db.session.commit()
+
 
 @pytest.mark.unit
 class TestDailySheet:

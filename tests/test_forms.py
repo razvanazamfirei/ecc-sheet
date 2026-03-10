@@ -206,9 +206,7 @@ class TestReportForm:
             )
             assert not form.validate()
             assert "end_date" in form.errors
-            assert any(
-                "after start date" in error for error in form.errors["end_date"]
-            )
+            assert any("after start date" in error for error in form.errors["end_date"])
 
     def test_missing_start_date(self, app):
         """Test that missing start date fails validation"""

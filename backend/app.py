@@ -1,9 +1,10 @@
 from logging import Logger
 from pathlib import Path
+from urllib.parse import urlparse
 
-from flask import Flask, session
+from flask import Flask, flash, jsonify, redirect, request, session, url_for
 from flask_migrate import Migrate
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFError, CSRFProtect
 from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import get_current_user, is_admin
@@ -15,6 +16,7 @@ from .utils import get_effective_date, setup_logging
 
 # Get the project root directory (parent of backend/)
 project_root: Path = Path(__file__).parent.parent
+DEFAULT_SECRET_KEY = "dev-secret-key-change-in-production"  # noqa: S105
 
 app: Flask = Flask(
     __name__,
@@ -22,6 +24,15 @@ app: Flask = Flask(
     static_folder=str(project_root / "frontend" / "static"),
 )
 app.config.from_object(Config)
+
+if app.config.get("FLASK_ENV") == "production":
+    secret_key = str(app.config.get("SECRET_KEY") or "").strip()
+    if not secret_key or secret_key == DEFAULT_SECRET_KEY:
+        raise RuntimeError(
+            "A strong SECRET_KEY must be set in production. "
+            "Refusing to start with the default development secret."
+        )
+
 db.init_app(app)
 
 # Initialize Flask-Migrate for database migrations
@@ -29,6 +40,45 @@ migrate: Migrate = Migrate(app, db, render_as_batch=True)
 
 # Enable CSRF protection
 csrf: CSRFProtect = CSRFProtect(app)
+
+
+def _wants_json_response() -> bool:
+    """Return True when the caller expects JSON instead of HTML."""
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or request.headers.get("X-Expect-JSON") == "1"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
+
+def _authentication_required_response():
+    """Return a 401 response when proxy-auth identity is missing."""
+    message = "Authentication required."
+    if _wants_json_response():
+        return jsonify({"success": False, "message": message}), 401
+    return message, 401
+
+
+def _safe_redirect_target(target: str, default: str) -> str:
+    """Return a safe redirect target limited to this site, or a default."""
+    if not target:
+        return default
+
+    # Normalize backslashes which some browsers accept as path separators
+    normalized = target.replace("\\", "")
+    parsed = urlparse(normalized)
+
+    # Allow relative URLs (no scheme or netloc)
+    if not parsed.scheme and not parsed.netloc:
+        return normalized
+
+    # Allow absolute URLs only if they point back to this host over HTTP(S)
+    if parsed.netloc == request.host and parsed.scheme in {"http", "https"}:
+        return normalized
+
+    # Fallback to the internal default
+    return default
+
 
 # Setup logging
 logger: Logger = setup_logging()
@@ -43,6 +93,13 @@ import warnings as _warnings  # noqa: E402
 from .routes import dev as _dev_module  # noqa: E402
 
 _mock_enabled = _os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
+
+
+def _mock_users_enabled() -> bool:
+    """Return True when dev mock-user switching is enabled."""
+    return _os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
+
+
 if _mock_enabled:
     if _os.getenv("FLASK_ENV", "").lower() == "production":
         raise RuntimeError(
@@ -55,6 +112,19 @@ if _mock_enabled:
         stacklevel=1,
     )
     csrf.exempt(_dev_module.bp)
+
+
+@app.before_request
+def require_authenticated_request():
+    """Fail closed when proxy-auth is enabled and the identity header is absent."""
+    proxy_header = str(app.config.get("AUTH_PROXY_USERNAME_HEADER") or "").strip()
+    if not proxy_header or _mock_users_enabled() or request.endpoint == "static":
+        return None
+
+    if get_current_user():
+        return None
+
+    return _authentication_required_response()
 
 
 # Make auth functions available in templates
@@ -97,6 +167,27 @@ def inject_dev():
         "mock_residents": resident_names,
         "dev_user_override": session.get("dev_user"),
     }
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(error: CSRFError):
+    """Return JSON for async CSRF failures and redirect for normal forms."""
+    message = "Your form session expired. Reload the page and try again."
+    if _wants_json_response():
+        return jsonify({"success": False, "message": message}), 400
+
+    flash(message, "error")
+    safe_target = _safe_redirect_target(request.referrer, url_for("sheets.index"))
+    return redirect(safe_target)
+
+
+@app.after_request
+def apply_security_headers(response):
+    """Apply optional response headers from configuration."""
+    csp_policy = app.config.get("CSP_POLICY")
+    if csp_policy:
+        response.headers.setdefault("Content-Security-Policy", str(csp_policy))
+    return response
 
 
 def init_db():

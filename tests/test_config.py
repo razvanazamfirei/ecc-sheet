@@ -73,6 +73,55 @@ class TestConfig:
             reload(backend.config)
             assert backend.config.Config.EMAIL_PORT == 587
 
+    def test_auth_proxy_username_header_from_env(self):
+        """Test AUTH_PROXY_USERNAME_HEADER is read from environment."""
+        with patch.dict(os.environ, {"AUTH_PROXY_USERNAME_HEADER": "X-Auth-User"}):
+            reload(backend.config)
+            assert backend.config.Config.AUTH_PROXY_USERNAME_HEADER == "X-Auth-User"
+
+    def test_amion_base_url_defaults_to_https(self):
+        """Test Amion integration defaults to HTTPS."""
+        env = os.environ.copy()
+        env.pop("AMION_BASE_URL", None)
+
+        with patch.dict(os.environ, env, clear=True):
+            reload(backend.config)
+            assert backend.config.Config.AMION_BASE_URL.startswith("https://")
+
+    def test_session_cookie_security_from_env(self):
+        """Test session security settings are read from environment."""
+        with patch.dict(
+            os.environ,
+            {
+                "FLASK_ENV": "production",
+                "SESSION_COOKIE_SECURE": "true",
+                "SESSION_COOKIE_HTTPONLY": "false",
+                "SESSION_COOKIE_SAMESITE": "Strict",
+                "PERMANENT_SESSION_LIFETIME": "3600",
+                "CSP_POLICY": "default-src 'self'",
+            },
+            clear=True,
+        ):
+            reload(backend.config)
+            assert backend.config.Config.SESSION_COOKIE_SECURE is True
+            assert backend.config.Config.SESSION_COOKIE_HTTPONLY is False
+            assert backend.config.Config.SESSION_COOKIE_SAMESITE == "Strict"
+            assert (
+                int(backend.config.Config.PERMANENT_SESSION_LIFETIME.total_seconds())
+                == 3600
+            )
+            assert backend.config.Config.CSP_POLICY == "default-src 'self'"
+
+    def test_session_cookie_secure_defaults_true_in_production(self):
+        """Test secure cookies default on in production."""
+        env = os.environ.copy()
+        env["FLASK_ENV"] = "production"
+        env.pop("SESSION_COOKIE_SECURE", None)
+
+        with patch.dict(os.environ, env, clear=True):
+            reload(backend.config)
+            assert backend.config.Config.SESSION_COOKIE_SECURE is True
+
     def test_timezone_default(self):
         """Test TIMEZONE defaults to America/New_York."""
         env = os.environ.copy()

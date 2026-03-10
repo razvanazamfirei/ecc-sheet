@@ -3,7 +3,13 @@
 import os
 from datetime import date, time
 
-from backend.auth import get_current_user, is_admin, is_first_call, is_payroll_admin
+from backend.auth import (
+    can_filter_reports_by_resident,
+    get_current_user,
+    is_admin,
+    is_first_call,
+    is_payroll_admin,
+)
 
 
 class TestGetCurrentUser:
@@ -43,6 +49,55 @@ class TestGetCurrentUser:
                 os.environ["USER_NAME"] = original
             else:
                 os.environ.pop("USER_NAME", None)
+
+    def test_uses_proxy_header_when_configured(self, app):
+        """Test proxy-auth header overrides USER_NAME inside a request context."""
+        original_user = os.environ.get("USER_NAME")
+        original_header = app.config.get("AUTH_PROXY_USERNAME_HEADER")
+        try:
+            os.environ["USER_NAME"] = "Env User"
+            app.config["AUTH_PROXY_USERNAME_HEADER"] = "X-Auth-User"
+            with app.test_request_context("/", headers={"X-Auth-User": "Proxy User"}):
+                assert get_current_user() == "Proxy User"
+        finally:
+            if original_user is not None:
+                os.environ["USER_NAME"] = original_user
+            else:
+                os.environ.pop("USER_NAME", None)
+            app.config["AUTH_PROXY_USERNAME_HEADER"] = original_header or ""
+
+    def test_proxy_header_returns_empty_user_when_missing(self, app):
+        """Test proxy-auth configuration fails closed when the header is absent."""
+        original_user = os.environ.get("USER_NAME")
+        original_header = app.config.get("AUTH_PROXY_USERNAME_HEADER")
+        try:
+            os.environ["USER_NAME"] = "Env User"
+            app.config["AUTH_PROXY_USERNAME_HEADER"] = "X-Auth-User"
+            with app.test_request_context("/"):
+                assert not get_current_user()
+        finally:
+            if original_user is not None:
+                os.environ["USER_NAME"] = original_user
+            else:
+                os.environ.pop("USER_NAME", None)
+            app.config["AUTH_PROXY_USERNAME_HEADER"] = original_header or ""
+
+    def test_proxy_auth_rejects_request_without_header(self, client, app):
+        """Requests are rejected when proxy-auth is configured without a user."""
+        original_header = app.config.get("AUTH_PROXY_USERNAME_HEADER")
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            app.config["AUTH_PROXY_USERNAME_HEADER"] = "X-Auth-User"
+            os.environ.pop("MOCK_USERS_ENABLED", None)
+            response = client.get("/")
+            assert response.status_code == 401
+            assert b"Authentication required" in response.data
+        finally:
+            app.config["AUTH_PROXY_USERNAME_HEADER"] = original_header or ""
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
 
 
 class TestIsAdmin:
@@ -241,6 +296,74 @@ class TestIsPayrollAdmin:
                 os.environ["PAYROLL_ADMIN_USERS"] = original_pa
             else:
                 os.environ.pop("PAYROLL_ADMIN_USERS", None)
+
+
+class TestReportFiltering:
+    """Tests for resident-filter report permissions."""
+
+    def test_allows_listed_report_viewer(self, app):
+        """Users in REPORT_VIEW_ALL_USERS can pick any resident in reports."""
+        original_user = os.environ.get("USER_NAME")
+        original_admins = os.environ.get("ADMIN_USERS")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS")
+        original_viewers = os.environ.get("REPORT_VIEW_ALL_USERS")
+        try:
+            os.environ["USER_NAME"] = "Demo Viewer"
+            os.environ["ADMIN_USERS"] = "Razvan Azamfirei"
+            os.environ["PAYROLL_ADMIN_USERS"] = ""
+            os.environ["REPORT_VIEW_ALL_USERS"] = "Demo Viewer"
+            with app.test_request_context("/reports"):
+                assert can_filter_reports_by_resident() is True
+                assert is_admin() is False
+                assert is_payroll_admin() is False
+        finally:
+            if original_user is not None:
+                os.environ["USER_NAME"] = original_user
+            else:
+                os.environ.pop("USER_NAME", None)
+            if original_admins is not None:
+                os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
+            if original_pa is not None:
+                os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+            else:
+                os.environ.pop("PAYROLL_ADMIN_USERS", None)
+            if original_viewers is not None:
+                os.environ["REPORT_VIEW_ALL_USERS"] = original_viewers
+            else:
+                os.environ.pop("REPORT_VIEW_ALL_USERS", None)
+
+    def test_denies_unlisted_report_viewer(self, app):
+        """Users outside REPORT_VIEW_ALL_USERS remain self-only in reports."""
+        original_user = os.environ.get("USER_NAME")
+        original_admins = os.environ.get("ADMIN_USERS")
+        original_pa = os.environ.get("PAYROLL_ADMIN_USERS")
+        original_viewers = os.environ.get("REPORT_VIEW_ALL_USERS")
+        try:
+            os.environ["USER_NAME"] = "Regular Viewer"
+            os.environ["ADMIN_USERS"] = "Razvan Azamfirei"
+            os.environ["PAYROLL_ADMIN_USERS"] = ""
+            os.environ["REPORT_VIEW_ALL_USERS"] = "Demo Viewer"
+            with app.test_request_context("/reports"):
+                assert can_filter_reports_by_resident() is False
+        finally:
+            if original_user is not None:
+                os.environ["USER_NAME"] = original_user
+            else:
+                os.environ.pop("USER_NAME", None)
+            if original_admins is not None:
+                os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
+            if original_pa is not None:
+                os.environ["PAYROLL_ADMIN_USERS"] = original_pa
+            else:
+                os.environ.pop("PAYROLL_ADMIN_USERS", None)
+            if original_viewers is not None:
+                os.environ["REPORT_VIEW_ALL_USERS"] = original_viewers
+            else:
+                os.environ.pop("REPORT_VIEW_ALL_USERS", None)
 
 
 class TestIsFirstCall:

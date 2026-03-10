@@ -33,37 +33,29 @@ def get_client_ip() -> str | None:
     return request.remote_addr
 
 
-def _log_action(
+def _build_audit_values(
     action: str,
     entity_type: str,
     entity_id: int | None = None,
     details: Mapping[str, Any] | None = None,
     user: str | None = None,
-    *,
-    strict: bool = False,
-) -> None:
-    """
-    Log an action to the audit trail.
-
-    Args:
-        action: Type of action (CREATE, UPDATE, DELETE, LOCK, UNLOCK, IMPORT, etc.)
-        entity_type: Type of entity (TimeEntry, DailySheet, Resident, etc.)
-        entity_id: ID of the entity being modified
-        details: Dictionary of additional details to log
-        user: User performing the action (defaults to current user)
-        strict: Whether to re-raise database/logging failures
-    """
+) -> dict[str, Any]:
+    """Build a normalized audit-log payload."""
     details_json = json.dumps(details) if details else None
+    return {
+        "timestamp": datetime.now(UTC),
+        "user": user or get_current_user(),
+        "action": action,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "details": details_json,
+        "ip_address": get_client_ip(),
+    }
+
+
+def _write_audit_log(audit_values: Mapping[str, Any], *, strict: bool = False) -> None:
+    """Persist an audit log entry."""
     try:
-        audit_values = {
-            "timestamp": datetime.now(UTC),
-            "user": user or get_current_user(),
-            "action": action,
-            "entity_type": entity_type,
-            "entity_id": entity_id,
-            "details": details_json,
-            "ip_address": get_client_ip(),
-        }
         db.session.execute(AuditLog.__table__.insert().values(**audit_values))
     except Exception:
         logger.exception("Audit logging failed")
@@ -79,7 +71,7 @@ def log_action(
     user: str | None = None,
 ) -> None:
     """Log an action to the audit trail without interrupting the caller."""
-    _log_action(action, entity_type, entity_id, details, user)
+    _write_audit_log(_build_audit_values(action, entity_type, entity_id, details, user))
 
 
 def log_action_strict(
@@ -90,7 +82,10 @@ def log_action_strict(
     user: str | None = None,
 ) -> None:
     """Log an action and re-raise failures so the caller can roll back."""
-    _log_action(action, entity_type, entity_id, details, user, strict=True)
+    _write_audit_log(
+        _build_audit_values(action, entity_type, entity_id, details, user),
+        strict=True,
+    )
 
 
 def log_create(

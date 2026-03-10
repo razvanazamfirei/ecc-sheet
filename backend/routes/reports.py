@@ -17,6 +17,7 @@ from flask import (
 from ..audit import log_update
 from ..auth import (
     admin_required,
+    can_filter_reports_by_resident,
     can_view_all_reports,
     get_current_resident_id,
     is_payroll_admin,
@@ -52,7 +53,7 @@ def _parse_report_params() -> tuple[date, date, int | None]:
         end_date_raw, "%Y-%m-%d"
     ).date()
 
-    if not can_view_all_reports():
+    if not can_filter_reports_by_resident():
         # -1 is intentional: it is truthy (so build_entries_query applies the
         # filter) but never matches a real resident_id, returning empty results
         # for a user whose name has no corresponding Resident record.
@@ -69,7 +70,8 @@ def index():
     """View reports page."""
     return render_template(
         "reports.html",
-        can_view_all=can_view_all_reports(),
+        can_filter_reports=can_filter_reports_by_resident(),
+        can_use_extended_reports=can_view_all_reports(),
         current_resident_id=get_current_resident_id(),
     )
 
@@ -90,7 +92,7 @@ def generate():
             resident_data=resident_data,
             resident_name=resident_name,
             resident_id=resident_id,
-            can_view_all=can_view_all_reports(),
+            can_use_extended_reports=can_view_all_reports(),
         )
 
     except ValidationError as e:

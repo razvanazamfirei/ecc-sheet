@@ -562,6 +562,8 @@ class TestResidentProfile:
                 email="contact@example.com",
                 phone="555-9999",
                 abbreviation="PCT",
+                epic_id="R123456",
+                lawson_id=987654,
                 active=True,
             )
             db.session.add(resident)
@@ -573,6 +575,68 @@ class TestResidentProfile:
             assert b"contact@example.com" in response.data
             assert b"555-9999" in response.data
             assert b"PCT" in response.data
+
+            db.session.delete(db.session.get(Resident, resident_id))
+            db.session.commit()
+
+    def test_profile_hides_sensitive_ids_for_regular_user(self, client, app):
+        """Basic users can see contact info but not Lawson/EPIC identifiers."""
+        original_admin_users = os.environ.get("ADMIN_USERS", "")
+        original_user_name = os.environ.get("USER_NAME", "")
+
+        try:
+            os.environ["USER_NAME"] = "Regular User"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+
+            with app.app_context():
+                resident = Resident(
+                    name="Profile Privacy Test",
+                    email="privacy@example.com",
+                    phone="555-1212",
+                    epic_id="R654321",
+                    lawson_id=123456,
+                    active=True,
+                )
+                db.session.add(resident)
+                db.session.commit()
+                resident_id = resident.id
+
+                response = client.get(f"/residents/{resident_id}/profile")
+                assert response.status_code == 200
+                assert b"privacy@example.com" in response.data
+                assert b"555-1212" in response.data
+                assert b"Lawson ID" not in response.data
+                assert b"EPIC ID" not in response.data
+                assert b"R654321" not in response.data
+                assert b"123456" not in response.data
+
+                db.session.delete(db.session.get(Resident, resident_id))
+                db.session.commit()
+        finally:
+            os.environ["ADMIN_USERS"] = original_admin_users
+            os.environ["USER_NAME"] = original_user_name
+
+    def test_profile_shows_sensitive_ids_for_admin(self, client, app):
+        """Admins still see Lawson and EPIC identifiers."""
+        with app.app_context():
+            resident = Resident(
+                name="Profile Admin Test",
+                email="admin-view@example.com",
+                phone="555-3434",
+                epic_id="R222222",
+                lawson_id=222333,
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            response = client.get(f"/residents/{resident_id}/profile")
+            assert response.status_code == 200
+            assert b"Lawson ID" in response.data
+            assert b"EPIC ID" in response.data
+            assert b"R222222" in response.data
+            assert b"222333" in response.data
 
             db.session.delete(db.session.get(Resident, resident_id))
             db.session.commit()
@@ -669,23 +733,6 @@ class TestResidentProfile:
                 db.session.delete(log)
                 db.session.commit()
 
-    def test_profile_hides_audit_for_regular_user(self, client, app, sample_resident):
-        """Test that audit section is hidden for non-admin users."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
-
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            with app.app_context():
-                response = client.get(f"/residents/{sample_resident.id}/profile")
-                assert response.status_code == 200
-                assert b"Recent Audit Activity" not in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
-
     def test_profile_ignores_prefixed_resident_ids_in_audit_logs(
         self, client, app, sample_resident, sample_time_entry
     ):
@@ -760,3 +807,20 @@ class TestResidentProfile:
             for resident in reversed(extra_residents):
                 db.session.delete(resident)
             db.session.commit()
+
+    def test_profile_hides_audit_for_regular_user(self, client, app, sample_resident):
+        """Test that audit section is hidden for non-admin users."""
+        original_admin_users = os.environ.get("ADMIN_USERS", "")
+        original_user_name = os.environ.get("USER_NAME", "")
+
+        try:
+            os.environ["USER_NAME"] = "Regular User"
+            os.environ["ADMIN_USERS"] = "Admin Only"
+
+            with app.app_context():
+                response = client.get(f"/residents/{sample_resident.id}/profile")
+                assert response.status_code == 200
+                assert b"Recent Audit Activity" not in response.data
+        finally:
+            os.environ["ADMIN_USERS"] = original_admin_users
+            os.environ["USER_NAME"] = original_user_name

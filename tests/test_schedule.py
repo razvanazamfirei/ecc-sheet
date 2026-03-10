@@ -553,7 +553,7 @@ class TestScheduleImport:
             db.session.commit()
 
     @patch("backend.routes.schedule.requests.get")
-    def test_import_creates_new_resident_without_epic_id(
+    def test_import_creates_name_only_resident_and_audit_logs_it(
         self, mock_get, client, app
     ):
         """Test import creates a resident when a matching name-only row is new."""
@@ -748,9 +748,7 @@ class TestScheduleImport:
             db.session.commit()
 
     @patch("backend.routes.schedule.requests.get")
-    def test_import_rolls_back_when_audit_logging_raises(
-        self, mock_get, client, app
-    ):
+    def test_import_rolls_back_when_audit_logging_raises(self, mock_get, client, app):
         """Test audit failures roll back schedule changes before commit."""
         with app.app_context():
             test_date = date(2024, 4, 13)

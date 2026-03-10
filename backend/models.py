@@ -10,7 +10,17 @@ from typing import TYPE_CHECKING, ClassVar, Final, override
 from email_validator import EmailNotValidError
 from email_validator import validate_email as _validate_email
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -275,6 +285,14 @@ class Role(ModelBase):
 
 class TimeEntry(ModelBase):
     __tablename__ = "time_entries"
+    __table_args__ = (
+        UniqueConstraint(
+            "date",
+            "resident_id",
+            "role_id",
+            name="uq_time_entries_date_resident_role",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
