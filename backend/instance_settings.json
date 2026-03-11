@@ -119,7 +119,7 @@
       "is_call_team": false,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "EP/HUP 13",
@@ -130,7 +130,7 @@
       "cutoff_minute": 30,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "H12",
@@ -141,7 +141,7 @@
       "cutoff_minute": 30,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "H13",
@@ -152,7 +152,7 @@
       "cutoff_minute": 30,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "H14",
@@ -163,7 +163,7 @@
       "cutoff_minute": 30,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "HUP EP 12",
@@ -174,7 +174,7 @@
       "cutoff_minute": 30,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "Backup",
@@ -210,7 +210,7 @@
       "is_call_team": true,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "Second Call",
@@ -219,7 +219,7 @@
       "is_call_team": true,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "Third Call",
@@ -228,7 +228,7 @@
       "is_call_team": true,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "Cardiac Call",
@@ -237,7 +237,7 @@
       "is_call_team": true,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     },
     {
       "name": "OB Flex",
@@ -246,7 +246,7 @@
       "is_call_team": true,
       "is_late_role": false,
       "is_weekday_backup": false,
-      "is_schedule_importable": true
+      "is_schedule_importable": false
     }
   ]
 }

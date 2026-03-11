@@ -515,18 +515,18 @@ via `backend/instance_settings.json`. Examples of configurations included are:
 
 - `default_cutoff_hour`
 - `default_cutoff_minute`
-- A list of `roles`, each specifying its visibility (`is_amion_importable`,
+- A list of `roles`, each specifying its visibility (`is_schedule_importable`,
   `display_order`), and features like `is_backup`, `is_call_team`,
   `is_late_role`, etc.
 
 ### Role-Specific Cutoffs
 
-Configured in database, editable via UI:
+Configured in `instance_settings.json` (defaults to 17:30), editable via UI:
 
-- ECA 1, ECA 2: 17:30
-- ECC 1-5: 17:30
-- PPMC: 17:30
-- Late Late 1-2: 17:30
+- ECA 1, ECA 2: default 17:30
+- ECC 1-5: default 17:30
+- PPMC: default 17:30
+- Late Late 1-2: default 17:30
 - Backup roles: Special handling
 
 ## Security Architecture

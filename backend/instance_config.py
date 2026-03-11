@@ -1,3 +1,4 @@
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -8,12 +9,12 @@ CONFIG_PATH = Path(__file__).parent / "instance_settings.json"
 try:
     with CONFIG_PATH.open(encoding="utf-8") as f:
         _settings: dict[str, Any] = json.load(f)
-except FileNotFoundError:
-    _settings: dict[str, Any] = {
-        "roles": [],
-        "default_cutoff_hour": 17,
-        "default_cutoff_minute": 30,
-    }
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    raise RuntimeError(
+        f"Failed to load required instance settings from {CONFIG_PATH}. "
+        f"This file must exist and contain valid JSON. "
+        f"Error details: {e}"
+    ) from e
 
 DEFAULT_CUTOFF_HOUR: int = _settings.get("default_cutoff_hour", 17)
 DEFAULT_CUTOFF_MINUTE: int = _settings.get("default_cutoff_minute", 30)
@@ -46,4 +47,4 @@ SCHEDULE_ROLE_NAMES = frozenset(
 
 def get_role_definitions():
     """Returns the full parsed role configuration JSON."""
-    return ROLES
+    return copy.deepcopy(ROLES)
