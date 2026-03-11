@@ -30,6 +30,7 @@ from .models import Holiday, Resident, Role, db
 from .routes import dev as _dev_module
 from .routes import register_blueprints
 from .utils import _wants_json_response, get_effective_date, setup_logging
+from .utils.email_service import init_email_service
 
 # Get the project root directory (parent of backend/)
 project_root: Path = Path(__file__).parent.parent
@@ -50,6 +51,7 @@ if app.config.get("FLASK_ENV") == "production":
         )
 
 db.init_app(app)
+init_email_service(app)
 
 # Initialize Flask-Migrate for database migrations
 migrate: Migrate = Migrate(app, db, render_as_batch=True)
