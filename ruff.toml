@@ -42,8 +42,8 @@ select = [
     "PLR6301", # Test methods don't need to be static
     "PLC0415", # Imports in test functions is acceptable
     "DTZ001", # Naive datetime in tests is acceptable (using pytz.localize)
-    "PLR0914", # Too many arguments in test functions is acceptable
-    "PLR0915", # Too many local variables in test functions is acceptable
+    "PLR0914", # Too many local variables in test functions is acceptable
+    "PLR0915", # Too many statements in test functions is acceptable
 ]
 "tests/conftest.py" = [
     "E402", # Imports after env-var setup (intentional: env vars must precede Flask import)

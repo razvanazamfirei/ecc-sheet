@@ -34,7 +34,9 @@ SAFE_STAFF_IMPORT_ERRORS = frozenset(
 )
 
 
-def _residents_index_redirect():
+from flask import Response
+
+def _residents_index_redirect() -> Response:
     """Return a redirect to the residents index."""
     return redirect(url_for("residents.index"))
 
