@@ -236,7 +236,7 @@ bun run test:coverage
 bun run test frontend/static/js/__tests__/luxon-utils.test.js
 
 # Watch mode
-bun run test --watch
+bun run test:watch
 ```
 
 ### Writing Tests

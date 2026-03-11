@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from flask import has_request_context, request
+from sqlalchemy import insert
 
 from .auth import get_current_user
 from .models import AuditLog, db
@@ -56,7 +57,7 @@ def _build_audit_values(
 def _write_audit_log(audit_values: Mapping[str, Any], *, strict: bool = False) -> None:
     """Persist an audit log entry."""
     try:
-        db.session.execute(AuditLog.__table__.insert().values(**audit_values))
+        db.session.execute(insert(AuditLog).values(**audit_values))
     except Exception:
         logger.exception("Audit logging failed")
         if strict:

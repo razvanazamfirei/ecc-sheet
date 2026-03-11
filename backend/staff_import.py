@@ -62,9 +62,9 @@ def _normalized_email(raw_email: str, *, name: str) -> str | None:
         return None
 
 
-def _phone_from_row(row: dict[str, str | None]) -> str:
-    """Return the preferred phone number from a parsed row."""
-    return _clean_cell(row.get("Pager")) or _clean_cell(row.get("Tel."))
+def _phone_from_row(row: dict[str, str | None]) -> str | None:
+    """Return the preferred phone number from a parsed row, or None."""
+    return _clean_cell(row.get("Pager")) or _clean_cell(row.get("Tel.")) or None
 
 
 def _split_name(name: str) -> tuple[str | None, str | None]:
@@ -123,8 +123,7 @@ def parse_staff_list(csv_content: str) -> StaffList:
     # Split content into lines and find the header
     lines = csv_content.strip().split("\n")
 
-    # Find the header line (contains "Staff type")
-    header_index = None
+    header_index: int | None = None
     for i, line in enumerate(lines):
         if "Staff type" in line and "Name" in line:
             header_index = i
@@ -134,8 +133,9 @@ def parse_staff_list(csv_content: str) -> StaffList:
         raise ValidationError("Could not find header line in staff list")
 
     # Parse CSV starting from header
+    lines_subset = [line for idx, line in enumerate(lines) if idx >= header_index]
     csv_reader = csv.DictReader(
-        lines[header_index:], delimiter="\t", skipinitialspace=True
+        lines_subset, delimiter="\t", skipinitialspace=True
     )
 
     for row in csv_reader:
@@ -150,6 +150,10 @@ def parse_staff_list(csv_content: str) -> StaffList:
 
         epic_id = _epic_id_from_row(row)
         if not epic_id:
+            logger.warning(
+                "Skipping row during staff import: missing EPIC ID. Name: %r",
+                name,
+            )
             continue
         raw_email = _clean_cell(row.get("Email"))
         staff_list.append(
@@ -185,6 +189,8 @@ def _update_resident_fields(
         ("name", staff["name"]),
     ]:
         if attr == "email" and new_val is None:
+            continue
+        if attr == "phone" and new_val is None:
             continue
         old_val = getattr(resident, attr)
         if old_val != new_val:
@@ -235,7 +241,7 @@ def import_staff_to_database(
 
         if resident:
             changes = _update_resident_fields(
-                resident, staff, normalized_class_year, first_name, last_name
+                resident, staff, normalized_class_year or "", first_name, last_name
             )
             if changes:
                 updated += 1

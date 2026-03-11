@@ -3,10 +3,10 @@
 import logging
 from collections.abc import Mapping
 from datetime import date, time
+from typing import Any, cast
 
 from flask import (
     Blueprint,
-    Response,
     abort,
     flash,
     jsonify,
@@ -16,6 +16,7 @@ from flask import (
     url_for,
 )
 from sqlalchemy.orm import joinedload
+from werkzeug.wrappers import Response
 
 from ..audit import log_create_strict, log_delete, log_update_strict
 from ..auth import is_admin, is_first_call
@@ -264,12 +265,13 @@ def _entry_json_mutation_error(
 
 def _normalize_bulk_updates_payload(
     payload: object,
-) -> list[dict] | tuple[Response, int]:
+) -> list[dict[str, Any]] | tuple[Response, int]:
     """Validate and normalize a bulk update request payload."""
     if not isinstance(payload, dict):
         return _json_error("Invalid request payload.", 400)
 
-    updates_raw = payload.get("entries")
+    payload_dict = cast(dict[str, Any], payload)
+    updates_raw = payload_dict.get("entries")
     if not isinstance(updates_raw, list) or not updates_raw:
         return _json_error("No entries were provided.", 400)
 
@@ -279,9 +281,12 @@ def _normalize_bulk_updates_payload(
         if not isinstance(individual_update, dict):
             return _json_error("Each entry update must be an object.", 400)
 
-        entry_id_raw = individual_update.get("id")
+        update_dict = cast(dict[str, Any], individual_update)
+        entry_id_raw = update_dict.get("id")
         try:
-            entry_id = int(entry_id_raw)
+            if entry_id_raw is None:
+                raise ValueError
+            entry_id = int(str(entry_id_raw))
         except (TypeError, ValueError):
             return _json_error("Each entry update must include a valid id.", 400)
 
@@ -292,7 +297,7 @@ def _normalize_bulk_updates_payload(
         normalized_updates.append(
             {
                 "id": entry_id,
-                "time_updates": _present_time_updates(individual_update),
+                "time_updates": _present_time_updates(update_dict),
             }
         )
 
@@ -300,8 +305,8 @@ def _normalize_bulk_updates_payload(
 
 
 def _load_validated_bulk_entries(
-    normalized_updates: list[dict],
-) -> dict[int, TimeEntry] | tuple[Response, int]:
+    normalized_updates: list[dict[str, Any]],
+) -> dict[int, TimeEntry] | tuple[Response, int] | Response:
     """Load bulk-update entries and validate access for all touched dates."""
     entry_ids = {individual_update["id"] for individual_update in normalized_updates}
     entries = {
@@ -514,15 +519,19 @@ def update_all():
         return normalized_updates
 
     entries = _load_validated_bulk_entries(normalized_updates)
-    if isinstance(entries, tuple):
+    if isinstance(entries, (tuple, Response)):
         return entries
 
-    entry_updates: list[tuple[TimeEntry, dict]] = []
+    entry_updates: list[tuple[TimeEntry, dict[str, str | None]]] = []
     try:
         for individual_update in normalized_updates:
-            entry = entries[individual_update["id"]]
+            entry_id = cast(int, individual_update["id"])
+            entry = entries[entry_id]
+            time_updates_dict = cast(
+                dict[str, str | None], individual_update["time_updates"]
+            )
             entry_updates.append(
-                (entry, _apply_time_updates(entry, individual_update["time_updates"]))
+                (entry, _apply_time_updates(entry, time_updates_dict))
             )
 
         db.session.flush()

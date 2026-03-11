@@ -15,7 +15,7 @@ from ..audit import log_create_strict, log_import_strict, log_update_strict
 from ..auth import get_first_call_role_names, is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Resident, Role, TimeEntry, db
-from ..type_defs import ScheduleImportResult
+from ..type_defs import ScheduleImportResult, ScheduleResidentChanges
 
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class ResidentResolution:
 
     resident: Resident | None
     created_resident: Resident | None = None
-    updated_changes: dict[str, dict[str, str | None]] | None = None
+    updated_changes: ScheduleResidentChanges | None = None
     skipped_unknown: bool = False
     skipped_conflict: bool = False
 
@@ -422,7 +422,7 @@ def _create_name_only_resident(row: ScheduleRow) -> Resident:
 
 def _resident_epic_id_update(
     resident: Resident, row: ScheduleRow
-) -> dict[str, dict[str, str | None]] | None:
+) -> ScheduleResidentChanges | None:
     """Return EPIC-ID changes applied while resolving a resident."""
     if resident.epic_id or not row.epic_id:
         return None
@@ -479,7 +479,7 @@ def _process_entries(
     """Process CSV lines and create time entries."""
     entries_created = 0
     created_residents: list[Resident] = []
-    updated_residents: list[tuple[Resident, dict[str, dict[str, str | None]]]] = []
+    updated_residents: list[tuple[Resident, ScheduleResidentChanges]] = []
     created_entries: list[TimeEntry] = []
     skipped_weekday_backups = 0
     skipped_unknown_residents = 0

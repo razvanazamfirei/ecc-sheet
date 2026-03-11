@@ -60,7 +60,7 @@ class Config:
         "SESSION_COOKIE_SAMESITE", default="Lax"
     )
     PERMANENT_SESSION_LIFETIME: ClassVar[timedelta] = timedelta(
-        seconds=env_int("PERMANENT_SESSION_LIFETIME") or 2_678_400
+        seconds=_env_int_default("PERMANENT_SESSION_LIFETIME", 2_678_400)
     )
     CSP_POLICY: ClassVar[str | None] = env_str("CSP_POLICY")
 

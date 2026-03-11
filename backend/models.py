@@ -72,7 +72,7 @@ class Resident(ModelBase):
     abbreviation: Mapped[str | None] = mapped_column(String(10), nullable=True)
     backup_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     lawson_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    hire_date: Mapped[dt_date | None] = mapped_column(Date, nullable=True)
     # Relationship to time entries
     time_entries: Mapped[list[TimeEntry]] = relationship(
         "TimeEntry", back_populates="resident", cascade="all, delete-orphan"
@@ -295,7 +295,7 @@ class TimeEntry(ModelBase):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    date: Mapped[dt_date] = mapped_column(Date, nullable=False, index=True)
     resident_id: Mapped[int] = mapped_column(ForeignKey("residents.id"), nullable=False)
     role_id: Mapped[int | None] = mapped_column(
         ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
@@ -392,7 +392,7 @@ class DailySheet(ModelBase):
     __tablename__ = "daily_sheets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    date: Mapped[date] = mapped_column(Date, unique=True, nullable=False, index=True)
+    date: Mapped[dt_date] = mapped_column(Date, unique=True, nullable=False, index=True)
     locked: Mapped[bool] = mapped_column(Boolean, default=False)
     locked_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     locked_at: Mapped[datetime | None] = mapped_column(
@@ -457,7 +457,7 @@ class Holiday(ModelBase):
     __tablename__ = "holidays"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, index=True)
+    date: Mapped[dt_date] = mapped_column(Date, nullable=False, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_federal: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(

@@ -39,7 +39,7 @@ class StaffRecord(TypedDict):
     class_year: str
     backup_id: str
     abbreviation: str
-    phone: str
+    phone: str | None
     email: str | None
 
 

@@ -7,8 +7,6 @@ from logging import Logger
 
 from flask import (
     Blueprint,
-    Response,
-    abort,
     current_app,
     flash,
     redirect,
@@ -18,6 +16,7 @@ from flask import (
 )
 from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
+from werkzeug.wrappers import Response
 
 from ..audit import log_create, log_update
 from ..auth import admin_required, get_current_user, is_admin, is_first_call
@@ -83,7 +82,7 @@ def _resident_snapshot(resident: Resident) -> dict[str, str | int | None]:
 
 def _staff_import_error_message(error: str | None) -> str:
     """Return a sanitized user-facing staff import error."""
-    if error in SAFE_STAFF_IMPORT_ERRORS:
+    if error and error in SAFE_STAFF_IMPORT_ERRORS:
         return error
     return "Staff list import failed."
 
@@ -109,17 +108,14 @@ def add():
     try:
         resident = Resident(name=name)
         db.session.add(resident)
+        db.session.flush()
+        log_create("Resident", resident.id, {"name": name})
         db.session.commit()
     except Exception:
         db.session.rollback()
         logger.exception("Error adding resident")
         flash("Error adding resident. Check logs for details.", "error")
         return _residents_index_redirect()
-
-    try:
-        log_create("Resident", resident.id, {"name": name})
-    except Exception:
-        logger.exception("Audit log failed for resident %s", resident.id)
 
     flash(f"Resident {name} added successfully", "success")
     return _residents_index_redirect()
@@ -129,21 +125,11 @@ def add():
 @admin_required
 def toggle(resident_id):
     """Toggle resident active status."""
-    resident = db.session.get(Resident, resident_id)
-    if resident is None:
-        abort(404)
+    resident = db.get_or_404(Resident, resident_id)
 
     previous_active = resident.active
     resident.active = not resident.active
     status = "activated" if resident.active else "deactivated"
-
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception("Error toggling resident status")
-        flash("Error updating resident. Check logs for details.", "error")
-        return _residents_index_redirect()
 
     try:
         log_update(
@@ -151,8 +137,12 @@ def toggle(resident_id):
             resident.id,
             changes={"active": {"old": previous_active, "new": resident.active}},
         )
+        db.session.commit()
     except Exception:
-        logger.exception("Audit log failed for resident %s", resident.id)
+        db.session.rollback()
+        logger.exception("Error toggling resident status")
+        flash("Error updating resident. Check logs for details.", "error")
+        return _residents_index_redirect()
 
     flash(f"Resident {resident.name} {status}", "success")
     return _residents_index_redirect()
@@ -162,9 +152,7 @@ def toggle(resident_id):
 @admin_required
 def edit(resident_id):
     """Edit a resident's details."""
-    resident = db.session.get(Resident, resident_id)
-    if resident is None:
-        abort(404)
+    resident = db.get_or_404(Resident, resident_id)
     return render_template(
         "resident_edit.html", resident=resident, class_years=Resident.CLASS_YEARS
     )
@@ -174,9 +162,7 @@ def edit(resident_id):
 @admin_required
 def edit_save(resident_id):
     """Save resident details."""
-    resident = db.session.get(Resident, resident_id)
-    if resident is None:
-        abort(404)
+    resident = db.get_or_404(Resident, resident_id)
 
     name = _form_text("name")
     if not name:
@@ -216,17 +202,13 @@ def edit_save(resident_id):
         return _residents_index_redirect()
 
     try:
+        log_update("Resident", resident.id, changes=changes)
         db.session.commit()
     except Exception:
         db.session.rollback()
         logger.exception("Error saving resident")
         flash("Error updating resident. Check logs for details.", "error")
         return _residents_index_redirect()
-
-    try:
-        log_update("Resident", resident.id, changes=changes)
-    except Exception:
-        logger.exception("Audit log failed for resident %s", resident.id)
 
     flash(f"Resident {resident.name} updated successfully.", "success")
     return _residents_index_redirect()
@@ -235,9 +217,7 @@ def edit_save(resident_id):
 @bp.route("/<int:resident_id>/profile")
 def profile(resident_id):
     """View resident profile page. Accessible to all users."""
-    resident = db.session.get(Resident, resident_id)
-    if resident is None:
-        abort(404)
+    resident = db.get_or_404(Resident, resident_id)
 
     show_sensitive_fields = is_admin()
     show_hours = is_admin() or is_first_call()

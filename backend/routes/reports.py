@@ -107,10 +107,11 @@ def _report_entries(
 
 def _file_response(content: str | bytes, mimetype: str, filename: str) -> Response:
     """Return a download response for generated report content."""
+    escaped_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
     return Response(
         content,
         mimetype=mimetype,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f'attachment; filename="{escaped_filename}"'},
     )
 
 
