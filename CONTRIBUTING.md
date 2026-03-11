@@ -233,10 +233,10 @@ bun run test
 bun run test:coverage
 
 # Run specific test file
-bun test frontend/static/js/__tests__/luxon-utils.test.js
+bun run test frontend/static/js/__tests__/luxon-utils.test.js
 
 # Watch mode
-bun test --watch
+bun run test --watch
 ```
 
 ### Writing Tests

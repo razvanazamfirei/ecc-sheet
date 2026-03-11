@@ -134,6 +134,23 @@ class TestConfig:
             reload(backend.config)
             assert backend.config.Config.DEFAULT_CUTOFF_MINUTE == 45
 
+    def test_zero_value_time_config_from_env(self):
+        """Test explicit zero values are preserved for time-related settings."""
+        with patch.dict(
+            os.environ,
+            {
+                "DEFAULT_CUTOFF_HOUR": "0",
+                "DEFAULT_CUTOFF_MINUTE": "0",
+                "DAY_RESET_HOUR": "0",
+                "TIMEZONE": "UTC",
+            },
+        ):
+            reload(backend.config)
+            assert backend.config.Config.DEFAULT_CUTOFF_HOUR == 0
+            assert backend.config.Config.DEFAULT_CUTOFF_MINUTE == 0
+            assert backend.config.Config.DAY_RESET_HOUR == 0
+            assert backend.config.Config.TIMEZONE == "UTC"
+
     def test_role_cutoff_hours_contains_common_roles(self):
         """Test ROLE_CUTOFF_HOURS contains expected roles."""
         assert "ECC 1" in backend.config.Config.ROLE_CUTOFF_HOURS

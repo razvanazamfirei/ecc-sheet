@@ -68,6 +68,7 @@ class ResidentResolution:
     created_resident: Resident | None = None
     updated_changes: dict[str, dict[str, str | None]] | None = None
     skipped_unknown: bool = False
+    skipped_conflict: bool = False
 
 
 def _sheet_view_redirect(date_str: str):
@@ -205,6 +206,7 @@ def _log_schedule_import(date_str: str, import_result: ScheduleImportResult) -> 
             f"Residents created: {len(import_result['created_residents'])}, "
             f"Residents updated: {len(import_result['updated_residents'])}, "
             f"Unknown residents skipped: {import_result['skipped_unknown_residents']}, "
+            f"Resident conflicts skipped: {import_result['skipped_conflicts']}, "
             f"Weekday backups skipped: {import_result['skipped_weekday_backups']}"
         ),
     )
@@ -219,15 +221,24 @@ def _build_schedule_import_flash(
             "Successfully imported "
             f"{import_result['entries_created']} schedule entries from Amion"
         )
+        skipped_details: list[str] = []
         if import_result["skipped_unknown_residents"] > 0:
-            message += (
-                f" ({import_result['skipped_unknown_residents']} rows skipped "
-                "for unknown residents)"
+            skipped_details.append(
+                f"{import_result['skipped_unknown_residents']} rows skipped "
+                "for unknown residents"
             )
+        if import_result["skipped_conflicts"] > 0:
+            skipped_details.append(
+                f"{import_result['skipped_conflicts']} rows skipped "
+                "for resident/EPIC conflicts"
+            )
+        if skipped_details:
+            message += f" ({', '.join(skipped_details)})"
         return message, "success"
 
     if (
         import_result["skipped_unknown_residents"] > 0
+        or import_result["skipped_conflicts"] > 0
         or import_result["skipped_weekday_backups"] > 0
     ):
         skipped_messages: list[str] = []
@@ -235,6 +246,11 @@ def _build_schedule_import_flash(
             skipped_messages.append(
                 f"{import_result['skipped_unknown_residents']} rows were skipped "
                 "because the resident was not found."
+            )
+        if import_result["skipped_conflicts"] > 0:
+            skipped_messages.append(
+                f"{import_result['skipped_conflicts']} rows were skipped "
+                "because the resident name matched a different EPIC ID."
             )
         if import_result["skipped_weekday_backups"] > 0:
             skipped_messages.append(
@@ -293,9 +309,14 @@ def _collect_late_assignment_keys(rows: list[ScheduleRow]) -> set[tuple[str, str
     return late_assignment_keys
 
 
+def _schedule_role_names() -> frozenset[str]:
+    """Return importable schedule role names, including configured aliases."""
+    return SCHEDULE_ROLE_NAMES.union(get_first_call_role_names())
+
+
 def _load_schedule_roles() -> dict[str, Role]:
     """Return the configured importable roles keyed by name."""
-    roles = Role.query.filter(Role.name.in_(SCHEDULE_ROLE_NAMES)).all()
+    roles = Role.query.filter(Role.name.in_(_schedule_role_names())).all()
     return {role.name: role for role in roles}
 
 
@@ -431,7 +452,7 @@ def _resolve_schedule_resident(row: ScheduleRow) -> ResidentResolution:
             row.epic_id,
             resident.epic_id,
         )
-        return ResidentResolution(None, skipped_unknown=True)
+        return ResidentResolution(None, skipped_conflict=True)
 
     if resident is None:
         if row.resident_name and not row.epic_id:
@@ -462,14 +483,16 @@ def _process_entries(
     created_entries: list[TimeEntry] = []
     skipped_weekday_backups = 0
     skipped_unknown_residents = 0
+    skipped_conflicts = 0
     skip_weekday_backups = not is_weekend_or_holiday(sheet_date)
     late_assignment_keys = (
         _collect_late_assignment_keys(rows) if skip_weekday_backups else set()
     )
     roles_by_name = _load_schedule_roles()
+    schedule_role_names = _schedule_role_names()
 
     for row in rows:
-        if row.assignment_name not in SCHEDULE_ROLE_NAMES:
+        if row.assignment_name not in schedule_role_names:
             continue
 
         if _should_skip_weekday_backup(
@@ -481,16 +504,18 @@ def _process_entries(
             skipped_weekday_backups += 1
             continue
 
-        resolution = _resolve_schedule_resident(row)
-        if resolution.skipped_unknown:
-            skipped_unknown_residents += 1
-        resident = resolution.resident
-        if resident is None:
-            continue
-
         role = roles_by_name.get(row.assignment_name)
         if not role:
             logger.warning("Role not found: %s", row.assignment_name)
+            continue
+
+        resolution = _resolve_schedule_resident(row)
+        if resolution.skipped_unknown:
+            skipped_unknown_residents += 1
+        if resolution.skipped_conflict:
+            skipped_conflicts += 1
+        resident = resolution.resident
+        if resident is None:
             continue
 
         if resolution.created_resident is not None:
@@ -507,5 +532,6 @@ def _process_entries(
         "updated_residents": updated_residents,
         "created_entries": created_entries,
         "skipped_unknown_residents": skipped_unknown_residents,
+        "skipped_conflicts": skipped_conflicts,
         "skipped_weekday_backups": skipped_weekday_backups,
     }

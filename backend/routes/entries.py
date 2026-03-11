@@ -336,7 +336,9 @@ def _load_validated_bulk_entries(
     return entries
 
 
-def _validated_add_entry_request():
+def _validated_add_entry_request() -> (
+    tuple[date, str, int, int, time | None, time | None] | Response
+):
     """Return validated add-entry form data or an error response."""
     sheet_date_str = request.form.get("date")
     if not sheet_date_str:

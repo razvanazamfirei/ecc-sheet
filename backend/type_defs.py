@@ -79,6 +79,7 @@ class ScheduleImportResult(TypedDict):
     updated_residents: list[tuple[Resident, ScheduleResidentChanges]]
     created_entries: list[TimeEntry]
     skipped_unknown_residents: int
+    skipped_conflicts: int
     skipped_weekday_backups: int
 
 

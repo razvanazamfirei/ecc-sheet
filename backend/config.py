@@ -25,6 +25,18 @@ def _same_site_env(name: str, *, default: str | None = "Lax") -> str | None:
     return default
 
 
+def _env_int_default(name: str, default: int) -> int:
+    """Return an env int while preserving literal zero values."""
+    value = env_int(name)
+    return default if value is None else value
+
+
+def _env_str_default(name: str, default: str) -> str:
+    """Return an env string or a default when the value is blank/unset."""
+    value = env_str(name)
+    return default if value is None else value
+
+
 class Config:
     SECRET_KEY: ClassVar[str] = env_str("SECRET_KEY") or os.urandom(32).hex()
     SQLALCHEMY_DATABASE_URI: ClassVar[str] = (
@@ -69,10 +81,12 @@ class Config:
     PAYROLL_LABEL_SUFFIX: ClassVar[str | None] = env_str("PAYROLL_LABEL_SUFFIX")
 
     # Time tracking configuration
-    DEFAULT_CUTOFF_HOUR: ClassVar[int] = env_int("DEFAULT_CUTOFF_HOUR") or 17
-    DEFAULT_CUTOFF_MINUTE: ClassVar[int] = env_int("DEFAULT_CUTOFF_MINUTE") or 30
-    TIMEZONE: ClassVar[str] = env_str("TIMEZONE") or "America/New_York"
-    DAY_RESET_HOUR: ClassVar[int] = env_int("DAY_RESET_HOUR") or 8  # Day resets at 8 AM
+    DEFAULT_CUTOFF_HOUR: ClassVar[int] = _env_int_default("DEFAULT_CUTOFF_HOUR", 17)
+    DEFAULT_CUTOFF_MINUTE: ClassVar[int] = _env_int_default("DEFAULT_CUTOFF_MINUTE", 30)
+    TIMEZONE: ClassVar[str] = _env_str_default("TIMEZONE", "America/New_York")
+    DAY_RESET_HOUR: ClassVar[int] = _env_int_default(
+        "DAY_RESET_HOUR", 8
+    )  # Day resets at 8 AM
 
     # Role-specific cutoff times (can be customized per role)
     # Format: (hour, minute) for 17:30 cutoff

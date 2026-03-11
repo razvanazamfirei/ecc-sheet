@@ -255,37 +255,46 @@ describe("Script Functions", () => {
       let prevented = false;
       let requestSubmitCalled = false;
       let submitCalled = false;
-      const dialogHandlers = {};
-      const bodyClasses = new Set();
-
-      global.document.body = {
-        classList: {
-          add: (className) => bodyClasses.add(className),
-          remove: (className) => bodyClasses.delete(className),
+      const modalHandlers = {};
+      let showCalled = false;
+      let hideCalled = false;
+      const modalInstance = {
+        show: () => {
+          showCalled = true;
+        },
+        hide: () => {
+          hideCalled = true;
         },
       };
 
-      mockElements["page-dialog-root"] = { hidden: true, dataset: {} };
-      mockElements["page-dialog-backdrop"] = {
+      global.window.bootstrap = {
+        Modal: {
+          getOrCreateInstance: () => modalInstance,
+          getInstance: () => modalInstance,
+        },
+      };
+
+      mockElements["confirm-modal"] = {
+        dataset: {},
         addEventListener: (eventName, handler) => {
-          dialogHandlers[`backdrop:${eventName}`] = handler;
+          modalHandlers[eventName] = handler;
         },
       };
-      mockElements["page-dialog-title"] = { textContent: "" };
-      mockElements["page-dialog-message"] = { textContent: "" };
-      mockElements["page-dialog-confirm"] = {
+      mockElements["confirm-modal-title"] = { textContent: "" };
+      mockElements["confirm-modal-message"] = { textContent: "" };
+      mockElements["confirm-modal-confirm"] = {
         textContent: "",
         className: "",
         addEventListener: (eventName, handler) => {
-          dialogHandlers[`confirm:${eventName}`] = handler;
+          modalHandlers[`confirm:${eventName}`] = handler;
         },
         focus: () => {},
       };
-      mockElements["page-dialog-cancel"] = {
+      mockElements["confirm-modal-cancel"] = {
         textContent: "",
         className: "",
         addEventListener: (eventName, handler) => {
-          dialogHandlers[`cancel:${eventName}`] = handler;
+          modalHandlers[`cancel:${eventName}`] = handler;
         },
       };
 
@@ -312,14 +321,21 @@ describe("Script Functions", () => {
       expect(prevented).toBe(true);
       expect(requestSubmitCalled).toBe(false);
       expect(submitCalled).toBe(false);
-      expect(bodyClasses.has("page-dialog-open")).toBe(true);
+      expect(showCalled).toBe(true);
+      expect(mockElements["confirm-modal-title"].textContent).toBe(
+        "Please Confirm",
+      );
+      expect(mockElements["confirm-modal-message"].textContent).toBe(
+        "Continue?",
+      );
 
-      dialogHandlers["confirm:click"]();
+      modalHandlers["confirm:click"]();
       await Promise.resolve();
       await Promise.resolve();
 
       expect(requestSubmitCalled).toBe(true);
       expect(submitCalled).toBe(false);
+      expect(hideCalled).toBe(true);
       expect(form.dataset.confirmBypass).toBeUndefined();
     });
 

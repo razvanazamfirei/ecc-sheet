@@ -136,6 +136,16 @@ function setEntryControlsDisabled(controls, disabled) {
 }
 
 /**
+ * Returns the CSRF token stored in a form input collection
+ * @param {HTMLInputElement[]} inputs - Inputs to inspect
+ * @returns {string} CSRF token value or an empty string
+ */
+function getCsrfTokenFromInputs(inputs) {
+  const csrfInput = inputs.find((input) => input.name === "csrf_token");
+  return csrfInput?.value || "";
+}
+
+/**
  * Shows an in-page notification, with alert fallback for isolated contexts
  * @param {string} message - Message to show
  * @param {string} type - Notification type
@@ -456,6 +466,7 @@ async function saveEntry(entryId, options = {}) {
 
   const originalSaveHtml = controls.saveButton?.innerHTML;
   const formData = new FormData(form);
+  const csrfToken = getCsrfTokenFromInputs(controls.formInputs);
 
   if (controls.saveButton) {
     controls.saveButton.innerHTML =
@@ -470,6 +481,7 @@ async function saveEntry(entryId, options = {}) {
       credentials: "same-origin",
       headers: {
         "Accept": "application/json",
+        "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
         "X-Requested-With": "XMLHttpRequest",
       },
@@ -555,9 +567,8 @@ function buildBulkSaveRequest(rows) {
       return;
     }
 
-    const csrfInput = formInputs.find((input) => input.name === "csrf_token");
-    if (!csrfToken && csrfInput?.value) {
-      csrfToken = csrfInput.value;
+    if (!csrfToken) {
+      csrfToken = getCsrfTokenFromInputs(formInputs);
     }
 
     entries.push({

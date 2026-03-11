@@ -47,7 +47,7 @@ def _epic_id_from_row(row: dict[str, str | None]) -> str | None:
 
 
 def _normalized_email(raw_email: str, *, name: str) -> str | None:
-    """Return a normalized email, '' when blank, or None when invalid."""
+    """Return a normalized email, or None when blank/invalid."""
     if not raw_email:
         return None
 

@@ -8,6 +8,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
 ## Features
 
 - **Daily Shift Management**
+
   - Inline time editing with 24-hour format
   - Automatic time rounding to 5-minute increments (always rounds up)
   - Automatic overtime calculation based on configurable cutoff times
@@ -17,17 +18,20 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Copy to clipboard and print for signing
 
 - **Staff Management**
+
   - Import staff from Amion (Report 706)
   - Track class year, email, phone, EPIC ID
   - Active/inactive status
   - Backup resident assignments
 
 - **Holiday Management**
+
   - US federal holidays (automatic)
   - Custom holidays with recurring support
   - Holiday-aware overtime calculations
 
 - **Comprehensive Reporting**
+
   - Quick reports (Last 7/30/90 days)
   - Custom date range reports
   - Resident-specific filtering
@@ -36,6 +40,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Payroll XLSX export for Lawson/UPHS workflows
 
 - **Audit Trail**
+
   - Complete change tracking for all operations
   - Enhanced logging with old/new value tracking
   - User and IP address logging

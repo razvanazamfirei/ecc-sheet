@@ -1,5 +1,6 @@
 """Tests for resident routes."""
 
+import json
 import os
 from unittest.mock import patch
 
@@ -175,6 +176,37 @@ class TestToggleResident:
 
             # Cleanup
             db.session.delete(updated)
+            db.session.commit()
+
+    def test_toggle_audit_log_uses_old_new_keys(self, client, app):
+        """Test resident toggle audit logs follow the shared old/new schema."""
+        with app.app_context():
+            resident = Resident(name="Toggle Audit Test", active=True)
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            response = client.post(
+                f"/residents/{resident_id}/toggle",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="Resident",
+                    entity_id=resident_id,
+                    action="UPDATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert log is not None
+            parsed = json.loads(log.details)
+            assert parsed["changes"]["active"] == {"old": True, "new": False}
+
+            db.session.delete(log)
+            db.session.delete(db.session.get(Resident, resident_id))
             db.session.commit()
 
     def test_toggle_inactive_to_active(self, client, app):
@@ -497,6 +529,32 @@ class TestEditResident:
             assert updated.hire_date is None
 
             db.session.delete(updated)
+            db.session.commit()
+
+    def test_edit_save_invalid_input_shows_generic_error(self, client, app):
+        """Test malformed resident edits do not leak raw ValueError text."""
+        with app.app_context():
+            resident = Resident(name="Invalid Input Resident", active=True)
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            response = client.post(
+                f"/residents/{resident_id}/edit",
+                data={
+                    "name": "Invalid Input Resident",
+                    "lawson_id": "not-a-number",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert (
+                b"Invalid input: please check the fields and try again."
+                in response.data
+            )
+            assert b"invalid literal for int()" not in response.data
+
+            db.session.delete(db.session.get(Resident, resident_id))
             db.session.commit()
 
     def test_edit_save_404_for_missing_resident(self, client):

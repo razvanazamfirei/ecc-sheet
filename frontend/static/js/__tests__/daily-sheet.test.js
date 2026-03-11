@@ -162,6 +162,7 @@ describe("Daily Sheet Functions", () => {
   describe("saveEntry", () => {
     test("saves the form asynchronously and updates the row", async () => {
       let capturedFormData;
+      let fetchArgs;
       global.FormData = function (form) {
         capturedFormData = form.querySelectorAll("input").map((input) => ({
           name: input.name,
@@ -202,8 +203,9 @@ describe("Daily Sheet Functions", () => {
       mockElements["edit-controls-1"] = { style: { display: "inline-flex" } };
       mockElements["action-buttons-1"] = { style: { display: "none" } };
 
-      global.fetch = () =>
-        Promise.resolve({
+      global.fetch = (url, options) => {
+        fetchArgs = { url, options };
+        return Promise.resolve({
           ok: true,
           json: () =>
             Promise.resolve({
@@ -219,6 +221,7 @@ describe("Daily Sheet Functions", () => {
               },
             }),
         });
+      };
 
       const saved = await exportedFunctions.saveEntry(1);
 
@@ -226,6 +229,7 @@ describe("Daily Sheet Functions", () => {
       expect(mockElements["display-1"].innerHTML).toContain("09:00 PM");
       expect(mockElements["overtime-1"].textContent).toBe("3.50 hrs");
       expect(mockElements["form-1"].style.display).toBe("none");
+      expect(fetchArgs.options.headers["X-CSRFToken"]).toBe("csrf-token-value");
       expect(capturedFormData).toEqual([
         {
           name: "csrf_token",

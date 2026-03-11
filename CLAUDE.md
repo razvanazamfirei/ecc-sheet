@@ -414,14 +414,16 @@ ecc-sheet/
 
 - Click resident name to expand/collapse details
 - Clean two-column layout
-- Export to detailed CSV, billing CSV, or payroll XLSX
+- Export-only workflow: detailed CSV, billing CSV, or payroll XLSX
 - Print-friendly formatting
 
-**CSV Export:**
+**Export Types:**
 
-- Columns: Date, Resident, Role, Exit Time, Overtime Hours
-- Filename includes date range: `overtime_report_YYYY-MM-DD_to_YYYY-MM-DD.csv`
-- Preserves filter selections
+- Detailed CSV: Date, Resident, Role, Exit Time, Overtime Hours
+- Billing CSV: aggregated billing/payroll-friendly resident totals
+- Payroll XLSX: Lawson/UPHS-formatted workbook for payroll upload
+- Export filenames include the selected date range
+- Export requests reuse the same form filters and resident selection
 
 ### 8. Audit Trail (frontend/templates/audit.html, backend/audit.py)
 
@@ -619,9 +621,11 @@ bun run test:coverage
 **Reporting:**
 
 - `/reports` - Report generation form (GET)
-- `/generate_report` - Generate report (POST)
-- `/export_report_csv` - Export report as CSV (POST)
-- `/email_report` - Send report via email (POST)
+- `/api/report` - Generate the on-page report view (POST)
+- `/api/report/export_csv` - Export the detailed CSV report (POST)
+- `/api/report/export_billing_csv` - Export the billing CSV report (POST)
+- `/api/report/export_payroll_xlsx` - Export the payroll XLSX report (POST)
+- Report/export form fields: `start_date`, `end_date`, optional `resident_id`
 
 **Audit:**
 

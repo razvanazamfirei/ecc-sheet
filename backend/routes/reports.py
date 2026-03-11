@@ -318,9 +318,9 @@ def payroll_settings_save():
     """Save payroll export settings."""
 
     settings = PayrollSettings.get_or_create()
-    _apply_payroll_settings_form(settings)
 
     try:
+        _apply_payroll_settings_form(settings)
         log_update(
             "PayrollSettings",
             settings.id,
@@ -328,6 +328,10 @@ def payroll_settings_save():
         )
         db.session.commit()
         flash("Payroll settings saved successfully.", "success")
+    except ValidationError as exc:
+        db.session.rollback()
+        logger.debug("Invalid payroll settings input", exc_info=True)
+        flash(str(exc), "error")
     except Exception:
         db.session.rollback()
         logger.exception("Error saving payroll settings")

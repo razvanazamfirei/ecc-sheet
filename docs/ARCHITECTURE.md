@@ -399,9 +399,10 @@ def log_import(date, entries_count):
 **Functions:**
 
 - `setup_logging()` - Configures application logging
-- `get_client_ip()` - Extracts client IP from request
-- Database backup utilities
-- Error handling helpers
+- `backup_database()` - Creates timestamped SQLite backups and prunes old files
+- `get_philadelphia_time()` - Returns the current configured local time
+- `get_effective_date()` - Applies the `DAY_RESET_HOUR` day-boundary logic
+- `_wants_json_response()` - Detects JSON-oriented request/response flows
 
 ### 8. Request Validation
 
@@ -522,31 +523,37 @@ Configured in database, editable via UI:
 ### Implemented ✅
 
 1. **CSRF Protection**
+
    - Flask-WTF CSRFProtect enabled
    - All POST requests require token
    - Tokens in all templates
 
 2. **Input Validation**
+
    - Route-level parsing and model validation
    - Type coercion (strings → dates/times)
    - Length limits enforced
 
 3. **SQL Injection Prevention**
+
    - SQLAlchemy ORM (parameterized queries)
    - No raw SQL execution
    - Use of `db.session.get()` for safe queries
 
 4. **XSS Prevention**
+
    - Jinja2 auto-escaping enabled
    - All user input escaped
 
 5. **Error Handling**
+
    - Custom exception classes
    - Try-catch blocks on all DB operations
    - Graceful degradation
    - Error logging
 
 6. **Logging**
+
    - Application logging configured
    - All errors logged
    - Audit trail for all actions
@@ -559,15 +566,18 @@ Configured in database, editable via UI:
 ### Not Implemented ❌
 
 1. **Authentication**
+
    - No user login system
    - No password management
    - Must use external auth (SSO, reverse proxy)
 
 2. **Rate Limiting**
+
    - No request throttling
    - Vulnerable to abuse without external protection
 
 3. **HTTPS**
+
    - HTTP only (local dev)
    - Must configure SSL/TLS in production
 

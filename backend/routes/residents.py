@@ -7,6 +7,7 @@ from logging import Logger
 
 from flask import (
     Blueprint,
+    Response,
     abort,
     current_app,
     flash,
@@ -33,8 +34,6 @@ SAFE_STAFF_IMPORT_ERRORS = frozenset(
     }
 )
 
-
-from flask import Response
 
 def _residents_index_redirect() -> Response:
     """Return a redirect to the residents index."""
@@ -150,7 +149,7 @@ def toggle(resident_id):
         log_update(
             "Resident",
             resident.id,
-            changes={"active": {"before": previous_active, "after": resident.active}},
+            changes={"active": {"old": previous_active, "new": resident.active}},
         )
     except Exception:
         logger.exception("Audit log failed for resident %s", resident.id)
@@ -196,13 +195,18 @@ def edit_save(resident_id):
         resident.abbreviation = _optional_form_text("abbreviation")
         resident.lawson_id = _optional_form_int("lawson_id")
         resident.hire_date = _optional_form_date("hire_date")
-    except ValueError as exc:
-        flash(str(exc) or "Invalid input.", "error")
+    except ValueError:
+        current_app.logger.debug(
+            "Invalid resident edit input for resident %s",
+            resident_id,
+            exc_info=True,
+        )
+        flash("Invalid input: please check the fields and try again.", "error")
         return _residents_index_redirect()
 
     after = _resident_snapshot(resident)
     changes = {
-        field: {"before": before[field], "after": after[field]}
+        field: {"old": before[field], "new": after[field]}
         for field in before
         if before[field] != after[field]
     }

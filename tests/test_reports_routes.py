@@ -338,6 +338,23 @@ class TestPayrollSettings:
             assert settings.program is None
             assert settings.batch is None
 
+    def test_payroll_settings_save_invalid_integer(self, client, app, monkeypatch):
+        """Test invalid payroll integer input returns a flashed validation error."""
+        monkeypatch.setenv("USER_NAME", "CI-Test-User")
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "CI-Test-User")
+
+        with app.app_context():
+            response = client.post(
+                "/payroll-settings",
+                data={
+                    "program": "M1300",
+                    "batch": "not-a-number",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"must be an integer" in response.data
+
 
 @pytest.mark.integration
 class TestReportExportPermissions:
