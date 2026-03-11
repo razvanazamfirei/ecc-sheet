@@ -49,6 +49,12 @@ class Config:
         env_str("AUTH_PROXY_USERNAME_HEADER") or ""
     )
 
+    # Resend
+    RESEND_API_KEY: ClassVar[str | None] = env_str("RESEND_API_KEY")
+    DEFAULT_SENDER_EMAIL: ClassVar[str] = (
+        env_str("DEFAULT_SENDER_EMAIL") or "onboarding@resend.dev"
+    )
+
     # Session / browser security
     SESSION_COOKIE_SECURE: ClassVar[bool] = env_flag(
         "SESSION_COOKIE_SECURE", default=(FLASK_ENV == "production")

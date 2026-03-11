@@ -16,6 +16,7 @@ from .auth import (
     mock_users_enabled,
 )
 from .config import Config
+from .email_service import init_email_service
 from .holidays import get_federal_holidays
 from .instance_config import (
     BACKUP_ROLE_NAMES,
@@ -50,6 +51,7 @@ if app.config.get("FLASK_ENV") == "production":
         )
 
 db.init_app(app)
+init_email_service(app)
 
 # Initialize Flask-Migrate for database migrations
 migrate: Migrate = Migrate(app, db, render_as_batch=True)
