@@ -134,9 +134,7 @@ def parse_staff_list(csv_content: str) -> StaffList:
 
     # Parse CSV starting from header
     lines_subset = [line for idx, line in enumerate(lines) if idx >= header_index]
-    csv_reader = csv.DictReader(
-        lines_subset, delimiter="\t", skipinitialspace=True
-    )
+    csv_reader = csv.DictReader(lines_subset, delimiter="\t", skipinitialspace=True)
 
     for row in csv_reader:
         # Skip empty rows or placeholders

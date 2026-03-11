@@ -445,6 +445,7 @@ function initialize() {
   window.updateDisplayedDate = updateDisplayedDate;
   window.showNotification = showNotification;
   window.showConfirmationDialog = showConfirmationDialog;
+  window.validateForm = validateForm;
 }
 
 if (document.readyState === "loading") {

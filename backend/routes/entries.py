@@ -530,9 +530,7 @@ def update_all():
             time_updates_dict = cast(
                 dict[str, str | None], individual_update["time_updates"]
             )
-            entry_updates.append(
-                (entry, _apply_time_updates(entry, time_updates_dict))
-            )
+            entry_updates.append((entry, _apply_time_updates(entry, time_updates_dict)))
 
         db.session.flush()
         for entry, changes in entry_updates:
