@@ -425,15 +425,8 @@ class TestEntryDelete:
 
     def test_delete_nonexistent_entry(self, client):
         """Test deleting a nonexistent entry returns 404."""
-        import werkzeug.exceptions
-        import werkzeug.routing.exceptions
-
-        try:
-            response = client.post("/entries/99999/delete")
-            assert response.status_code == 404
-        except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
-            # 404 raised directly or BuildError from redirect is acceptable
-            pass
+        response = client.post("/entries/99999/delete")
+        assert response.status_code == 404
 
     def test_delete_entry_success(self, client, app, sample_time_entry):
         """Test successfully deleting an entry."""
@@ -635,18 +628,11 @@ class TestEntryEdgeCases:
 
     def test_update_nonexistent_entry(self, client):
         """Test updating a nonexistent entry returns 404."""
-        import werkzeug.exceptions
-        import werkzeug.routing.exceptions
-
-        try:
-            response = client.post(
-                "/entries/99999/update",
-                data={"exit_time": "20:00"},
-            )
-            assert response.status_code == 404
-        except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
-            # 404 raised directly or BuildError from redirect is acceptable
-            pass
+        response = client.post(
+            "/entries/99999/update",
+            data={"exit_time": "20:00"},
+        )
+        assert response.status_code == 404
 
     def test_add_entry_invalid_date(self, client, app, sample_resident, sample_role):
         """Test adding entry with invalid date."""

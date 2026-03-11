@@ -24,22 +24,16 @@ function setDateRange(period, autoSubmit = true) {
 /**
  * Loads active residents into the filter dropdown
  */
-function loadResidentsForReport() {
-  fetch("/api/residents/active")
-    .then((response) => response.json())
-    .then((residents) => {
-      const select = document.getElementById("resident_filter");
-      select.innerHTML = '<option value="">All Residents</option>';
-      residents.forEach((resident) => {
-        const option = document.createElement("option");
-        option.value = resident.id;
-        option.textContent = resident.name;
-        select.appendChild(option);
-      });
-    })
-    .catch((error) => {
-      console.error("Error loading residents:", error);
-    });
+async function loadResidentsForReport() {
+  if (!document.getElementById("resident_filter")) {
+    return;
+  }
+
+  try {
+    await window.loadResidentsIntoSelect("resident_filter", "All Residents");
+  } catch (error) {
+    console.error("Error loading residents:", error);
+  }
 }
 
 /**

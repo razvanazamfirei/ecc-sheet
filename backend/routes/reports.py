@@ -1,18 +1,19 @@
 """Report routes."""
 
 import logging
+from collections.abc import Callable
 from datetime import date
 from logging import Logger
 
 from flask import (
     Blueprint,
-    Response,
     flash,
     redirect,
     render_template,
     request,
     url_for,
 )
+from werkzeug.wrappers import Response
 
 from ..audit import log_update
 from ..auth import (
@@ -23,7 +24,6 @@ from ..auth import (
     is_payroll_admin,
     payroll_admin_required,
 )
-from ..email_service import send_report_email
 from ..errors import ValidationError
 from ..models import PayrollSettings, TimeEntry, db
 from ..report_utils import (
@@ -37,6 +37,165 @@ from ..report_utils import (
 
 bp: Blueprint = Blueprint("reports", __name__)
 logger: Logger = logging.getLogger(__name__)
+
+
+def _reports_index_redirect() -> Response:
+    """Return the reports index redirect."""
+    return redirect(url_for("reports.index"))
+
+
+def _reports_flash_redirect(message: str, category: str = "error") -> Response:
+    """Flash a message and redirect to the reports index."""
+    flash(message, category)
+    return _reports_index_redirect()
+
+
+def _report_form_text(key: str) -> str:
+    """Return a trimmed report form value."""
+    return request.form.get(key, "").strip()
+
+
+def _report_form_int(key: str) -> int | None:
+    """Return an optional integer from the report form."""
+    value = _report_form_text(key)
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValidationError(f"'{key}' must be an integer.") from exc
+
+
+def _apply_payroll_settings_form(settings: PayrollSettings) -> None:
+    """Apply payroll-settings form values to the settings model."""
+    settings.program = _report_form_text("program") or None
+    settings.company = _report_form_text("company") or None
+    settings.label_suffix = _report_form_text("label_suffix") or None
+    settings.batch = _report_form_int("batch")
+    settings.pay_code = _report_form_int("pay_code")
+    settings.dept = _report_form_int("dept")
+    settings.expense = _report_form_int("expense")
+    settings.acct_unit = _report_form_int("acct_unit")
+
+
+def _payroll_settings_details(settings: PayrollSettings) -> dict[str, str | int | None]:
+    """Return the payroll settings fields tracked in audit logs."""
+    return {
+        "program": settings.program,
+        "company": settings.company,
+        "batch": settings.batch,
+        "pay_code": settings.pay_code,
+        "dept": settings.dept,
+        "expense": settings.expense,
+        "acct_unit": settings.acct_unit,
+        "label_suffix": settings.label_suffix,
+    }
+
+
+def _report_entries(
+    start_date: date,
+    end_date: date,
+    resident_id: int | None,
+    *,
+    ordered: bool = False,
+) -> list[TimeEntry]:
+    """Return report entries for a date range/filter."""
+    query = build_entries_query(start_date, end_date, resident_id)
+    if ordered:
+        query = query.order_by(TimeEntry.date, TimeEntry.resident_id)
+    return query.all()
+
+
+def _file_response(content: str | bytes, mimetype: str, filename: str) -> Response:
+    """Return a download response for generated report content."""
+    escaped_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+    return Response(
+        content,
+        mimetype=mimetype,
+        headers={"Content-Disposition": f'attachment; filename="{escaped_filename}"'},
+    )
+
+
+def _require_extended_report_permission(message: str) -> Response | None:
+    """Return an error redirect when extended report access is unavailable."""
+    if can_view_all_reports():
+        return None
+    return _reports_flash_redirect(message)
+
+
+def _detailed_csv_content(
+    start_date: date, end_date: date, resident_id: int | None
+) -> str:
+    """Build detailed report CSV content."""
+    return generate_csv_content(
+        _report_entries(start_date, end_date, resident_id, ordered=True)
+    )
+
+
+def _billing_csv_content(
+    start_date: date, end_date: date, resident_id: int | None
+) -> str:
+    """Build billing report CSV content."""
+    return generate_billing_csv_content(
+        aggregate_entries_by_resident(
+            _report_entries(start_date, end_date, resident_id)
+        )
+    )
+
+
+def _payroll_xlsx_content(
+    start_date: date, end_date: date, resident_id: int | None
+) -> bytes:
+    """Build payroll XLSX content."""
+    return generate_payroll_xlsx(
+        aggregate_entries_by_resident(
+            _report_entries(start_date, end_date, resident_id)
+        ),
+        start_date,
+        end_date,
+        PayrollSettings.get_or_create(),
+    )
+
+
+def _run_file_report_action(
+    *,
+    filename: str,
+    mimetype: str,
+    content_builder: Callable[[date, date, int | None], bytes | str],
+    log_message: str,
+    error_message: str,
+) -> Response:
+    """Run a report action that returns a downloadable file."""
+
+    def _export(start_date: date, end_date: date, resident_id: int | None) -> Response:
+        return _file_response(
+            content_builder(start_date, end_date, resident_id),
+            mimetype=mimetype,
+            filename=filename.format(start_date=start_date, end_date=end_date),
+        )
+
+    return _run_report_action(
+        _export,
+        log_message=log_message,
+        error_message=error_message,
+    )
+
+
+def _run_report_action(
+    action: Callable[[date, date, int | None], Response],
+    *,
+    log_message: str,
+    error_message: str,
+) -> Response:
+    """Run a report action with shared validation and error handling."""
+    try:
+        start_date, end_date, resident_id = _parse_report_params()
+        return action(start_date, end_date, resident_id)
+    except ValidationError as exc:
+        return _reports_flash_redirect(str(exc))
+    except Exception:
+        logger.exception(log_message)
+        return _reports_flash_redirect(error_message)
 
 
 def _parse_report_params() -> tuple[date, date, int | None]:
@@ -82,151 +241,71 @@ def index():
 @bp.route("/api/report", methods=["POST"])
 def generate():
     """Generate report for date range."""
-    try:
-        start_date, end_date, resident_id = _parse_report_params()
-        query = build_entries_query(start_date, end_date, resident_id)
-        resident_name = get_resident_name(resident_id)
-        resident_data = aggregate_entries_by_resident(query.all())
 
+    def _render_report(start_date: date, end_date: date, resident_id: int | None):
         return render_template(
             "report_results.html",
             start_date=start_date,
             end_date=end_date,
-            resident_data=resident_data,
-            resident_name=resident_name,
+            resident_data=aggregate_entries_by_resident(
+                _report_entries(start_date, end_date, resident_id)
+            ),
+            resident_name=get_resident_name(resident_id),
             resident_id=resident_id,
             can_use_extended_reports=can_view_all_reports(),
         )
 
-    except ValidationError as e:
-        flash(str(e), "error")
-        return redirect(url_for("reports.index"))
-    except Exception as e:
-        logger.exception("Error generating report: %s", e)
-        flash("Error generating report. Check logs for details.", "error")
-        return redirect(url_for("reports.index"))
+    return _run_report_action(
+        _render_report,
+        log_message="Error generating report",
+        error_message="Error generating report. Check logs for details.",
+    )
 
 
 @bp.route("/api/report/export_csv", methods=["POST"])
 def export_csv():
     """Export detailed report to CSV."""
-    try:
-        start_date, end_date, resident_id = _parse_report_params()
-        query = build_entries_query(start_date, end_date, resident_id)
-        entries = query.order_by(TimeEntry.date, TimeEntry.resident_id).all()
-        csv_content = generate_csv_content(entries)
-
-        filename = f"overtime_report_detailed_{start_date}_{end_date}.csv"
-        return Response(
-            csv_content,
-            mimetype="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
-        )
-
-    except ValidationError as e:
-        flash(str(e), "error")
-        return redirect(url_for("reports.index"))
-    except Exception as e:
-        logger.exception("Error exporting report: %s", e)
-        flash("Error exporting report. Check logs for details.", "error")
-        return redirect(url_for("reports.index"))
+    return _run_file_report_action(
+        filename="overtime_report_detailed_{start_date}_{end_date}.csv",
+        mimetype="text/csv",
+        content_builder=_detailed_csv_content,
+        log_message="Error exporting report",
+        error_message="Error exporting report. Check logs for details.",
+    )
 
 
 @bp.route("/api/report/export_billing_csv", methods=["POST"])
 def export_billing_csv():
     """Export billing/payroll summary to CSV."""
-    if not can_view_all_reports():
-        flash("You do not have permission to export the billing report.", "error")
-        return redirect(url_for("reports.index"))
-    try:
-        start_date, end_date, resident_id = _parse_report_params()
-        query = build_entries_query(start_date, end_date, resident_id)
-        entries = query.all()
-        resident_data = aggregate_entries_by_resident(entries)
-        csv_content = generate_billing_csv_content(resident_data)
+    if resp := _require_extended_report_permission(
+        "You do not have permission to export the billing report."
+    ):
+        return resp
 
-        filename = f"overtime_billing_{start_date}_{end_date}.csv"
-        return Response(
-            csv_content,
-            mimetype="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
-        )
-
-    except ValidationError as e:
-        flash(str(e), "error")
-        return redirect(url_for("reports.index"))
-    except Exception as e:
-        logger.exception("Error exporting billing report: %s", e)
-        flash("Error exporting billing report. Check logs for details.", "error")
-        return redirect(url_for("reports.index"))
-
-
-@bp.route("/api/report/send_email", methods=["POST"])
-def send_email():
-    """Send report via email."""
-    if not can_view_all_reports():
-        flash("You do not have permission to send email reports.", "error")
-        return redirect(url_for("reports.index"))
-    try:
-        start_date, end_date, resident_id = _parse_report_params()
-        recipient_email = request.form.get("recipient_email")
-        resident_name = get_resident_name(resident_id)
-
-        # Send email
-        success = send_report_email(
-            start_date=start_date,
-            end_date=end_date,
-            recipient_email=recipient_email,
-            resident_id=resident_id,
-            resident_name=resident_name,
-        )
-
-        if success:
-            recipient = recipient_email or "configured recipient"
-            flash(f"Report emailed successfully to {recipient}", "success")
-        else:
-            flash("Failed to send email. Check email configuration and logs.", "error")
-
-    except ValidationError as e:
-        flash(str(e), "error")
-        return redirect(url_for("reports.index"))
-    except Exception as e:
-        flash(f"Error sending email: {e!s}", "error")
-        logger.error("Error in send_report_email_route: %s", e)
-
-    return redirect(url_for("reports.index"))
+    return _run_file_report_action(
+        filename="overtime_billing_{start_date}_{end_date}.csv",
+        mimetype="text/csv",
+        content_builder=_billing_csv_content,
+        log_message="Error exporting billing report",
+        error_message="Error exporting billing report. Check logs for details.",
+    )
 
 
 @bp.route("/api/report/export_payroll_xlsx", methods=["POST"])
 def export_payroll_xlsx():
     """Export payroll data as Lawson/UPHS formatted .xlsx file."""
-    if not can_view_all_reports():
-        flash("You do not have permission to export the payroll report.", "error")
-        return redirect(url_for("reports.index"))
-    try:
-        start_date, end_date, resident_id = _parse_report_params()
-        query = build_entries_query(start_date, end_date, resident_id)
-        entries = query.all()
-        resident_data = aggregate_entries_by_resident(entries)
-        settings = PayrollSettings.get_or_create()
-        xlsx_bytes = generate_payroll_xlsx(
-            resident_data, start_date, end_date, settings
-        )
+    if resp := _require_extended_report_permission(
+        "You do not have permission to export the payroll report."
+    ):
+        return resp
 
-        filename = f"payroll_{start_date}_{end_date}.xlsx"
-        return Response(
-            xlsx_bytes,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
-        )
-
-    except ValidationError as e:
-        flash(str(e), "error")
-        return redirect(url_for("reports.index"))
-    except Exception as e:
-        logger.exception("Error exporting payroll report: %s", e)
-        flash("Error exporting payroll report. Check logs for details.", "error")
-        return redirect(url_for("reports.index"))
+    return _run_file_report_action(
+        filename="payroll_{start_date}_{end_date}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        content_builder=_payroll_xlsx_content,
+        log_message="Error exporting payroll report",
+        error_message="Error exporting payroll report. Check logs for details.",
+    )
 
 
 @bp.route("/payroll-settings", methods=["GET"])
@@ -246,42 +325,23 @@ def payroll_settings_save():
     """Save payroll export settings."""
 
     settings = PayrollSettings.get_or_create()
-    settings.program = request.form.get("program", "").strip() or None
-    settings.company = request.form.get("company", "").strip() or None
-    settings.label_suffix = request.form.get("label_suffix", "").strip() or None
-
-    def _int_or_none(key):
-        val = request.form.get(key, "").strip()
-        try:
-            return int(val) if val else None
-        except ValueError:
-            return None
-
-    settings.batch = _int_or_none("batch")
-    settings.pay_code = _int_or_none("pay_code")
-    settings.dept = _int_or_none("dept")
-    settings.expense = _int_or_none("expense")
-    settings.acct_unit = _int_or_none("acct_unit")
 
     try:
-        db.session.commit()
+        _apply_payroll_settings_form(settings)
         log_update(
             "PayrollSettings",
             settings.id,
-            details={
-                "program": settings.program,
-                "company": settings.company,
-                "batch": settings.batch,
-                "pay_code": settings.pay_code,
-                "dept": settings.dept,
-                "expense": settings.expense,
-                "acct_unit": settings.acct_unit,
-                "label_suffix": settings.label_suffix,
-            },
+            details=_payroll_settings_details(settings),
         )
+        db.session.commit()
         flash("Payroll settings saved successfully.", "success")
-    except Exception as e:
+    except ValidationError as exc:
         db.session.rollback()
-        flash(f"Error saving settings: {e!s}", "error")
+        logger.debug("Invalid payroll settings input", exc_info=True)
+        flash(str(exc), "error")
+    except Exception:
+        db.session.rollback()
+        logger.exception("Error saving payroll settings")
+        flash("Error saving settings.", "error")
 
     return redirect(url_for("reports.payroll_settings"))

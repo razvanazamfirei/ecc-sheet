@@ -1,28 +1,32 @@
 """Entry routes for time entry management."""
 
 import logging
+from collections.abc import Mapping
 from datetime import date, time
+from typing import Any, cast
 
 from flask import (
     Blueprint,
-    Response,
     abort,
     flash,
     jsonify,
+    make_response,
     redirect,
     request,
     url_for,
 )
 from sqlalchemy.orm import joinedload
+from werkzeug.wrappers import Response
 
 from ..audit import log_create_strict, log_delete, log_update_strict
 from ..auth import is_admin, is_first_call
 from ..errors import ValidationError
 from ..models import DailySheet, TimeEntry, db
-from ..utils import _wants_json_response, handle_db_error
+from ..utils import _wants_json_response
 
 bp = Blueprint("entries", __name__, url_prefix="/entries")
 logger = logging.getLogger(__name__)
+TIME_FIELDS = ("exit_time", "start_time")
 
 
 def _parse_sheet_date_value(raw: str) -> date:
@@ -69,15 +73,38 @@ def _apply_time_field(
     return {field: {"old": old_str, "new": None}} if old_str is not None else {}
 
 
-def _check_sheet_locked(
-    check_date: date, date_str: str, action: str
-) -> Response | None:
-    """Return a redirect response if the sheet is locked, else None."""
+def _entry_action_guard(
+    check_date: date,
+    date_str: str,
+    *,
+    permission_message: str,
+    lock_message: str,
+    force_json: bool = False,
+) -> Response | tuple[Response, int] | None:
+    """Validate edit permission and sheet lock state for a single entry action."""
+    if not (is_admin() or is_first_call(check_date)):
+        return _entry_error_response(
+            permission_message,
+            date_str,
+            403,
+            force_json=force_json,
+        )
+
     sheet = DailySheet.query.filter_by(date=check_date).first()
     if sheet and sheet.locked:
-        flash(f"Cannot {action} - sheet is locked", "error")
-        return redirect(url_for("sheets.view", date_str=date_str))
+        return _entry_error_response(
+            lock_message,
+            date_str,
+            409,
+            force_json=force_json,
+        )
+
     return None
+
+
+def _sheet_view_redirect(date_str: str) -> Response:
+    """Return a redirect to the sheet view."""
+    return redirect(url_for("sheets.view", date_str=date_str))
 
 
 def _entry_names(entry: "TimeEntry") -> tuple[str, str]:
@@ -116,6 +143,31 @@ def _entry_json_payload(entry: "TimeEntry") -> dict:
     }
 
 
+def _snapshot_time_fields(entry: "TimeEntry") -> dict[str, str | None]:
+    """Return the current serialized time fields for an entry."""
+    return {field: _format_time_value(getattr(entry, field)) for field in TIME_FIELDS}
+
+
+def _present_time_updates(
+    payload: Mapping[str, str | None],
+) -> dict[str, str | None]:
+    """Return only time fields explicitly present in a payload."""
+    return {field: payload.get(field) for field in TIME_FIELDS if field in payload}
+
+
+def _apply_time_updates(
+    entry: "TimeEntry", requested_updates: Mapping[str, str | None]
+) -> dict:
+    """Apply requested time field updates and return the audit change set."""
+    previous_values = _snapshot_time_fields(entry)
+    changes = {}
+    for field, raw_value in requested_updates.items():
+        changes.update(
+            _apply_time_field(entry, field, raw_value, previous_values[field])
+        )
+    return changes
+
+
 def _log_entry_update(entry: "TimeEntry", changes: dict) -> None:
     """Persist audit logging for an updated time entry."""
     if not changes:
@@ -149,37 +201,92 @@ def _missing_entry_response() -> Response | tuple[Response, int]:
     raise RuntimeError("Unreachable")
 
 
-def _update_denied_response(
-    message: str, date_str: str, status_code: int
+def _entry_error_response(
+    message: str,
+    date_str: str,
+    status_code: int,
+    *,
+    flash_message: str | None = None,
+    force_json: bool = False,
 ) -> Response | tuple[Response, int]:
-    """Return either a JSON error or a redirect for blocked updates."""
-    if _wants_json_response():
+    """Return a JSON error or flash+redirect response for sheet entry actions."""
+    if force_json or _wants_json_response():
         return _json_error(message, status_code)
 
-    flash(message, "error")
-    return redirect(url_for("sheets.view", date_str=date_str))
+    flash(flash_message or message, "error")
+    return _sheet_view_redirect(date_str)
+
+
+def _entry_success_response(
+    entry: "TimeEntry", date_str: str, message: str
+) -> Response:
+    """Return a JSON success payload or flash+redirect response."""
+    if _wants_json_response():
+        return jsonify(
+            {
+                "success": True,
+                "message": message,
+                "entry": _entry_json_payload(entry),
+            }
+        )
+
+    flash(message, "success")
+    return _sheet_view_redirect(date_str)
+
+
+def _entry_mutation_error(
+    message: str,
+    date_str: str,
+    *,
+    status_code: int,
+    flash_message: str | None = None,
+    force_json: bool = False,
+) -> Response | tuple[Response, int]:
+    """Rollback a failed mutation and return the appropriate error response."""
+    db.session.rollback()
+    return _entry_error_response(
+        message,
+        date_str,
+        status_code,
+        flash_message=flash_message,
+        force_json=force_json,
+    )
+
+
+def _entry_json_mutation_error(
+    message: str,
+    *,
+    status_code: int,
+) -> tuple[Response, int]:
+    """Rollback a failed JSON mutation and return an error payload."""
+    db.session.rollback()
+    return _json_error(message, status_code)
 
 
 def _normalize_bulk_updates_payload(
     payload: object,
-) -> list[dict] | tuple[Response, int]:
+) -> list[dict[str, Any]] | tuple[Response, int]:
     """Validate and normalize a bulk update request payload."""
     if not isinstance(payload, dict):
         return _json_error("Invalid request payload.", 400)
 
-    updates_raw = payload.get("entries")
+    payload_dict = cast(dict[str, Any], payload)
+    updates_raw = payload_dict.get("entries")
     if not isinstance(updates_raw, list) or not updates_raw:
         return _json_error("No entries were provided.", 400)
 
     normalized_updates = []
     seen_entry_ids: set[int] = set()
-    for update in updates_raw:
-        if not isinstance(update, dict):
+    for individual_update in updates_raw:
+        if not isinstance(individual_update, dict):
             return _json_error("Each entry update must be an object.", 400)
 
-        entry_id_raw = update.get("id")
+        update_dict = cast(dict[str, Any], individual_update)
+        entry_id_raw = update_dict.get("id")
         try:
-            entry_id = int(entry_id_raw)
+            if entry_id_raw is None:
+                raise ValueError
+            entry_id = int(str(entry_id_raw))
         except (TypeError, ValueError):
             return _json_error("Each entry update must include a valid id.", 400)
 
@@ -190,10 +297,7 @@ def _normalize_bulk_updates_payload(
         normalized_updates.append(
             {
                 "id": entry_id,
-                "has_exit_time": "exit_time" in update,
-                "exit_time": update.get("exit_time"),
-                "has_start_time": "start_time" in update,
-                "start_time": update.get("start_time"),
+                "time_updates": _present_time_updates(update_dict),
             }
         )
 
@@ -201,10 +305,10 @@ def _normalize_bulk_updates_payload(
 
 
 def _load_validated_bulk_entries(
-    normalized_updates: list[dict],
-) -> dict[int, TimeEntry] | tuple[Response, int]:
+    normalized_updates: list[dict[str, Any]],
+) -> dict[int, TimeEntry] | tuple[Response, int] | Response:
     """Load bulk-update entries and validate access for all touched dates."""
-    entry_ids = {update["id"] for update in normalized_updates}
+    entry_ids = {individual_update["id"] for individual_update in normalized_updates}
     entries = {
         entry.id: entry
         for entry in TimeEntry.query.filter(TimeEntry.id.in_(entry_ids))
@@ -212,9 +316,9 @@ def _load_validated_bulk_entries(
         .all()
     }
     missing_entry_ids = [
-        str(update["id"])
-        for update in normalized_updates
-        if update["id"] not in entries
+        str(individual_update["id"])
+        for individual_update in normalized_updates
+        if individual_update["id"] not in entries
     ]
     if missing_entry_ids:
         return _json_error(
@@ -223,23 +327,24 @@ def _load_validated_bulk_entries(
         )
 
     for entry_date in {entry.date for entry in entries.values()}:
-        if not (is_admin() or is_first_call(entry_date)):
-            return _json_error(
-                "Only the first call resident or an admin can update entries.",
-                403,
-            )
-
-        sheet = DailySheet.query.filter_by(date=entry_date).first()
-        if sheet and sheet.locked:
-            return _json_error("Cannot update entries - sheet is locked", 409)
+        if resp := _entry_action_guard(
+            entry_date,
+            entry_date.isoformat(),
+            permission_message=(
+                "Only the first call resident or an admin can update entries."
+            ),
+            lock_message="Cannot update entries - sheet is locked",
+            force_json=True,
+        ):
+            return resp
 
     return entries
 
 
-@bp.route("/add", methods=["POST"])
-@handle_db_error
-def add():
-    """Add a new time entry."""
+def _validated_add_entry_request() -> (
+    tuple[date, str, int, int, time | None, time | None] | Response
+):
+    """Return validated add-entry form data or an error response."""
     sheet_date_str = request.form.get("date")
     if not sheet_date_str:
         flash("Date is required", "error")
@@ -251,28 +356,63 @@ def add():
         flash(str(exc), "error")
         return redirect(url_for("sheets.index"))
 
-    if not (is_admin() or is_first_call(sheet_date)):
-        flash("Only the first call resident or an admin can add entries.", "error")
-        return redirect(url_for("sheets.view", date_str=sheet_date_str))
+    # Use a normalized, server-generated ISO date string to avoid reflecting
+    # potentially malicious user input back to the client.
+    sheet_date_str = sheet_date.isoformat()
 
-    if resp := _check_sheet_locked(sheet_date, sheet_date_str, "add entry"):
-        return resp
+    if resp := _entry_action_guard(
+        sheet_date,
+        sheet_date_str,
+        permission_message="Only the first call resident or an admin can add entries.",
+        lock_message="Cannot add entry - sheet is locked",
+    ):
+        # _entry_action_guard may return a (Response, int) tuple for JSON callers
+        return make_response(*resp) if isinstance(resp, tuple) else resp
 
-    resident_id_raw = request.form.get("resident_id")
-    role_id_raw = request.form.get("role_id")
-    exit_time_str = request.form.get("exit_time")
-    start_time_str = request.form.get("start_time")
-
-    parsed_ids = _parse_add_entry_ids(resident_id_raw, role_id_raw)
+    parsed_ids = _parse_add_entry_ids(
+        request.form.get("resident_id"),
+        request.form.get("role_id"),
+    )
     if parsed_ids is None:
         flash("Resident and role are required and must be valid IDs", "error")
-        return redirect(url_for("sheets.view", date_str=sheet_date_str))
+        return _sheet_view_redirect(sheet_date_str)
+
     resident_id, role_id = parsed_ids
 
     try:
-        exit_time = _parse_time_value(exit_time_str, "Exit time")
-        start_time = _parse_time_value(start_time_str, "Start time")
+        exit_time = _parse_time_value(request.form.get("exit_time"), "Exit time")
+        start_time = _parse_time_value(request.form.get("start_time"), "Start time")
+    except ValidationError as exc:
+        flash(str(exc), "error")
+        return _sheet_view_redirect(sheet_date_str)
 
+    return (
+        sheet_date,
+        sheet_date_str,
+        resident_id,
+        role_id,
+        exit_time,
+        start_time,
+    )
+
+
+@bp.route("/add", methods=["POST"])
+def add():
+    """Add a new time entry."""
+    validated_request = _validated_add_entry_request()
+    if isinstance(validated_request, Response):
+        return validated_request
+
+    (
+        sheet_date,
+        sheet_date_str,
+        resident_id,
+        role_id,
+        exit_time,
+        start_time,
+    ) = validated_request
+
+    try:
         entry = TimeEntry(
             date=sheet_date,
             resident_id=resident_id,
@@ -298,26 +438,32 @@ def add():
                 "resident_id": resident_id,
                 "resident": resident_name,
                 "role": role_name,
-                "exit_time": exit_time_str or None,
-                "start_time": start_time_str or None,
+                "exit_time": exit_time.isoformat() if exit_time else None,
+                "start_time": start_time.isoformat() if start_time else None,
             },
         )
         db.session.commit()
-    except ValidationError:
-        db.session.rollback()
-        flash("Exit time must use HH:MM format", "error")
-        return redirect(url_for("sheets.view", date_str=sheet_date_str))
+    except ValidationError as exc:
+        return _entry_mutation_error(
+            str(exc),
+            sheet_date_str,
+            status_code=400,
+            flash_message=str(exc),
+        )
     except Exception:
-        db.session.rollback()
-        flash("Error adding entry", "error")
-        return redirect(url_for("sheets.view", date_str=sheet_date_str))
+        logger.exception("Failed to add time entry")
+        return _entry_mutation_error(
+            "An error occurred while adding the entry.",
+            sheet_date_str,
+            status_code=500,
+            flash_message="An error occurred while adding the entry.",
+        )
 
     flash("Entry added successfully", "success")
-    return redirect(url_for("sheets.view", date_str=sheet_date_str))
+    return _sheet_view_redirect(sheet_date_str)
 
 
 @bp.route("/<int:entry_id>/update", methods=["POST"])
-@handle_db_error
 def update(entry_id):
     """Update an existing time entry."""
     entry = db.session.get(TimeEntry, entry_id)
@@ -326,80 +472,46 @@ def update(entry_id):
 
     sheet_date_str = entry.date.strftime("%Y-%m-%d")
 
-    if not (is_admin() or is_first_call(entry.date)):
-        return _update_denied_response(
-            "Only the first call resident or an admin can update entries.",
-            sheet_date_str,
-            403,
-        )
-
-    if resp := _check_sheet_locked(entry.date, sheet_date_str, "update entry"):
-        if _wants_json_response():
-            return _json_error("Cannot update entry - sheet is locked", 409)
+    if resp := _entry_action_guard(
+        entry.date,
+        sheet_date_str,
+        permission_message=(
+            "Only the first call resident or an admin can update entries."
+        ),
+        lock_message="Cannot update entry - sheet is locked",
+    ):
         return resp
 
     try:
-        old_exit_time = entry.exit_time.strftime("%H:%M") if entry.exit_time else None
-        old_start_time = (
-            entry.start_time.strftime("%H:%M") if entry.start_time else None
-        )
-
-        changes = {}
-        if "exit_time" in request.form:
-            changes.update(
-                _apply_time_field(
-                    entry,
-                    "exit_time",
-                    request.form.get("exit_time"),
-                    old_exit_time,
-                )
-            )
-
-        if "start_time" in request.form:
-            changes.update(
-                _apply_time_field(
-                    entry,
-                    "start_time",
-                    request.form.get("start_time"),
-                    old_start_time,
-                )
-            )
+        changes = _apply_time_updates(entry, _present_time_updates(request.form))
 
         if changes:
             db.session.flush()
             _log_entry_update(entry, changes)
         db.session.commit()
-        if _wants_json_response():
-            response: Response | tuple[Response, int] = jsonify(
-                {
-                    "success": True,
-                    "message": "Entry updated successfully",
-                    "entry": _entry_json_payload(entry),
-                }
-            )
-        else:
-            flash("Entry updated successfully", "success")
-            response = redirect(url_for("sheets.view", date_str=sheet_date_str))
-    except ValidationError:
-        db.session.rollback()
-        if _wants_json_response():
-            response = _json_error("Exit time must use HH:MM format.", 400)
-        else:
-            flash("Invalid input provided for time fields.", "error")
-            response = redirect(url_for("sheets.view", date_str=sheet_date_str))
+        response: Response | tuple[Response, int] = _entry_success_response(
+            entry, sheet_date_str, "Entry updated successfully"
+        )
+    except ValidationError as exc:
+        response = _entry_mutation_error(
+            str(exc),
+            sheet_date_str,
+            status_code=400,
+            flash_message=str(exc),
+        )
     except Exception:
-        db.session.rollback()
-        if _wants_json_response():
-            response = _json_error("An error occurred while updating the entry", 500)
-        else:
-            flash("An error occurred while updating the entry.", "error")
-            response = redirect(url_for("sheets.view", date_str=sheet_date_str))
+        logger.exception("Failed to update time entry %s", entry_id)
+        response = _entry_mutation_error(
+            "An error occurred while updating the entry.",
+            sheet_date_str,
+            status_code=500,
+            flash_message="An error occurred while updating the entry.",
+        )
 
     return response
 
 
 @bp.route("/update-all", methods=["POST"])
-@handle_db_error
 def update_all():
     """Update multiple time entries in a single JSON request."""
     normalized_updates = _normalize_bulk_updates_payload(request.get_json(silent=True))
@@ -407,68 +519,45 @@ def update_all():
         return normalized_updates
 
     entries = _load_validated_bulk_entries(normalized_updates)
-    if isinstance(entries, tuple):
+    if isinstance(entries, (tuple, Response)):
         return entries
 
-    entry_updates: list[tuple[TimeEntry, dict]] = []
+    entry_updates: list[tuple[TimeEntry, dict[str, str | None]]] = []
     try:
-        for update in normalized_updates:
-            entry = entries[update["id"]]
-            old_exit_time = (
-                entry.exit_time.strftime("%H:%M") if entry.exit_time else None
+        for individual_update in normalized_updates:
+            entry_id = cast(int, individual_update["id"])
+            entry = entries[entry_id]
+            time_updates_dict = cast(
+                dict[str, str | None], individual_update["time_updates"]
             )
-            old_start_time = (
-                entry.start_time.strftime("%H:%M") if entry.start_time else None
-            )
-
-            changes = {}
-            if update["has_exit_time"]:
-                changes.update(
-                    _apply_time_field(
-                        entry,
-                        "exit_time",
-                        update["exit_time"],
-                        old_exit_time,
-                    )
-                )
-
-            if update["has_start_time"]:
-                changes.update(
-                    _apply_time_field(
-                        entry,
-                        "start_time",
-                        update["start_time"],
-                        old_start_time,
-                    )
-                )
-
-            entry_updates.append((entry, changes))
+            entry_updates.append((entry, _apply_time_updates(entry, time_updates_dict)))
 
         db.session.flush()
         for entry, changes in entry_updates:
             _log_entry_update(entry, changes)
         db.session.commit()
-    except ValidationError:
-        db.session.rollback()
-        return _json_error("Exit time must use HH:MM format.", 400)
+    except ValidationError as exc:
+        return _entry_json_mutation_error(str(exc), status_code=400)
     except Exception:
-        db.session.rollback()
-        return _json_error("An error occurred while updating entries", 500)
+        logger.exception("Failed to bulk update time entries")
+        return _entry_json_mutation_error(
+            "An error occurred while updating entries.",
+            status_code=500,
+        )
 
     return jsonify(
         {
             "success": True,
             "message": "All entries updated successfully.",
             "entries": [
-                _entry_json_payload(entries[update["id"]])
-                for update in normalized_updates
+                _entry_json_payload(entries[individual_update["id"]])
+                for individual_update in normalized_updates
             ],
         }
     )
 
 
 @bp.route("/<int:entry_id>/delete", methods=["POST"])
-@handle_db_error
 def delete(entry_id):
     """Delete a time entry."""
     entry = db.session.get(TimeEntry, entry_id)
@@ -476,14 +565,15 @@ def delete(entry_id):
         abort(404)
     sheet_date = entry.date
 
-    if not (is_admin() or is_first_call(sheet_date)):
-        flash("Only the first call resident or an admin can delete entries.", "error")
-        return redirect(
-            url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d"))
-        )
+    sheet_date_str = sheet_date.strftime("%Y-%m-%d")
 
-    if resp := _check_sheet_locked(
-        sheet_date, sheet_date.strftime("%Y-%m-%d"), "delete entry"
+    if resp := _entry_action_guard(
+        sheet_date,
+        sheet_date_str,
+        permission_message=(
+            "Only the first call resident or an admin can delete entries."
+        ),
+        lock_message="Cannot delete entry - sheet is locked",
     ):
         return resp
 
@@ -505,11 +595,13 @@ def delete(entry_id):
         db.session.commit()
         flash("Entry deleted successfully", "success")
 
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error deleting entry: {e!s}", "error")
-        return redirect(
-            url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d"))
+    except Exception:
+        logger.exception("Failed to delete time entry %s", entry_id)
+        return _entry_mutation_error(
+            "An error occurred while deleting the entry.",
+            sheet_date_str,
+            status_code=500,
+            flash_message="An error occurred while deleting the entry.",
         )
 
     try:
@@ -517,4 +609,4 @@ def delete(entry_id):
     except Exception:
         logger.warning("Audit log failed for entry %s", saved_entry_id, exc_info=True)
 
-    return redirect(url_for("sheets.view", date_str=sheet_date.strftime("%Y-%m-%d")))
+    return _sheet_view_redirect(sheet_date_str)

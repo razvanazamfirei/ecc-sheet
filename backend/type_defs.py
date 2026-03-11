@@ -39,7 +39,7 @@ class StaffRecord(TypedDict):
     class_year: str
     backup_id: str
     abbreviation: str
-    phone: str
+    phone: str | None
     email: str | None
 
 
@@ -79,6 +79,7 @@ class ScheduleImportResult(TypedDict):
     updated_residents: list[tuple[Resident, ScheduleResidentChanges]]
     created_entries: list[TimeEntry]
     skipped_unknown_residents: int
+    skipped_conflicts: int
     skipped_weekday_backups: int
 
 

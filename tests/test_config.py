@@ -55,25 +55,6 @@ class TestConfig:
             reload(backend.config)
             assert backend.config.Config.USER_NAME == "Admin"
 
-    def test_email_host_default(self):
-        """Test EMAIL_HOST has default value."""
-        assert backend.config.Config.EMAIL_HOST == "smtp.gmail.com"
-
-    def test_email_port_from_env(self):
-        """Test EMAIL_PORT is read from environment."""
-        with patch.dict(os.environ, {"EMAIL_PORT": "465"}):
-            reload(backend.config)
-            assert backend.config.Config.EMAIL_PORT == 465
-
-    def test_email_port_default(self):
-        """Test EMAIL_PORT defaults to 587."""
-        env = os.environ.copy()
-        env.pop("EMAIL_PORT", None)
-
-        with patch.dict(os.environ, env, clear=True):
-            reload(backend.config)
-            assert backend.config.Config.EMAIL_PORT == 587
-
     def test_auth_proxy_username_header_from_env(self):
         """Test AUTH_PROXY_USERNAME_HEADER is read from environment."""
         with patch.dict(os.environ, {"AUTH_PROXY_USERNAME_HEADER": "X-Auth-User"}):
@@ -152,6 +133,23 @@ class TestConfig:
         with patch.dict(os.environ, {"DEFAULT_CUTOFF_MINUTE": "45"}):
             reload(backend.config)
             assert backend.config.Config.DEFAULT_CUTOFF_MINUTE == 45
+
+    def test_zero_value_time_config_from_env(self):
+        """Test explicit zero values are preserved for time-related settings."""
+        with patch.dict(
+            os.environ,
+            {
+                "DEFAULT_CUTOFF_HOUR": "0",
+                "DEFAULT_CUTOFF_MINUTE": "0",
+                "DAY_RESET_HOUR": "0",
+                "TIMEZONE": "UTC",
+            },
+        ):
+            reload(backend.config)
+            assert backend.config.Config.DEFAULT_CUTOFF_HOUR == 0
+            assert backend.config.Config.DEFAULT_CUTOFF_MINUTE == 0
+            assert backend.config.Config.DAY_RESET_HOUR == 0
+            assert backend.config.Config.TIMEZONE == "UTC"
 
     def test_role_cutoff_hours_contains_common_roles(self):
         """Test ROLE_CUTOFF_HOURS contains expected roles."""

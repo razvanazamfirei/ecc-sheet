@@ -1,5 +1,6 @@
 """Tests for resident routes."""
 
+import json
 import os
 from unittest.mock import patch
 
@@ -177,6 +178,37 @@ class TestToggleResident:
             db.session.delete(updated)
             db.session.commit()
 
+    def test_toggle_audit_log_uses_old_new_keys(self, client, app):
+        """Test resident toggle audit logs follow the shared old/new schema."""
+        with app.app_context():
+            resident = Resident(name="Toggle Audit Test", active=True)
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            response = client.post(
+                f"/residents/{resident_id}/toggle",
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="Resident",
+                    entity_id=resident_id,
+                    action="UPDATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert log is not None
+            parsed = json.loads(log.details)
+            assert parsed["changes"]["active"] == {"old": True, "new": False}
+
+            db.session.delete(log)
+            db.session.delete(db.session.get(Resident, resident_id))
+            db.session.commit()
+
     def test_toggle_inactive_to_active(self, client, app):
         """Test toggling inactive resident to active."""
         with app.app_context():
@@ -203,15 +235,8 @@ class TestToggleResident:
 
     def test_toggle_nonexistent_resident(self, client):
         """Test toggling a resident that doesn't exist returns 404."""
-        import werkzeug.exceptions
-        import werkzeug.routing.exceptions
-
-        try:
-            response = client.post("/residents/99999/toggle")
-            assert response.status_code == 404
-        except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
-            # 404 raised directly or BuildError from redirect is acceptable
-            pass
+        response = client.post("/residents/99999/toggle")
+        assert response.status_code == 404
 
     def test_toggle_requires_admin(self, client, app, sample_resident):
         """Test that toggle requires admin privileges."""
@@ -283,8 +308,8 @@ class TestImportStaff:
             ):
                 response = client.post("/residents/import", follow_redirects=True)
                 assert response.status_code == 200
-                assert b"Import failed" in response.data
-                assert b"Connection failed" in response.data
+                assert b"Staff list import failed." in response.data
+                assert b"Connection failed" not in response.data
 
     def test_import_staff_exception(self, client, app):
         """Test staff import with exception."""
@@ -297,7 +322,8 @@ class TestImportStaff:
         ):
             response = client.post("/residents/import", follow_redirects=True)
             assert response.status_code == 200
-            assert b"Error importing staff list" in response.data
+            assert b"Error importing staff list." in response.data
+            assert b"Network error" not in response.data
 
 
 # noinspection DuplicatedCode
@@ -505,19 +531,39 @@ class TestEditResident:
             db.session.delete(updated)
             db.session.commit()
 
+    def test_edit_save_invalid_input_shows_generic_error(self, client, app):
+        """Test malformed resident edits do not leak raw ValueError text."""
+        with app.app_context():
+            resident = Resident(name="Invalid Input Resident", active=True)
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            response = client.post(
+                f"/residents/{resident_id}/edit",
+                data={
+                    "name": "Invalid Input Resident",
+                    "lawson_id": "not-a-number",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert (
+                b"Invalid input: please check the fields and try again."
+                in response.data
+            )
+            assert b"invalid literal for int()" not in response.data
+
+            db.session.delete(db.session.get(Resident, resident_id))
+            db.session.commit()
+
     def test_edit_save_404_for_missing_resident(self, client):
         """Test that POST to edit_save fails gracefully for non-existent resident."""
-        import werkzeug.exceptions
-        import werkzeug.routing.exceptions
-
-        try:
-            response = client.post(
-                "/residents/99999/edit",
-                data={"name": "Ghost"},
-            )
-            assert response.status_code == 404
-        except (werkzeug.exceptions.NotFound, werkzeug.routing.exceptions.BuildError):
-            pass
+        response = client.post(
+            "/residents/99999/edit",
+            data={"name": "Ghost"},
+        )
+        assert response.status_code == 404
 
     def test_edit_page_shows_lawson_id_and_hire_date(self, client, app):
         """Test that edit page renders lawson_id and hire_date values."""

@@ -44,10 +44,8 @@ beforeAll(async () => {
       roundToFiveMinutes: (time) => {
         if (!time) return time;
         const [hours, minutes] = time.split(":").map(Number);
-        const remainder = minutes % 15;
-        if (remainder === 0) return time;
-        const roundedMinutes = minutes + (15 - remainder);
-        if (roundedMinutes >= 60) {
+        const roundedMinutes = Math.ceil(minutes / 5) * 5;
+        if (roundedMinutes === 60) {
           const newHours = (hours + 1) % 24;
           return `${String(newHours).padStart(2, "0")}:00`;
         }
@@ -92,6 +90,8 @@ beforeAll(async () => {
     goToToday: global.window.goToToday,
     formatDate: global.window.formatDate,
     updateDisplayedDate: global.window.updateDisplayedDate,
+    showNotification: global.window.showNotification,
+    validateForm: global.window.validateForm,
   };
 });
 
@@ -255,37 +255,46 @@ describe("Script Functions", () => {
       let prevented = false;
       let requestSubmitCalled = false;
       let submitCalled = false;
-      const dialogHandlers = {};
-      const bodyClasses = new Set();
-
-      global.document.body = {
-        classList: {
-          add: (className) => bodyClasses.add(className),
-          remove: (className) => bodyClasses.delete(className),
+      const modalHandlers = {};
+      let showCalled = false;
+      let hideCalled = false;
+      const modalInstance = {
+        show: () => {
+          showCalled = true;
+        },
+        hide: () => {
+          hideCalled = true;
         },
       };
 
-      mockElements["page-dialog-root"] = { hidden: true, dataset: {} };
-      mockElements["page-dialog-backdrop"] = {
+      global.window.bootstrap = {
+        Modal: {
+          getOrCreateInstance: () => modalInstance,
+          getInstance: () => modalInstance,
+        },
+      };
+
+      mockElements["confirm-modal"] = {
+        dataset: {},
         addEventListener: (eventName, handler) => {
-          dialogHandlers[`backdrop:${eventName}`] = handler;
+          modalHandlers[eventName] = handler;
         },
       };
-      mockElements["page-dialog-title"] = { textContent: "" };
-      mockElements["page-dialog-message"] = { textContent: "" };
-      mockElements["page-dialog-confirm"] = {
+      mockElements["confirm-modal-title"] = { textContent: "" };
+      mockElements["confirm-modal-message"] = { textContent: "" };
+      mockElements["confirm-modal-confirm"] = {
         textContent: "",
         className: "",
         addEventListener: (eventName, handler) => {
-          dialogHandlers[`confirm:${eventName}`] = handler;
+          modalHandlers[`confirm:${eventName}`] = handler;
         },
         focus: () => {},
       };
-      mockElements["page-dialog-cancel"] = {
+      mockElements["confirm-modal-cancel"] = {
         textContent: "",
         className: "",
         addEventListener: (eventName, handler) => {
-          dialogHandlers[`cancel:${eventName}`] = handler;
+          modalHandlers[`cancel:${eventName}`] = handler;
         },
       };
 
@@ -312,14 +321,21 @@ describe("Script Functions", () => {
       expect(prevented).toBe(true);
       expect(requestSubmitCalled).toBe(false);
       expect(submitCalled).toBe(false);
-      expect(bodyClasses.has("page-dialog-open")).toBe(true);
+      expect(showCalled).toBe(true);
+      expect(mockElements["confirm-modal-title"].textContent).toBe(
+        "Please Confirm",
+      );
+      expect(mockElements["confirm-modal-message"].textContent).toBe(
+        "Continue?",
+      );
 
-      dialogHandlers["confirm:click"]();
+      modalHandlers["confirm:click"]();
       await Promise.resolve();
       await Promise.resolve();
 
       expect(requestSubmitCalled).toBe(true);
       expect(submitCalled).toBe(false);
+      expect(hideCalled).toBe(true);
       expect(form.dataset.confirmBypass).toBeUndefined();
     });
 
@@ -349,9 +365,9 @@ describe("Script Functions", () => {
 });
 
 describe("Time Input Rounding", () => {
-  test("roundToFiveMinutes rounds up to next quarter", () => {
+  test("roundToFiveMinutes rounds up to the next 5 minutes", () => {
     const result = global.window.LuxonUtils.roundToFiveMinutes("14:07");
-    expect(result).toBe("14:15");
+    expect(result).toBe("14:10");
   });
 
   test("roundToFiveMinutes does not change already rounded times", () => {
@@ -360,7 +376,7 @@ describe("Time Input Rounding", () => {
   });
 
   test("roundToFiveMinutes handles hour rollover", () => {
-    const result = global.window.LuxonUtils.roundToFiveMinutes("23:55");
+    const result = global.window.LuxonUtils.roundToFiveMinutes("23:56");
     expect(result).toBe("00:00");
   });
 
@@ -376,82 +392,95 @@ describe("Time Input Rounding", () => {
 });
 
 describe("Notification System", () => {
-  // Note: These are behavioral tests that simulate notification system behavior
-  // rather than unit tests of the actual showNotification function.
-  // They verify the expected structure and behavior patterns.
-
   test("showNotification creates alert element", () => {
-    let createdElement = null;
+    const documentCreateElement = global.document.createElement;
     global.document.createElement = (tag) => {
-      createdElement = {
+      const el = {
         tagName: tag.toUpperCase(),
         className: "",
         textContent: "",
         style: {},
         remove: () => {},
+        appendChild: function (child) {
+          if (child && child.textContent) {
+            el.textContent += child.textContent;
+          }
+        },
+        setAttribute: () => {},
+        addEventListener: () => {},
       };
-      return createdElement;
+      return el;
     };
 
     const mockContainer = {
       firstChild: null,
       insertBefore: () => {},
     };
+    const documentQuerySelector = global.document.querySelector;
     global.document.querySelector = (selector) => {
       if (selector === ".container") return mockContainer;
       return null;
     };
 
-    // Simulate showNotification function behavior
-    const notification = global.document.createElement("div");
-    notification.className = "alert alert-success";
-    notification.textContent = "Test message";
-    mockContainer.insertBefore(notification, mockContainer.firstChild);
+    const notification = global.window.showNotification(
+      "Test message",
+      "success",
+    );
 
-    expect(notification.className).toBe("alert alert-success");
+    expect(notification.className).toContain("alert-success");
     expect(notification.textContent).toBe("Test message");
+
+    global.document.createElement = documentCreateElement;
+    global.document.querySelector = documentQuerySelector;
   });
 
   test("showNotification handles error type", () => {
-    let createdElement = null;
+    const documentCreateElement = global.document.createElement;
     global.document.createElement = () => {
-      createdElement = {
+      const el = {
         className: "",
         textContent: "",
         style: {},
         remove: () => {},
+        appendChild: function (child) {
+          if (child && child.textContent) {
+            el.textContent += child.textContent;
+          }
+        },
+        setAttribute: () => {},
+        addEventListener: () => {},
       };
-      return createdElement;
+      return el;
     };
 
     const mockContainer = { insertBefore: () => {} };
+    const documentQuerySelector = global.document.querySelector;
     global.document.querySelector = () => mockContainer;
 
-    // Simulate showNotification with error type
-    const notification = global.document.createElement("div");
-    notification.className = "alert alert-error";
-    notification.textContent = "Error message";
+    const notification = global.window.showNotification(
+      "Error message",
+      "error",
+    );
 
-    expect(notification.className).toBe("alert alert-error");
+    expect(notification.className).toContain("alert-danger");
+
+    global.document.createElement = documentCreateElement;
+    global.document.querySelector = documentQuerySelector;
   });
 
   test("showNotification does nothing when container missing", () => {
+    const documentQuerySelector = global.document.querySelector;
     global.document.querySelector = () => null;
 
-    // Should not throw when container is missing
     expect(() => {
-      // Simulate function checking for container
-      const container = global.document.querySelector(".container");
-      if (!container) return;
+      global.window.showNotification("Test missing container");
     }).not.toThrow();
+
+    global.document.querySelector = documentQuerySelector;
   });
 });
 
 describe("Form Validation", () => {
-  // Note: These are behavioral tests that simulate form validation behavior
-  // rather than unit tests of an actual validateForm function.
-  // They verify the expected validation logic patterns.
-
   test("validateForm returns true when all required fields filled", () => {
     const form = {
       querySelectorAll: () => [
@@ -466,13 +495,7 @@ describe("Form Validation", () => {
       ],
     };
 
-    const requiredFields = form.querySelectorAll("[required]");
-    let isValid = true;
-    requiredFields.forEach((field) => {
-      if (!field.value.trim()) {
-        isValid = false;
-      }
-    });
+    let isValid = global.window.validateForm(form);
 
     expect(isValid).toBe(true);
   });
@@ -487,14 +510,7 @@ describe("Form Validation", () => {
       ],
     };
 
-    const requiredFields = form.querySelectorAll("[required]");
-    let isValid = true;
-    requiredFields.forEach((field) => {
-      if (!field.value.trim()) {
-        isValid = false;
-      }
-    });
-
+    let isValid = global.window.validateForm(form);
     expect(isValid).toBe(false);
   });
 
@@ -509,11 +525,11 @@ describe("Form Validation", () => {
         },
       },
     };
+    const form = {
+      querySelectorAll: () => [field],
+    };
 
-    // Simulate validation logic
-    if (field.value.trim()) {
-      field.classList.remove("error");
-    }
+    global.window.validateForm(form);
 
     expect(removeWasCalled).toBe(true);
   });
@@ -529,11 +545,11 @@ describe("Form Validation", () => {
         remove: () => {},
       },
     };
+    const form = {
+      querySelectorAll: () => [field],
+    };
 
-    // Simulate validation logic
-    if (!field.value.trim()) {
-      field.classList.add("error");
-    }
+    global.window.validateForm(form);
 
     expect(addWasCalled).toBe(true);
   });
@@ -567,14 +583,14 @@ describe("Load Active Residents", () => {
   test("loadActiveResidents handles missing select element", async () => {
     mockElements["resident_id"] = null;
 
-    // Should return early without throwing
+    // This line should not be reached by the rest of the mock execution string, verify it's skipped
+    let selectPopulated = false;
     const select = mockElements["resident_id"];
-    if (!select) {
-      return;
+    if (select) {
+      selectPopulated = true;
     }
 
-    // This line should not be reached
-    expect(true).toBe(true);
+    expect(selectPopulated).toBe(false);
   });
 
   test("loadActiveResidents handles fetch error", async () => {

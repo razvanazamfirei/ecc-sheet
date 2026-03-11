@@ -223,9 +223,7 @@ uv run pytest tests/test_models.py -v
 uv run pytest tests/test_models.py::test_overtime_calculation -v
 ```
 
-### Frontend Testing (Jest)
-
-**Coverage Requirement: 78%**
+### Frontend Testing (Vitest)
 
 ```bash
 # Run all tests
@@ -235,10 +233,10 @@ bun run test
 bun run test:coverage
 
 # Run specific test file
-bun test frontend/static/js/__tests__/luxon-utils.test.js
+bun run test frontend/static/js/__tests__/luxon-utils.test.js
 
 # Watch mode
-bun test --watch
+bun run test:watch
 ```
 
 ### Writing Tests
@@ -271,10 +269,10 @@ def test_overtime_calculation_after_cutoff(app):
         assert overtime == 1.5  # 1.5 hours of overtime
 ```
 
-#### Frontend Tests (Jest)
+#### Frontend Tests (Vitest)
 
 - Write tests for new JavaScript functionality
-- Maintain or improve coverage (target: 78%)
+- Maintain or improve coverage
 - Mock DOM elements when needed
 - Test user interactions
 
@@ -308,7 +306,7 @@ describe("roundToFiveMinutes", () => {
 All pull requests trigger the GitHub Actions workflow:
 
 1. **Backend Tests** — Python 3.13, pytest with coverage
-2. **Frontend Tests** — Bun, Jest with coverage
+2. **Frontend Tests** — Bun, Vitest with coverage
 3. **Frontend Build & Lint** - Prettier check, Stylelint, Vite build
 4. **Security Scan** — Bandit security analysis
 5. **Coverage Upload** — Codecov reporting
@@ -342,19 +340,6 @@ uv run flask --app backend.app db downgrade -1
 # Reapply
 uv run flask --app backend.app db upgrade
 ```
-
-6. Include a migration file in your commit
-
-### Migration Best Practices
-
-- **One migration per logical change**
-- **Always test both upgrade and downgrade**
-- **Consider data migration needs**
-- **Handle nullable columns carefully**
-- **Add indexes for frequently queried fields**
-- **Document complex migrations**
-
-See `docs/DATABASE_MIGRATIONS.md` for detailed guidelines.
 
 ## Pull Request Process
 
@@ -398,9 +383,9 @@ Backend:
 
 Frontend:
 
-- [ ] Jest tests added/updated?
+- [ ] Vitest tests added/updated?
 - [ ] All tests pass
-- [ ] Coverage maintained at 78%
+- [ ] Coverage maintained
 
 ## Database Changes
 

@@ -113,7 +113,8 @@ class TestScheduleImport:
                 follow_redirects=True,
             )
             assert response.status_code == 200
-            # Should show error message
+            assert b"Error fetching data from Amion." in response.data
+            assert b"Network error" not in response.data
 
     @patch("backend.routes.schedule.requests.get")
     def test_import_schedule_empty_response(self, mock_get, client, app):
@@ -268,7 +269,7 @@ class TestScheduleImport:
                 follow_redirects=True,
             )
             assert response.status_code == 200
-            assert b"resident was not found" in response.data
+            assert b"different EPIC ID" in response.data
 
             resident = db.session.get(Resident, resident_id)
             assert resident is not None
@@ -490,9 +491,7 @@ class TestScheduleImport:
             # Mock Amion response with ECA 2 role (in mapping but not in DB)
             mock_response = MagicMock()
             mock_response.status_code = 200
-            mock_response.text = (
-                '"Test Person","EPICID:R444444","","ECA 2","","","","",""\n'
-            )
+            mock_response.text = '"Test Person","","","ECA 2","","","","",""\n'
             mock_response.raise_for_status = MagicMock()
             mock_get.return_value = mock_response
 
@@ -501,6 +500,7 @@ class TestScheduleImport:
                 follow_redirects=True,
             )
             assert response.status_code == 200
+            assert Resident.query.filter_by(name="Test Person").first() is None
 
             # Restore the ECA 2 role for other tests
             if not Role.query.filter_by(name="ECA 2").first():
@@ -913,7 +913,8 @@ class TestScheduleImport:
                 )
 
             assert response.status_code == 200
-            assert b"Error importing schedule: audit failure" in response.data
+            assert b"Error importing schedule." in response.data
+            assert b"audit failure" not in response.data
 
             resident = db.session.get(Resident, resident_id)
             assert resident is not None
@@ -928,6 +929,72 @@ class TestScheduleImport:
 
             db.session.delete(resident)
             db.session.commit()
+
+
+@patch("backend.routes.schedule.requests.get")
+@pytest.mark.integration
+def test_import_supports_first_call_role_aliases(mock_get, client, app, monkeypatch):
+    """Test configured first-call aliases are treated as importable roles."""
+    monkeypatch.setenv("FIRST_CALL_ROLES", "Custom First Call")
+
+    with app.app_context():
+        test_date = date(2024, 4, 14)
+
+        sheet = DailySheet.query.filter_by(date=test_date).first()
+        if sheet:
+            sheet.locked = False
+            db.session.commit()
+
+        role = Role.query.filter_by(name="Custom First Call").first()
+        created_role = role is None
+        if role is None:
+            role = Role(
+                name="Custom First Call",
+                cutoff_hour=17,
+                cutoff_minute=30,
+                display_order=250,
+                is_call_team=True,
+            )
+            db.session.add(role)
+            db.session.commit()
+
+        resident = Resident(
+            name="Alias Call Resident",
+            epic_id="R121212",
+            active=True,
+        )
+        db.session.add(resident)
+        db.session.commit()
+        resident_id = resident.id
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '"Alias Call Resident","EPICID:R121212","","Custom First Call",'
+            '"","","","",""\n'
+        )
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        response = client.post(
+            f"/schedule/{test_date.strftime('%Y-%m-%d')}/import",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert (
+            TimeEntry.query.filter_by(
+                date=test_date,
+                resident_id=resident_id,
+                role_id=role.id,
+            ).first()
+            is not None
+        )
+
+        TimeEntry.query.filter_by(date=test_date, resident_id=resident_id).delete()
+        db.session.delete(db.session.get(Resident, resident_id))
+        if created_role:
+            db.session.delete(role)
+        db.session.commit()
 
 
 @pytest.mark.integration

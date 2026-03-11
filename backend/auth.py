@@ -19,6 +19,7 @@ from flask import (
     url_for,
 )
 
+from .env_utils import env_csv, env_flag
 from .models import Resident, Role, TimeEntry
 from .utils import get_effective_date
 
@@ -32,7 +33,7 @@ def _proxy_header_name() -> str:
 
 def get_current_user() -> str:
     """Get current user from mock session, proxy auth header, or env fallback."""
-    if os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}:
+    if mock_users_enabled():
         try:
             if "dev_user" in session:
                 return session["dev_user"]
@@ -54,9 +55,12 @@ def get_current_user() -> str:
 
 def is_admin() -> bool:
     """Check if current user is admin based on env var"""
-    admin_users = os.getenv("ADMIN_USERS", "Admin").split(",")
-    admin_users = [user.strip() for user in admin_users]
-    return get_current_user() in admin_users
+    return get_current_user() in get_admin_users()
+
+
+def get_admin_users() -> list[str]:
+    """Return the configured admin usernames."""
+    return env_csv("ADMIN_USERS", "Admin")
 
 
 def get_current_resident_id() -> int | None:
@@ -80,12 +84,6 @@ def is_first_call(check_date: date | None = None) -> bool:
     if check_date is None:
         check_date = get_effective_date()
 
-    first_call_roles = [
-        r.strip()
-        for r in os.getenv("FIRST_CALL_ROLES", "First Call").split(",")
-        if r.strip()
-    ]
-
     resident_id = get_current_resident_id()
     if resident_id is None:
         return False
@@ -95,7 +93,7 @@ def is_first_call(check_date: date | None = None) -> bool:
         .filter(
             TimeEntry.resident_id == resident_id,
             TimeEntry.date == check_date,
-            Role.name.in_(first_call_roles),
+            Role.name.in_(get_first_call_role_names()),
         )
         .first()
         is not None
@@ -104,9 +102,22 @@ def is_first_call(check_date: date | None = None) -> bool:
 
 def is_payroll_admin() -> bool:
     """Check if current user has payroll admin privileges."""
-    payroll_admin_users = os.getenv("PAYROLL_ADMIN_USERS", "").split(",")
-    payroll_admin_users = [u.strip() for u in payroll_admin_users if u.strip()]
-    return get_current_user() in payroll_admin_users
+    return get_current_user() in get_payroll_admin_users()
+
+
+def get_first_call_role_names() -> list[str]:
+    """Return configured first-call role names."""
+    return env_csv("FIRST_CALL_ROLES", "First Call")
+
+
+def get_payroll_admin_users() -> list[str]:
+    """Return the configured payroll admin usernames."""
+    return env_csv("PAYROLL_ADMIN_USERS")
+
+
+def mock_users_enabled() -> bool:
+    """Return True when dev mock-user switching is enabled."""
+    return env_flag("MOCK_USERS_ENABLED")
 
 
 def can_view_all_reports() -> bool:
@@ -119,11 +130,7 @@ def can_filter_reports_by_resident() -> bool:
     if can_view_all_reports():
         return True
 
-    allowed_users = [
-        user.strip()
-        for user in os.getenv("REPORT_VIEW_ALL_USERS", "").split(",")
-        if user.strip()
-    ]
+    allowed_users = env_csv("REPORT_VIEW_ALL_USERS")
     return "*" in allowed_users or get_current_user() in allowed_users
 
 

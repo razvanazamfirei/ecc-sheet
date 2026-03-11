@@ -37,6 +37,44 @@ def _clean_cell(value: str | None) -> str:
     return value.strip() if value else ""
 
 
+def _epic_id_from_row(row: dict[str, str | None]) -> str | None:
+    """Return the EPIC ID from a parsed row, if present."""
+    unique_id = _clean_cell(row.get("Unique ID"))
+    if not unique_id.startswith("EPICID:"):
+        return None
+    epic_id = unique_id.removeprefix("EPICID:")
+    return epic_id or None
+
+
+def _normalized_email(raw_email: str, *, name: str) -> str | None:
+    """Return a normalized email, or None when blank/invalid."""
+    if not raw_email:
+        return None
+
+    try:
+        return validate_email(raw_email, check_deliverability=False).normalized.lower()
+    except EmailNotValidError:
+        logger.warning(
+            "Invalid email %r for %r discarded during staff import",
+            raw_email,
+            name,
+        )
+        return None
+
+
+def _phone_from_row(row: dict[str, str | None]) -> str | None:
+    """Return the preferred phone number from a parsed row, or None."""
+    return _clean_cell(row.get("Pager")) or _clean_cell(row.get("Tel.")) or None
+
+
+def _split_name(name: str) -> tuple[str | None, str | None]:
+    """Split a full name into first/last components."""
+    parts = name.rsplit(" ", 1)
+    first_name = parts[0].strip() if parts else None
+    last_name = parts[1].strip() if len(parts) > 1 else None
+    return first_name, last_name
+
+
 def _get_amion_base_url() -> str:
     """Return the Amion base URL from the active Flask config."""
     if has_app_context():
@@ -85,8 +123,7 @@ def parse_staff_list(csv_content: str) -> StaffList:
     # Split content into lines and find the header
     lines = csv_content.strip().split("\n")
 
-    # Find the header line (contains "Staff type")
-    header_index = None
+    header_index: int | None = None
     for i, line in enumerate(lines):
         if "Staff type" in line and "Name" in line:
             header_index = i
@@ -96,9 +133,8 @@ def parse_staff_list(csv_content: str) -> StaffList:
         raise ValidationError("Could not find header line in staff list")
 
     # Parse CSV starting from header
-    csv_reader = csv.DictReader(
-        lines[header_index:], delimiter="\t", skipinitialspace=True
-    )
+    lines_subset = [line for idx, line in enumerate(lines) if idx >= header_index]
+    csv_reader = csv.DictReader(lines_subset, delimiter="\t", skipinitialspace=True)
 
     for row in csv_reader:
         # Skip empty rows or placeholders
@@ -110,44 +146,25 @@ def parse_staff_list(csv_content: str) -> StaffList:
         if "placeholder" in name.lower():
             continue
 
-        # Extract EPIC ID from "Unique ID" field (format: "EPICID:R######")
-        unique_id = _clean_cell(row.get("Unique ID"))
-        if not unique_id.startswith("EPICID:"):
-            continue
-        epic_id = unique_id.removeprefix("EPICID:")
-
-        # Only include staff with valid EPIC IDs
-        if epic_id:
-            raw_email = _clean_cell(row.get("Email"))
-            # Use "" to signal "source had no email → clear the field".
-            # None means "validation failed → leave existing value alone".
-            validated_email: str | None
-            if raw_email:
-                try:
-                    validated_email = validate_email(
-                        raw_email, check_deliverability=False
-                    ).normalized.lower()
-                except EmailNotValidError:
-                    logger.warning(
-                        "Invalid email %r for %r discarded during staff import",
-                        raw_email,
-                        name,
-                    )
-                    validated_email = None  # skip update; preserve existing email
-            else:
-                validated_email = ""  # blank in source → clear existing email
-
-            staff_list.append(
-                StaffRecord(
-                    name=name,
-                    epic_id=epic_id,
-                    class_year=_clean_cell(row.get("Staff type")),
-                    backup_id=_clean_cell(row.get("Backup ID")),
-                    abbreviation=_clean_cell(row.get("Abbreviation")),
-                    phone=_clean_cell(row.get("Pager")) or _clean_cell(row.get("Tel.")),
-                    email=validated_email,
-                )
+        epic_id = _epic_id_from_row(row)
+        if not epic_id:
+            logger.warning(
+                "Skipping row during staff import: missing EPIC ID. Name: %r",
+                name,
             )
+            continue
+        raw_email = _clean_cell(row.get("Email"))
+        staff_list.append(
+            StaffRecord(
+                name=name,
+                epic_id=epic_id,
+                class_year=_clean_cell(row.get("Staff type")),
+                backup_id=_clean_cell(row.get("Backup ID")),
+                abbreviation=_clean_cell(row.get("Abbreviation")),
+                phone=_phone_from_row(row),
+                email=_normalized_email(raw_email, name=name),
+            )
+        )
 
     return staff_list
 
@@ -170,6 +187,8 @@ def _update_resident_fields(
         ("name", staff["name"]),
     ]:
         if attr == "email" and new_val is None:
+            continue
+        if attr == "phone" and new_val is None:
             continue
         old_val = getattr(resident, attr)
         if old_val != new_val:
@@ -214,15 +233,13 @@ def import_staff_to_database(
             staff["class_year"], staff["class_year"]
         )
 
-        parts = staff["name"].rsplit(" ", 1)
-        first_name = parts[0].strip() if parts else None
-        last_name = parts[1].strip() if len(parts) > 1 else None
+        first_name, last_name = _split_name(staff["name"])
 
         resident = Resident.get_by_epic_id(epic_id)
 
         if resident:
             changes = _update_resident_fields(
-                resident, staff, normalized_class_year, first_name, last_name
+                resident, staff, normalized_class_year or "", first_name, last_name
             )
             if changes:
                 updated += 1
@@ -324,20 +341,22 @@ def import_staff_list(schedule_code: str, user: str | None = None) -> ImportResu
             error=None,
         )
 
-    except requests.RequestException as e:
+    except requests.RequestException:
+        logger.exception("Failed to fetch staff list from Amion")
         return ImportResult(
             success=False,
-            error=f"Failed to fetch staff list from Amion: {e!s}",
+            error="Failed to fetch staff list from Amion.",
             created=0,
             updated=0,
             skipped=0,
             total_records=0,
         )
-    except Exception as e:
+    except Exception:
         db.session.rollback()
+        logger.exception("Staff import failed")
         return ImportResult(
             success=False,
-            error=f"Import failed: {e!s}",
+            error="Staff import failed.",
             created=0,
             updated=0,
             skipped=0,

@@ -2,7 +2,7 @@
 
 import csv
 import logging
-import os
+from dataclasses import dataclass
 from datetime import date
 from io import StringIO
 from logging import Logger
@@ -12,41 +12,63 @@ from flask import Blueprint, current_app, flash, redirect, url_for
 from sqlalchemy.exc import IntegrityError
 
 from ..audit import log_create_strict, log_import_strict, log_update_strict
-from ..auth import is_admin, is_first_call
+from ..auth import get_first_call_role_names, is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Resident, Role, TimeEntry, db
-from ..type_defs import ScheduleImportResult
+from ..type_defs import ScheduleImportResult, ScheduleResidentChanges
 
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
 
 LATE_ROLE_NAMES = frozenset({"Late Late 1", "Late Late 2"})
 WEEKDAY_BACKUP_ROLE_NAMES = frozenset({"Backup"})
-SCHEDULE_ROLE_MAPPING = {
-    "First Call": "First Call",
-    "Second Call": "Second Call",
-    "Third Call": "Third Call",
-    "OB Flex": "OB Flex",
-    "Cardiac Call": "Cardiac Call",
-    "ECC 1": "ECC 1",
-    "ECC 2": "ECC 2",
-    "ECC 3": "ECC 3",
-    "ECC 4": "ECC 4",
-    "ECC 5": "ECC 5",
-    "ECA 1": "ECA 1",
-    "ECA 2": "ECA 2",
-    "Late Late 1": "Late Late 1",
-    "Late Late 2": "Late Late 2",
-    "PPMC": "PPMC",
-    "Held": "Held",
-    "EP/HUP 13": "EP/HUP 13",
-    "H12": "H12",
-    "H13": "H13",
-    "H14": "H14",
-    "HUP EP 12": "HUP EP 12",
-    "Backup": "Backup",
-    "Cardiac Backup": "Cardiac Backup",
-}
+SCHEDULE_ROLE_NAMES = frozenset(
+    {
+        "First Call",
+        "Second Call",
+        "Third Call",
+        "OB Flex",
+        "Cardiac Call",
+        "ECC 1",
+        "ECC 2",
+        "ECC 3",
+        "ECC 4",
+        "ECC 5",
+        "ECA 1",
+        "ECA 2",
+        "Late Late 1",
+        "Late Late 2",
+        "PPMC",
+        "Held",
+        "EP/HUP 13",
+        "H12",
+        "H13",
+        "H14",
+        "HUP EP 12",
+        "Backup",
+        "Cardiac Backup",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleRow:
+    """Normalized data for one imported Amion schedule row."""
+
+    resident_name: str
+    epic_id: str | None
+    assignment_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResidentResolution:
+    """Outcome of resolving a schedule row to a resident."""
+
+    resident: Resident | None
+    created_resident: Resident | None = None
+    updated_changes: ScheduleResidentChanges | None = None
+    skipped_unknown: bool = False
+    skipped_conflict: bool = False
 
 
 def _sheet_view_redirect(date_str: str):
@@ -56,16 +78,11 @@ def _sheet_view_redirect(date_str: str):
 
 def _validate_schedule_import_access(sheet_date: date, date_str: str):
     """Return a redirect response when schedule import is not allowed."""
-    first_call_roles = [
-        role_name.strip()
-        for role_name in os.getenv("FIRST_CALL_ROLES", "First Call").split(",")
-        if role_name.strip()
-    ]
     first_call_is_known = (
         TimeEntry.query.join(Role)
         .filter(
             TimeEntry.date == sheet_date,
-            Role.name.in_(first_call_roles),
+            Role.name.in_(get_first_call_role_names()),
         )
         .first()
         is not None
@@ -94,14 +111,50 @@ def _build_schedule_import_url(sheet_date: date) -> str:
     )
 
 
-def _parse_schedule_rows(csv_text: str) -> list[list[str]]:
+def _is_schedule_data_line(line: list[str]) -> bool:
+    """Return True when a CSV row contains imported schedule data."""
+    return len(line) >= 9 and not line[0].startswith("Field")
+
+
+def _normalize_epic_id(raw: str) -> str | None:
+    """Extract an EPIC ID from a raw schedule cell."""
+    if raw.startswith("EPICID:"):
+        return raw.removeprefix("EPICID:")
+    return None
+
+
+def _parse_schedule_row(line: list[str]) -> ScheduleRow:
+    """Return the normalized fields used from an imported schedule row."""
+    return ScheduleRow(
+        resident_name=line[0].strip('"').strip(),
+        epic_id=_normalize_epic_id(line[1].strip('"').strip()),
+        assignment_name=line[3].strip('"').strip(),
+    )
+
+
+def _parse_schedule_rows(csv_text: str) -> list[ScheduleRow]:
     """Parse the relevant schedule CSV rows from an Amion response."""
     csv_reader = csv.reader(StringIO(csv_text))
     return [
-        line
-        for line in csv_reader
-        if len(line) >= 9 and not line[0].startswith("Field")
+        _parse_schedule_row(line) for line in csv_reader if _is_schedule_data_line(line)
     ]
+
+
+def _load_schedule_rows(sheet_date: date) -> list[ScheduleRow]:
+    """Fetch and parse schedule rows from Amion for a sheet date."""
+    amion_url = _build_schedule_import_url(sheet_date)
+    logger.info("Fetching schedule from Amion for date: %s", sheet_date)
+    response = requests.get(amion_url, timeout=10)
+    response.raise_for_status()
+    rows = _parse_schedule_rows(response.text)
+    logger.debug("Parsed %d schedule rows from Amion", len(rows))
+    return rows
+
+
+def _schedule_import_error(message: str) -> None:
+    """Rollback and flash a schedule import error."""
+    db.session.rollback()
+    flash(message, "error")
 
 
 def _log_schedule_import(date_str: str, import_result: ScheduleImportResult) -> None:
@@ -153,6 +206,7 @@ def _log_schedule_import(date_str: str, import_result: ScheduleImportResult) -> 
             f"Residents created: {len(import_result['created_residents'])}, "
             f"Residents updated: {len(import_result['updated_residents'])}, "
             f"Unknown residents skipped: {import_result['skipped_unknown_residents']}, "
+            f"Resident conflicts skipped: {import_result['skipped_conflicts']}, "
             f"Weekday backups skipped: {import_result['skipped_weekday_backups']}"
         ),
     )
@@ -167,15 +221,24 @@ def _build_schedule_import_flash(
             "Successfully imported "
             f"{import_result['entries_created']} schedule entries from Amion"
         )
+        skipped_details: list[str] = []
         if import_result["skipped_unknown_residents"] > 0:
-            message += (
-                f" ({import_result['skipped_unknown_residents']} rows skipped "
-                "for unknown residents)"
+            skipped_details.append(
+                f"{import_result['skipped_unknown_residents']} rows skipped "
+                "for unknown residents"
             )
+        if import_result["skipped_conflicts"] > 0:
+            skipped_details.append(
+                f"{import_result['skipped_conflicts']} rows skipped "
+                "for resident/EPIC conflicts"
+            )
+        if skipped_details:
+            message += f" ({', '.join(skipped_details)})"
         return message, "success"
 
     if (
         import_result["skipped_unknown_residents"] > 0
+        or import_result["skipped_conflicts"] > 0
         or import_result["skipped_weekday_backups"] > 0
     ):
         skipped_messages: list[str] = []
@@ -183,6 +246,11 @@ def _build_schedule_import_flash(
             skipped_messages.append(
                 f"{import_result['skipped_unknown_residents']} rows were skipped "
                 "because the resident was not found."
+            )
+        if import_result["skipped_conflicts"] > 0:
+            skipped_messages.append(
+                f"{import_result['skipped_conflicts']} rows were skipped "
+                "because the resident name matched a different EPIC ID."
             )
         if import_result["skipped_weekday_backups"] > 0:
             skipped_messages.append(
@@ -204,39 +272,21 @@ def import_schedule(date_str):
         if denial_response is not None:
             return denial_response
 
-        amion_url = _build_schedule_import_url(sheet_date)
-
-        # Fetch data from Amion
-        logger.info("Fetching schedule from Amion: %s", amion_url)
-        response = requests.get(amion_url, timeout=10)
-        response.raise_for_status()
-
-        data_lines = _parse_schedule_rows(response.text)
-        logger.debug("Parsed %d schedule rows from Amion", len(data_lines))
-        import_result = _process_entries(data_lines, sheet_date)
+        import_result = _process_entries(_load_schedule_rows(sheet_date), sheet_date)
         _log_schedule_import(date_str, import_result)
         db.session.commit()
 
         message, category = _build_schedule_import_flash(import_result)
         flash(message, category)
 
-    except requests.RequestException as e:
-        db.session.rollback()
-        flash(f"Error fetching data from Amion: {e!s}", "error")
-        logger.error("Amion fetch error: %s", e)
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error importing schedule: {e!s}", "error")
-        logger.error("Import error: %s", e)
+    except requests.RequestException:
+        logger.exception("Error fetching data from Amion")
+        _schedule_import_error("Error fetching data from Amion.")
+    except Exception:
+        logger.exception("Error importing schedule")
+        _schedule_import_error("Error importing schedule.")
 
     return _sheet_view_redirect(date_str)
-
-
-def _normalize_epic_id(raw: str) -> str | None:
-    """Extract an EPIC ID from a raw schedule cell."""
-    if raw.startswith("EPICID:"):
-        return raw.removeprefix("EPICID:")
-    return None
 
 
 def _resident_keys(resident_name: str, epic_id: str | None) -> set[tuple[str, str]]:
@@ -250,16 +300,24 @@ def _resident_keys(resident_name: str, epic_id: str | None) -> set[tuple[str, st
     return keys
 
 
-def _collect_late_assignment_keys(data_lines: list[list[str]]) -> set[tuple[str, str]]:
+def _collect_late_assignment_keys(rows: list[ScheduleRow]) -> set[tuple[str, str]]:
     """Return resident identifiers assigned to late roles in the import."""
     late_assignment_keys: set[tuple[str, str]] = set()
-    for line in data_lines:
-        resident_name = line[0].strip('"').strip()
-        epic_id = _normalize_epic_id(line[1].strip('"').strip())
-        assignment_name = line[3].strip('"').strip()
-        if assignment_name in LATE_ROLE_NAMES:
-            late_assignment_keys.update(_resident_keys(resident_name, epic_id))
+    for row in rows:
+        if row.assignment_name in LATE_ROLE_NAMES:
+            late_assignment_keys.update(_resident_keys(row.resident_name, row.epic_id))
     return late_assignment_keys
+
+
+def _schedule_role_names() -> frozenset[str]:
+    """Return importable schedule role names, including configured aliases."""
+    return SCHEDULE_ROLE_NAMES.union(get_first_call_role_names())
+
+
+def _load_schedule_roles() -> dict[str, Role]:
+    """Return the configured importable roles keyed by name."""
+    roles = Role.query.filter(Role.name.in_(_schedule_role_names())).all()
+    return {role.name: role for role in roles}
 
 
 def _create_time_entry_if_missing(
@@ -306,105 +364,164 @@ def _create_time_entry_if_missing(
     return True
 
 
+def _should_skip_weekday_backup(
+    row: ScheduleRow,
+    *,
+    skip_weekday_backups: bool,
+    late_assignment_keys: set[tuple[str, str]],
+    sheet_date: date,
+) -> bool:
+    """Return True when weekday backup rules suppress a schedule row."""
+    if not skip_weekday_backups or row.assignment_name not in WEEKDAY_BACKUP_ROLE_NAMES:
+        return False
+
+    if not late_assignment_keys.intersection(
+        _resident_keys(row.resident_name, row.epic_id)
+    ):
+        return False
+
+    logger.info(
+        (
+            "Skipping weekday %s import for %s on %s because "
+            "the resident is also assigned to a Late role"
+        ),
+        row.assignment_name,
+        row.resident_name,
+        sheet_date,
+    )
+    return True
+
+
+def _find_matching_resident(
+    row: ScheduleRow,
+) -> tuple[Resident | None, str | None]:
+    """Find a resident by EPIC ID first, then by name."""
+    if row.epic_id:
+        resident = Resident.query.filter_by(epic_id=row.epic_id).first()
+        if resident is not None:
+            return resident, "epic_id"
+
+    resident = Resident.query.filter_by(name=row.resident_name).first()
+    if resident is not None:
+        return resident, "name"
+
+    return None, None
+
+
+def _create_name_only_resident(row: ScheduleRow) -> Resident:
+    """Create a resident for a row that only provides a name."""
+    resident = Resident(name=row.resident_name, active=True)
+    db.session.add(resident)
+    db.session.flush()
+    logger.info(
+        "Created resident during schedule import: %s (no EPIC ID)",
+        row.resident_name,
+    )
+    return resident
+
+
+def _resident_epic_id_update(
+    resident: Resident, row: ScheduleRow
+) -> ScheduleResidentChanges | None:
+    """Return EPIC-ID changes applied while resolving a resident."""
+    if resident.epic_id or not row.epic_id:
+        return None
+
+    resident.epic_id = row.epic_id
+    logger.info("Updated resident %s with EPIC ID: %s", row.resident_name, row.epic_id)
+    return {"epic_id": {"old": None, "new": row.epic_id}}
+
+
+def _resolve_schedule_resident(row: ScheduleRow) -> ResidentResolution:
+    """Resolve a schedule row to an existing or newly-created resident."""
+    resident, match_source = _find_matching_resident(row)
+    if (
+        resident is not None
+        and match_source == "name"
+        and row.epic_id
+        and resident.epic_id
+        and resident.epic_id != row.epic_id
+    ):
+        logger.info(
+            (
+                "Skipping schedule row for resident name/EPIC "
+                "conflict: %s (row EPIC ID: %s, existing resident "
+                "EPIC ID: %s)"
+            ),
+            row.resident_name,
+            row.epic_id,
+            resident.epic_id,
+        )
+        return ResidentResolution(None, skipped_conflict=True)
+
+    if resident is None:
+        if row.resident_name and not row.epic_id:
+            resident = _create_name_only_resident(row)
+            return ResidentResolution(resident, created_resident=resident)
+
+        logger.info(
+            "Skipping schedule row for unknown resident: %s (EPIC ID: %s)",
+            row.resident_name,
+            row.epic_id,
+        )
+        return ResidentResolution(None, skipped_unknown=True)
+
+    return ResidentResolution(
+        resident,
+        updated_changes=_resident_epic_id_update(resident, row),
+    )
+
+
 def _process_entries(
-    data_lines: list[list[str]],
+    rows: list[ScheduleRow],
     sheet_date: date,
 ) -> ScheduleImportResult:
     """Process CSV lines and create time entries."""
     entries_created = 0
     created_residents: list[Resident] = []
-    updated_residents: list[tuple[Resident, dict[str, dict[str, str | None]]]] = []
+    updated_residents: list[tuple[Resident, ScheduleResidentChanges]] = []
     created_entries: list[TimeEntry] = []
     skipped_weekday_backups = 0
     skipped_unknown_residents = 0
+    skipped_conflicts = 0
     skip_weekday_backups = not is_weekend_or_holiday(sheet_date)
     late_assignment_keys = (
-        _collect_late_assignment_keys(data_lines) if skip_weekday_backups else set()
+        _collect_late_assignment_keys(rows) if skip_weekday_backups else set()
     )
+    roles_by_name = _load_schedule_roles()
+    schedule_role_names = _schedule_role_names()
 
-    for line in data_lines:
-        resident_name = line[0].strip('"').strip()
-        epic_id = _normalize_epic_id(line[1].strip('"').strip())
-        assignment_name = line[3].strip('"').strip()
-
-        if assignment_name not in SCHEDULE_ROLE_MAPPING:
+    for row in rows:
+        if row.assignment_name not in schedule_role_names:
             continue
 
-        if (
-            skip_weekday_backups
-            and assignment_name in WEEKDAY_BACKUP_ROLE_NAMES
-            and late_assignment_keys.intersection(
-                _resident_keys(resident_name, epic_id)
-            )
+        if _should_skip_weekday_backup(
+            row,
+            skip_weekday_backups=skip_weekday_backups,
+            late_assignment_keys=late_assignment_keys,
+            sheet_date=sheet_date,
         ):
             skipped_weekday_backups += 1
-            logger.info(
-                (
-                    "Skipping weekday %s import for %s on %s because "
-                    "the resident is also assigned to a Late role"
-                ),
-                assignment_name,
-                resident_name,
-                sheet_date,
-            )
             continue
 
-        # Find resident by EPIC ID first, then by name.
-        resident = None
-        if epic_id:
-            resident = Resident.query.filter_by(epic_id=epic_id).first()
-
-        if not resident:
-            resident = Resident.query.filter_by(name=resident_name).first()
-            if (
-                resident
-                and epic_id
-                and resident.epic_id
-                and resident.epic_id != epic_id
-            ):
-                skipped_unknown_residents += 1
-                logger.info(
-                    (
-                        "Skipping schedule row for resident name/EPIC "
-                        "conflict: %s (row EPIC ID: %s, existing resident "
-                        "EPIC ID: %s)"
-                    ),
-                    resident_name,
-                    epic_id,
-                    resident.epic_id,
-                )
-                continue
-
-        if not resident:
-            if resident_name and not epic_id:
-                resident = Resident(name=resident_name, active=True)
-                db.session.add(resident)
-                db.session.flush()
-                created_residents.append(resident)
-                logger.info(
-                    "Created resident during schedule import: %s (no EPIC ID)",
-                    resident_name,
-                )
-            else:
-                skipped_unknown_residents += 1
-                logger.info(
-                    "Skipping schedule row for unknown resident: %s (EPIC ID: %s)",
-                    resident_name,
-                    epic_id,
-                )
-                continue
-
-        if not resident.epic_id and epic_id:
-            resident.epic_id = epic_id
-            updated_residents.append(
-                (resident, {"epic_id": {"old": None, "new": epic_id}})
-            )
-            logger.info("Updated resident %s with EPIC ID: %s", resident_name, epic_id)
-
-        role = Role.query.filter_by(name=SCHEDULE_ROLE_MAPPING[assignment_name]).first()
+        role = roles_by_name.get(row.assignment_name)
         if not role:
-            logger.warning("Role not found: %s", assignment_name)
+            logger.warning("Role not found: %s", row.assignment_name)
             continue
+
+        resolution = _resolve_schedule_resident(row)
+        if resolution.skipped_unknown:
+            skipped_unknown_residents += 1
+        if resolution.skipped_conflict:
+            skipped_conflicts += 1
+        resident = resolution.resident
+        if resident is None:
+            continue
+
+        if resolution.created_resident is not None:
+            created_residents.append(resolution.created_resident)
+        if resolution.updated_changes is not None:
+            updated_residents.append((resident, resolution.updated_changes))
 
         if _create_time_entry_if_missing(sheet_date, resident, role, created_entries):
             entries_created += 1
@@ -415,5 +532,6 @@ def _process_entries(
         "updated_residents": updated_residents,
         "created_entries": created_entries,
         "skipped_unknown_residents": skipped_unknown_residents,
+        "skipped_conflicts": skipped_conflicts,
         "skipped_weekday_backups": skipped_weekday_backups,
     }

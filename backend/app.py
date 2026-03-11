@@ -2,20 +2,56 @@ import os
 import warnings as _warnings
 from logging import Logger
 from pathlib import Path
-from urllib.parse import urlparse
 
 from flask import Flask, jsonify, request, session
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy.exc import SQLAlchemyError
 
-from .auth import get_current_user, is_admin
+from .auth import (
+    get_admin_users,
+    get_current_user,
+    get_payroll_admin_users,
+    is_admin,
+    mock_users_enabled,
+)
 from .config import Config
 from .holidays import get_federal_holidays
 from .models import Holiday, Resident, Role, db
 from .routes import dev as _dev_module
 from .routes import register_blueprints
 from .utils import _wants_json_response, get_effective_date, setup_logging
+
+BACKUP_ROLE_NAMES = frozenset({"Backup", "Cardiac Backup", "Moonlighting"})
+CALL_TEAM_ROLE_NAMES = frozenset(
+    {"First Call", "Second Call", "Third Call", "OB Flex", "Cardiac Call"}
+)
+DEFAULT_ROLES = (
+    ("ECA 1", 1),
+    ("ECA 2", 2),
+    ("ECC 1", 3),
+    ("ECC 2", 4),
+    ("ECC 3", 5),
+    ("ECC 4", 6),
+    ("ECC 5", 7),
+    ("PPMC", 8),
+    ("Late Late 1", 9),
+    ("Late Late 2", 10),
+    ("Held", 11),
+    ("EP/HUP 13", 12),
+    ("H12", 13),
+    ("H13", 14),
+    ("H14", 15),
+    ("HUP EP 12", 16),
+    ("Backup", 17),
+    ("Cardiac Backup", 18),
+    ("Moonlighting", 19),
+    ("First Call", 20),
+    ("Second Call", 21),
+    ("Third Call", 22),
+    ("Cardiac Call", 23),
+    ("OB Flex", 24),
+)
 
 # Get the project root directory (parent of backend/)
 project_root: Path = Path(__file__).parent.parent
@@ -52,42 +88,37 @@ def _authentication_required_response():
     return message, 401
 
 
-def _safe_redirect_target(target: str, default: str) -> str:
-    """Return a safe redirect target limited to this site, or a default."""
-    if not target:
-        return default
-
-    # Normalize backslashes which some browsers accept as path separators
-    normalized = target.replace("\\", "")
-    parsed = urlparse(normalized)
-
-    # Allow relative URLs (no scheme or netloc)
-    if not parsed.scheme and not parsed.netloc:
-        return normalized
-
-    # Allow absolute URLs only if they point back to this host over HTTP(S)
-    if parsed.netloc == request.host and parsed.scheme in {"http", "https"}:
-        return normalized
-
-    # Fallback to the internal default
-    return default
-
-
 # Setup logging
 logger: Logger = setup_logging()
 
 # Register all route blueprints
 register_blueprints(app)
 
-_mock_enabled = os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
+
+def _build_mock_personas() -> list[dict[str, str]]:
+    """Return the available dev personas for the mock-user dropdown."""
+    admin_users = get_admin_users()
+    payroll_users = get_payroll_admin_users()
+
+    personas = [{"name": admin_users[0] if admin_users else "Admin", "label": "Admin"}]
+    if payroll_users:
+        personas.append({"name": payroll_users[0], "label": "Payroll Admin"})
+    personas.append({"name": "Regular Viewer", "label": "Regular Viewer"})
+    return personas
 
 
-def _mock_users_enabled() -> bool:
-    """Return True when dev mock-user switching is enabled."""
-    return os.getenv("MOCK_USERS_ENABLED", "").lower() in {"1", "true", "yes"}
+def _active_resident_names() -> list[str]:
+    """Return active resident names for the dev mock-user dropdown."""
+    try:
+        residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
+    except SQLAlchemyError:
+        app.logger.exception("Failed to query residents for dev mock context")
+        return []
+
+    return [resident.name for resident in residents]
 
 
-if _mock_enabled:
+if mock_users_enabled():
     if os.getenv("FLASK_ENV", "").lower() == "production":
         raise RuntimeError(
             "MOCK_USERS_ENABLED is set in a production environment. "
@@ -105,7 +136,7 @@ if _mock_enabled:
 def require_authenticated_request():
     """Fail closed when proxy-auth is enabled and the identity header is absent."""
     proxy_header = str(app.config.get("AUTH_PROXY_USERNAME_HEADER") or "").strip()
-    if not proxy_header or _mock_users_enabled() or request.endpoint == "static":
+    if not proxy_header or mock_users_enabled() or request.endpoint == "static":
         return None
 
     if get_current_user():
@@ -124,32 +155,13 @@ def inject_auth():
 @app.context_processor
 def inject_dev():
     """Inject dev mock-user context (only when MOCK_USERS_ENABLED is set)."""
-    if os.getenv("MOCK_USERS_ENABLED", "").lower() not in {"1", "true", "yes"}:
+    if not mock_users_enabled():
         return {"mock_users_enabled": False}
-
-    admin_users = [
-        u.strip() for u in os.getenv("ADMIN_USERS", "Admin").split(",") if u.strip()
-    ]
-    payroll_users = [
-        u.strip() for u in os.getenv("PAYROLL_ADMIN_USERS", "").split(",") if u.strip()
-    ]
-
-    personas = [{"name": admin_users[0] if admin_users else "Admin", "label": "Admin"}]
-    if payroll_users:
-        personas.append({"name": payroll_users[0], "label": "Payroll Admin"})
-    personas.append({"name": "Regular Viewer", "label": "Regular Viewer"})
-
-    try:
-        residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
-        resident_names = [r.name for r in residents]
-    except SQLAlchemyError:
-        app.logger.exception("Failed to query residents for dev mock context")
-        resident_names = []
 
     return {
         "mock_users_enabled": True,
-        "mock_personas": personas,
-        "mock_residents": resident_names,
+        "mock_personas": _build_mock_personas(),
+        "mock_residents": _active_resident_names(),
         "dev_user_override": session.get("dev_user"),
     }
 
@@ -168,47 +180,7 @@ def init_db():
     with app.app_context():
         db.create_all()
 
-        # Backup role names
-        backup_roles = {"Backup", "Cardiac Backup", "Moonlighting"}
-
-        # Call team roles: displayed on sheet but never generate overtime
-        call_team_roles = {
-            "First Call",
-            "Second Call",
-            "Third Call",
-            "OB Flex",
-            "Cardiac Call",
-        }
-
-        # Create default roles if they don't exist
-        default_roles = [
-            ("ECA 1", 1),
-            ("ECA 2", 2),
-            ("ECC 1", 3),
-            ("ECC 2", 4),
-            ("ECC 3", 5),
-            ("ECC 4", 6),
-            ("ECC 5", 7),
-            ("PPMC", 8),
-            ("Late Late 1", 9),
-            ("Late Late 2", 10),
-            ("Held", 11),
-            ("EP/HUP 13", 12),
-            ("H12", 13),
-            ("H13", 14),
-            ("H14", 15),
-            ("HUP EP 12", 16),
-            ("Backup", 17),
-            ("Cardiac Backup", 18),
-            ("Moonlighting", 19),
-            ("First Call", 20),
-            ("Second Call", 21),
-            ("Third Call", 22),
-            ("Cardiac Call", 23),
-            ("OB Flex", 24),
-        ]
-
-        for role_name, order in default_roles:
+        for role_name, order in DEFAULT_ROLES:
             existing_role = Role.query.filter_by(name=role_name).first()
             if not existing_role:
                 cutoff_hour = app.config["ROLE_CUTOFF_HOURS"].get(
@@ -222,15 +194,15 @@ def init_db():
                     cutoff_hour=cutoff_hour,
                     cutoff_minute=cutoff_minute,
                     display_order=order,
-                    is_backup=(role_name in backup_roles),
-                    is_call_team=(role_name in call_team_roles),
+                    is_backup=(role_name in BACKUP_ROLE_NAMES),
+                    is_call_team=(role_name in CALL_TEAM_ROLE_NAMES),
                 )
                 db.session.add(role)
             else:
                 # Always correct categorical flags; only backfill display_order
                 # if unset so admin-customized ordering is preserved.
-                existing_role.is_backup = role_name in backup_roles
-                existing_role.is_call_team = role_name in call_team_roles
+                existing_role.is_backup = role_name in BACKUP_ROLE_NAMES
+                existing_role.is_call_team = role_name in CALL_TEAM_ROLE_NAMES
                 if existing_role.display_order is None:
                     existing_role.display_order = order
 

@@ -10,7 +10,7 @@ bp: Blueprint = Blueprint("api", __name__, url_prefix="/api")
 @bp.route("/residents/active")
 def active_residents():
     """API endpoint to get active residents."""
-    residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
+    residents = Resident.get_active()
     return jsonify([{"id": r.id, "name": r.name} for r in residents])
 
 

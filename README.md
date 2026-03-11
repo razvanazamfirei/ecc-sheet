@@ -37,7 +37,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Resident-specific filtering
   - Detailed CSV export (date, role, times, overtime)
   - Billing CSV export (resident name, total overtime)
-  - Email reports with payroll-style summaries
+  - Payroll XLSX export for Lawson/UPHS workflows
 
 - **Audit Trail**
 
@@ -52,7 +52,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Role configuration with customizable cutoff times (hour and minute)
   - Holiday management
   - Full audit log access
-  - Email reporting
+  - Payroll export settings
 
 ## Quick Start
 
@@ -105,15 +105,8 @@ SESSION_COOKIE_SAMESITE=Lax
 ADMIN_USERS=Admin,John Doe,Jane Smith
 
 # Optional: users allowed to pick any resident in reports without unlocking
-# billing/payroll/email actions
+# billing/payroll actions
 REPORT_VIEW_ALL_USERS=
-
-# Email Configuration (for reports)
-EMAIL_HOST=smtp.example.com
-EMAIL_PORT=587
-EMAIL_USERNAME=user@example.com
-EMAIL_PASSWORD=password
-EMAIL_RECIPIENT=recipient@example.com
 
 # Amion Integration (for schedule/staff imports)
 AMION_SCHEDULE_CODE=your-schedule-code-here
@@ -131,7 +124,7 @@ For a server-hosted demo with:
 
 - reverse-proxy username auth
 - resident switching in reports
-- owner-only billing/payroll/email/admin access
+- owner-only billing/payroll/admin access
 - `systemd` startup
 - SSH copy instead of `git clone`
 
@@ -142,37 +135,37 @@ see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 ### Backend
 
 - **Python 3.13** with Flask 3.1.2
-- **SQLite** - File-based database with migration support
-- **SQLAlchemy** - ORM with relationship management
-- **Flask-Migrate 4.1.0 (Alembic)** - Database version control
-- **Flask-WTF 1.2.2** - Form validation with CSRF protection
-- **pytz 2025.2** - Timezone handling
-- **holidays 0.89** - US federal holiday tracking
+- **SQLite** — File-based database with migration support
+- **SQLAlchemy** — ORM with relationship management
+- **Flask-Migrate 4.1.0 (Alembic)** — Database version control
+- **Flask-WTF 1.2.2** — CSRF protection
+- **pytz 2025.2** — Timezone handling
+- **holidays 0.89** — US federal holiday tracking
 
 ### Frontend
 
-- **Jinja2** - Server-side templates with 24-hour time format
-- **Vanilla JavaScript** - ES6+ with Luxon for timezone handling
-- **Bootstrap 5.3.8** - UI framework (bundled locally)
-- **Bootstrap Icons 1.13.1** - Icon library
-- **Luxon 3.7.2** - DateTime library with timezone support
-- **Vite 7.3.1** - Build tool for asset bundling
-- **Prettier 3.8.1** - Code formatter
+- **Jinja2** — Server-side templates with 24-hour time format
+- **Vanilla JavaScript** — ES6+ with Luxon for timezone handling
+- **Bootstrap 5.3.8** — UI framework (bundled locally)
+- **Bootstrap Icons 1.13.1** — Icon library
+- **Luxon 3.7.2** — DateTime library with timezone support
+- **Vite 7.3.1** — Build tool for asset bundling
+- **Prettier 3.8.1** — Code formatter
 
 ### Testing
 
-- **pytest 9.0.2** - Python testing framework (99% coverage)
-- **Jest 30.2.0** - JavaScript testing framework (78% coverage)
-- **GitHub Actions** - Automated CI/CD pipeline
-- **Codecov** - Coverage tracking and reporting
+- **pytest** — Python testing framework
+- **Vitest** — JavaScript testing framework
+- **GitHub Actions** — Automated CI/CD pipeline
+- **Codecov** — Coverage tracking and reporting
 
 ### Build Tools
 
 - **UV** - Python package manager
-- **Bun** - JavaScript runtime and package manager
+- **Bun** — JavaScript runtime and package manager
 - **Vite** - Frontend build tool
-- **Ruff** - Python linting
-- **Stylelint** - CSS linting
+- **Ruff** — Python linting
+- **Stylelint** — CSS linting
 
 ## Development
 
@@ -223,22 +216,6 @@ bun run format:check
 bun run lint:css
 ```
 
-### Database Migrations
-
-```bash
-# Create migration after model changes
-uv run flask --app backend.app db migrate -m "description"
-
-# Apply migrations
-uv run flask --app backend.app db upgrade
-
-# Check current revision
-uv run flask --app backend.app db current
-
-# View migration history
-uv run flask --app backend.app db history
-```
-
 ## Project Structure
 
 ```
@@ -250,7 +227,6 @@ ecc-sheet/
 │   ├── audit.py            # Audit logging
 │   ├── auth.py             # Authorization utilities
 │   ├── config.py           # Configuration
-│   ├── email_service.py    # Email reporting
 │   ├── holidays.py         # Holiday utilities
 │   ├── report_utils.py     # Report generation utilities
 │   └── staff_import.py     # Amion staff parsing
@@ -259,10 +235,10 @@ ecc-sheet/
 │   └── static/
 │       ├── dist/           # Vite build output
 │       ├── js/             # JavaScript source
-│       │   └── __tests__/  # Jest test suites
+│       │   └── __tests__/  # Vitest test suites
 │       └── css/            # Stylesheets
 ├── migrations/              # Database migrations
-├── tests/                   # Python test suite (26 modules)
+├── tests/                   # Python test suite
 ├── docs/                    # Documentation
 ├── scripts/                 # Utility scripts
 └── instance/                # Instance files (database)
@@ -289,10 +265,9 @@ proxy).
 - CSRF protection for all forms
 - SQL injection prevention via SQLAlchemy ORM
 - XSS protection via Jinja2 auto-escaping
-- Input validation with WTForms
+- Input validation in route handlers and model validators
 - Complete audit trail with IP tracking
 - Confirmation dialogs for destructive actions
-- Email validation for reports
 
 ### Production Requirements
 
@@ -326,16 +301,15 @@ proxy).
 - `/api/report` - Generate overtime reports
 - `/api/report/export_csv` - Export detailed report as CSV
 - `/api/report/export_billing_csv` - Export billing/payroll summary as CSV
-- `/api/report/send_email` - Send reports via email
 
 All POST endpoints require CSRF token.
 
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)** - Comprehensive project documentation
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture reference
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture reference
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
-- **[docs/README.md](docs/README.md)** - Documentation overview
+- **[docs/README.md](docs/README.md)** — Documentation overview
 
 ## Testing
 
@@ -358,7 +332,7 @@ bun run test:coverage
 
 ### Test Coverage
 
-- **Backend:** 99% coverage (26 test modules, ~7,500 lines)
+- **Backend:** 99% coverage
 - **Frontend:** 78% coverage (4 test suites)
 - **CI/CD:** GitHub Actions with automated testing
 - **Coverage Reporting:** Codecov integration
@@ -367,17 +341,17 @@ bun run test:coverage
 
 GitHub Actions workflow includes:
 
-1. **Backend Tests** - Python 3.13, pytest with coverage
-2. **Frontend Tests** - Bun, Jest with coverage
+1. **Backend Tests** — Python 3.13, pytest with coverage
+2. **Frontend Tests** — Bun, Vitest with coverage
 3. **Frontend Build & Lint** - Prettier, Stylelint, Vite build
-4. **Security Scan** - Bandit security analysis
-5. **Coverage Upload** - Codecov reporting
+4. **Security Scan** — Bandit security analysis
+5. **Coverage Upload** — Codecov reporting
 
 ## Troubleshooting
 
 ### Database Issues
 
-- **Database locked**: SQLite write locks - usually resolves on retry
+- **Database locked**: SQLite write locks — usually resolves on retry
 - **Migration conflicts**: Run `uv run flask --app backend.app db history` to
   view
 
@@ -392,11 +366,6 @@ GitHub Actions workflow includes:
 - **Staff import fails**: Check Amion API access and Report 706 format
 - **Missing residents**: Ensure EPIC IDs are populated
 
-### Email Issues
-
-- **Email reports not sending**: Verify SMTP configuration in `.env`
-- **Check credentials**: EMAIL_HOST, EMAIL_PORT, EMAIL_USERNAME, EMAIL_PASSWORD
-
 See `CLAUDE.md` for detailed troubleshooting.
 
 ## Contributing
@@ -404,57 +373,14 @@ See `CLAUDE.md` for detailed troubleshooting.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
 
 - Code style and formatting
-- Testing requirements (99% backend, 78% frontend)
+- Testing requirements
 - Pull request process
 - Database migration workflow
 - Route blueprint organization
 
 ## License
 
-Apache License 2.0 - See [LICENSE](LICENSE) file for details.
-
-## Changelog
-
-### Version 3.1 (2026-02-11)
-
-- Changed time rounding from 15-minute to 5-minute increments
-- Added billing/payroll CSV export (resident name + total overtime)
-- Enhanced audit logging with old/new value tracking
-- Simplified email reports to payroll format (name + total only)
-- Moved Amion schedule code to environment variable (AMION_SCHEDULE_CODE)
-- Updated all documentation and setup scripts
-
-**Migration Note:** Add `AMION_SCHEDULE_CODE=your-schedule-code-here` to your
-`.env` file
-
-### Version 3.0 (2026-01-31)
-
-- Added holiday management system
-- Added staff import from Amion (Report 706)
-- Added email reporting with CSV attachments
-- Added backup role support
-- Implemented route blueprint architecture
-- Increased test coverage to 99% backend, 78% frontend
-- Added Jest frontend testing
-- Added GitHub Actions CI/CD
-- Code quality improvements and refactoring
-
-### Version 2.0 (2025-11-25)
-
-- Simplified authentication to environment-based
-- Added comprehensive audit logging
-- Migrated to Vite for frontend bundling
-- Implemented 24-hour time format
-- Added Prettier code formatting
-- Enhanced UX with loading states and confirmations
-- Full hour/minute editing for role cutoffs
-
-### Version 1.0
-
-- Initial release
-- Daily shift tracking
-- Overtime calculations
-- Report generation
+Apache License 2.0 — See [LICENSE](LICENSE) file for details.
 
 ## Support
 

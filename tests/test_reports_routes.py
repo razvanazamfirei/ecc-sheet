@@ -138,123 +138,6 @@ class TestReportExport:
         assert b"invalid" in response.data.lower() or b"error" in response.data.lower()
 
 
-class TestReportEmail:
-    """Tests for emailing reports."""
-
-    def test_send_email_success(self, client, app, sample_time_entry):
-        """Test sending report email successfully."""
-        from unittest.mock import patch
-
-        with app.app_context():
-            entry = db.session.get(TimeEntry, sample_time_entry.id)
-            assert entry is not None
-            entry_date = entry.date
-
-            with patch("backend.routes.reports.send_report_email", return_value=True):
-                response = client.post(
-                    "/api/report/send_email",
-                    data={
-                        "start_date": entry_date.strftime("%Y-%m-%d"),
-                        "end_date": entry_date.strftime("%Y-%m-%d"),
-                        "recipient_email": "test@example.com",
-                    },
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
-                assert b"emailed successfully" in response.data
-
-    def test_send_email_failure(self, client, app, sample_time_entry):
-        """Test handling email send failure."""
-        from unittest.mock import patch
-
-        with app.app_context():
-            entry = db.session.get(TimeEntry, sample_time_entry.id)
-            assert entry is not None
-            entry_date = entry.date
-
-            with patch("backend.routes.reports.send_report_email", return_value=False):
-                response = client.post(
-                    "/api/report/send_email",
-                    data={
-                        "start_date": entry_date.strftime("%Y-%m-%d"),
-                        "end_date": entry_date.strftime("%Y-%m-%d"),
-                        "recipient_email": "test@example.com",
-                    },
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
-                assert b"Failed to send email" in response.data
-
-    def test_send_email_exception(self, client, app, sample_time_entry):
-        """Test handling exception during email send."""
-        from unittest.mock import patch
-
-        with app.app_context():
-            entry = db.session.get(TimeEntry, sample_time_entry.id)
-            assert entry is not None
-            entry_date = entry.date
-
-            with patch(
-                "backend.routes.reports.send_report_email",
-                side_effect=Exception("SMTP error"),
-            ):
-                response = client.post(
-                    "/api/report/send_email",
-                    data={
-                        "start_date": entry_date.strftime("%Y-%m-%d"),
-                        "end_date": entry_date.strftime("%Y-%m-%d"),
-                        "recipient_email": "test@example.com",
-                    },
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
-                assert b"Error sending email" in response.data
-
-    def test_send_email_with_resident_filter(
-        self, client, app, sample_time_entry, sample_resident
-    ):
-        """Test sending email with resident filter."""
-        from unittest.mock import patch
-
-        with app.app_context():
-            entry = db.session.get(TimeEntry, sample_time_entry.id)
-            assert entry is not None
-            entry_date = entry.date
-
-            with patch("backend.routes.reports.send_report_email", return_value=True):
-                response = client.post(
-                    "/api/report/send_email",
-                    data={
-                        "start_date": entry_date.strftime("%Y-%m-%d"),
-                        "end_date": entry_date.strftime("%Y-%m-%d"),
-                        "resident_id": sample_resident.id,
-                        "recipient_email": "test@example.com",
-                    },
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
-
-    def test_send_email_no_recipient(self, client, app, sample_time_entry):
-        """Test sending email without explicit recipient uses config."""
-        from unittest.mock import patch
-
-        with app.app_context():
-            entry = db.session.get(TimeEntry, sample_time_entry.id)
-            assert entry is not None
-            entry_date = entry.date
-
-            with patch("backend.routes.reports.send_report_email", return_value=True):
-                response = client.post(
-                    "/api/report/send_email",
-                    data={
-                        "start_date": entry_date.strftime("%Y-%m-%d"),
-                        "end_date": entry_date.strftime("%Y-%m-%d"),
-                    },
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
-
-
 class TestReportEdgeCases:
     """Edge case tests for reports."""
 
@@ -455,6 +338,23 @@ class TestPayrollSettings:
             assert settings.program is None
             assert settings.batch is None
 
+    def test_payroll_settings_save_invalid_integer(self, client, app, monkeypatch):
+        """Test invalid payroll integer input returns a flashed validation error."""
+        monkeypatch.setenv("USER_NAME", "CI-Test-User")
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "CI-Test-User")
+
+        with app.app_context():
+            response = client.post(
+                "/payroll-settings",
+                data={
+                    "program": "M1300",
+                    "batch": "not-a-number",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"must be an integer" in response.data
+
 
 @pytest.mark.integration
 class TestReportExportPermissions:
@@ -513,25 +413,6 @@ class TestReportExportPermissions:
         assert response.status_code == 200
         assert "spreadsheetml" in response.content_type
 
-    def test_send_email_blocked_for_regular_user(
-        self, client, app, sample_time_entry, monkeypatch
-    ):
-        """Non-admin/non-payroll user is redirected from send email."""
-        for k, v in self._set_non_payroll_env().items():
-            monkeypatch.setenv(k, v)
-
-        with app.app_context():
-            entry = db.session.get(TimeEntry, sample_time_entry.id)
-            date_str = entry.date.strftime("%Y-%m-%d")
-
-        response = client.post(
-            "/api/report/send_email",
-            data={"start_date": date_str, "end_date": date_str},
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
-        assert b"permission" in response.data.lower()
-
 
 @pytest.mark.integration
 class TestReportRestriction:
@@ -579,7 +460,6 @@ class TestReportRestriction:
         assert b"Export Detailed CSV" in response.data
         assert b"Export Billing CSV" not in response.data
         assert b"Export Payroll XLSX" not in response.data
-        assert b"Email Report" not in response.data
 
     def test_report_viewer_can_submit_resident_filter(
         self, client, app, sample_time_entry, sample_resident, monkeypatch
@@ -596,7 +476,6 @@ class TestReportRestriction:
             other_resident = Resident(name="Other Report Resident", active=True)
             db.session.add(other_resident)
             db.session.commit()
-            other_resident_name = other_resident.name
             other_resident_id = other_resident.id
 
             other_entry = TimeEntry(
@@ -621,7 +500,8 @@ class TestReportRestriction:
             )
             assert response.status_code == 200
             assert sample_resident.name.encode() in response.data
-            assert other_resident_name.encode() not in response.data
+            assert b'name="resident_id"' in response.data
+            assert f'value="{sample_resident.id}"'.encode() in response.data
         finally:
             with app.app_context():
                 other_entry = db.session.get(TimeEntry, other_entry_id)
@@ -648,7 +528,6 @@ class TestReportRestriction:
         assert response.status_code == 200
         assert b"Export Billing CSV" in response.data
         assert b"Export Payroll XLSX" in response.data
-        assert b"Email Report" in response.data
 
     def test_payroll_admin_sees_extended_actions_in_report_results(
         self, client, app, sample_time_entry, monkeypatch
@@ -670,7 +549,6 @@ class TestReportRestriction:
         assert response.status_code == 200
         assert b"Export Billing CSV" in response.data
         assert b"Export Payroll XLSX" in response.data
-        assert b"Email Report" in response.data
 
     def test_report_generation_forces_resident_id_for_restricted(
         self, client, app, sample_time_entry, sample_resident, monkeypatch

@@ -1,13 +1,48 @@
 """Role management routes."""
 
+import logging
+from logging import Logger
+
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from ..audit import log_update_strict
 from ..auth import admin_required
 from ..models import Role, db
-from ..utils import handle_db_error
 
 bp: Blueprint = Blueprint("roles", __name__, url_prefix="/roles")
+logger: Logger = logging.getLogger(__name__)
+
+
+def _roles_index_redirect():
+    """Return a redirect to the roles index."""
+    return redirect(url_for("roles.index"))
+
+
+def _role_snapshot(role: Role) -> dict[str, int | bool | None]:
+    """Return the role fields tracked in update audit logs."""
+    return {
+        "cutoff_hour": role.cutoff_hour,
+        "cutoff_minute": role.cutoff_minute,
+        "is_backup": role.is_backup,
+    }
+
+
+def _parse_role_form() -> dict[str, int | bool]:
+    """Parse and validate role form fields."""
+    try:
+        cutoff_hour = int(request.form.get("cutoff_hour", 17))
+        cutoff_minute = int(request.form.get("cutoff_minute", 30))
+    except ValueError as exc:
+        raise ValueError("Cutoff hour and minute must be whole numbers.") from exc
+    if not (0 <= cutoff_hour <= 23):
+        raise ValueError("Hour must be between 0 and 23")
+    if not (0 <= cutoff_minute <= 59):
+        raise ValueError("Minute must be between 0 and 59")
+    return {
+        "cutoff_hour": cutoff_hour,
+        "cutoff_minute": cutoff_minute,
+        "is_backup": request.form.get("is_backup") == "on",
+    }
 
 
 @bp.route("/")
@@ -20,7 +55,6 @@ def index():
 
 @bp.route("/<int:role_id>/update", methods=["POST"])
 @admin_required
-@handle_db_error
 def update(role_id):
     """Update role cutoff time and backup status."""
     role = db.session.get(Role, role_id)
@@ -28,24 +62,10 @@ def update(role_id):
         abort(404)
 
     try:
-        before = {
-            "cutoff_hour": role.cutoff_hour,
-            "cutoff_minute": role.cutoff_minute,
-            "is_backup": role.is_backup,
-        }
-        cutoff_hour = int(request.form.get("cutoff_hour", 17))
-        cutoff_minute = int(request.form.get("cutoff_minute", 30))
-        is_backup = request.form.get("is_backup") == "on"
-
-        # Validate ranges
-        if not (0 <= cutoff_hour <= 23):
-            raise ValueError("Hour must be between 0 and 23")
-        if not (0 <= cutoff_minute <= 59):
-            raise ValueError("Minute must be between 0 and 59")
-
-        role.cutoff_hour = cutoff_hour
-        role.cutoff_minute = cutoff_minute
-        role.is_backup = is_backup
+        before = _role_snapshot(role)
+        parsed_form = _parse_role_form()
+        for field, value in parsed_form.items():
+            setattr(role, field, value)
 
         changes = {
             field: {"old": before[field], "new": getattr(role, field)}
@@ -64,8 +84,12 @@ def update(role_id):
 
         flash(f"Role {role.name} updated successfully", "success")
 
-    except Exception as e:
+    except ValueError as exc:
         db.session.rollback()
-        flash(f"Error updating role: {e!s}", "error")
+        flash(f"Error updating role: {exc!s}", "error")
+    except Exception:
+        db.session.rollback()
+        logger.exception("Error updating role")
+        flash("Error updating role. Check logs for details.", "error")
 
-    return redirect(url_for("roles.index"))
+    return _roles_index_redirect()

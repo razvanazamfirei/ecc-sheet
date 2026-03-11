@@ -574,10 +574,7 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
             result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
-            error = result["error"]
-            assert error is not None
-            assert "Failed to fetch staff list from Amion" in error
-            assert "Connection failed" in error
+            assert result["error"] == "Failed to fetch staff list from Amion."
             assert result["created"] == 0
             assert result["total_records"] == 0
 
@@ -590,10 +587,7 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
             result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
-            error = result["error"]
-            assert error is not None
-            assert "Import failed" in error
-            assert "Could not find header" in error
+            assert result["error"] == "Staff import failed."
             assert result["created"] == 0
             assert result["total_records"] == 0
 
@@ -630,10 +624,7 @@ CA1\tTest Person\tEPICID:R12345
             result = import_staff_list(schedule_code="testcode", user="test_user")
 
             assert result["success"] is False
-            error = result["error"]
-            assert error is not None
-            assert "Import failed" in error
-            assert "Database connection lost" in error
+            assert result["error"] == "Staff import failed."
 
 
 @pytest.mark.integration

@@ -8,13 +8,11 @@ from pathlib import Path
 
 import pytest
 import pytz
-from flask import get_flashed_messages
 
 from backend.config import Config
 from backend.utils import (
     get_effective_date,
     get_philadelphia_time,
-    handle_db_error,
 )
 
 
@@ -275,97 +273,6 @@ class TestSetupLogging:
         logger = setup_logging()
         assert logger is not None
         assert logger.name == "ecc_sheet"
-
-
-@pytest.mark.unit
-class TestHandleDbError:
-    """Test handle_db_error decorator"""
-
-    def test_decorator_passes_through_on_success(self, app):
-        """Test that decorator passes through when no error"""
-        from backend.utils import handle_db_error
-
-        @handle_db_error
-        def successful_function():
-            return "success"
-
-        with app.app_context():
-            # The decorator wraps the function and will return either the result
-            # or a redirect. In test context this is fine.
-            import werkzeug.routing.exceptions
-
-            try:
-                result = successful_function()
-                assert result == "success"
-            except werkzeug.routing.exceptions.BuildError:
-                # If url_for fails due to missing endpoint, that's expected
-                pass
-
-    def test_decorator_catches_exception(self, app):
-        """Test that decorator catches database exceptions"""
-        from unittest.mock import patch
-
-        from backend.utils import handle_db_error
-
-        @handle_db_error
-        def failing_function():
-            raise Exception("Database error")
-
-        # Use test_request_context to provide proper request context
-        with (
-            app.test_request_context(),
-            app.app_context(),
-            patch("backend.utils.db.session.rollback") as mock_rollback,
-            patch("backend.utils.flash") as mock_flash,
-        ):
-            # The decorator should catch the exception and try to redirect
-            # This may raise BuildError if 'index' endpoint doesn't exist
-            import werkzeug.routing.exceptions
-
-            try:
-                failing_function()
-            except werkzeug.routing.exceptions.BuildError:
-                # Expected - the decorator tried to redirect to 'index'
-                # which may not exist. Verify error handling occurred.
-                mock_rollback.assert_called_once()
-                mock_flash.assert_called_once()
-
-    def test_handle_db_error_returns_generic_json_message(self, app):
-        """JSON callers should receive a generic 500 response."""
-
-        @handle_db_error
-        def raise_runtime_error():
-            raise RuntimeError("secret database details")
-
-        with app.test_request_context(
-            "/entries/update-all",
-            headers={
-                "Accept": "application/json",
-                "X-Requested-With": "XMLHttpRequest",
-            },
-        ):
-            response, status_code = raise_runtime_error()
-
-            assert status_code == 500
-            assert response.get_json() == {
-                "success": False,
-                "message": "An unexpected error occurred. Please try again.",
-            }
-
-    def test_handle_db_error_flashes_generic_message(self, app):
-        """HTML callers should see a generic flash message."""
-
-        @handle_db_error
-        def raise_runtime_error():
-            raise RuntimeError("secret database details")
-
-        with app.test_request_context("/"):
-            response = raise_runtime_error()
-
-            assert response.status_code == 302
-            assert get_flashed_messages(with_categories=True) == [
-                ("error", "An unexpected error occurred. Please try again.")
-            ]
 
 
 @pytest.mark.unit

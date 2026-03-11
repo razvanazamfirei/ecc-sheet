@@ -6,6 +6,146 @@ let editAllMode = false;
 const originalValues = {};
 
 /**
+ * Returns the DOM elements associated with a single entry row
+ * @param {string|number} entryId - The entry ID
+ * @returns {object} Entry element references
+ */
+function getEntryElements(entryId) {
+  return {
+    display: document.getElementById("display-" + entryId),
+    form: document.getElementById("form-" + entryId),
+    exitInput: document.getElementById("input-" + entryId),
+    startInput: document.getElementById("start-input-" + entryId),
+    startDisplay: document.getElementById("start-display-" + entryId),
+    editControls: document.getElementById("edit-controls-" + entryId),
+    actionButtons: document.getElementById("action-buttons-" + entryId),
+    exitCell: document.getElementById("cell-" + entryId),
+    row: document.getElementById("entry-row-" + entryId),
+    overtimeDisplay: document.getElementById("overtime-" + entryId),
+  };
+}
+
+/**
+ * Returns the editable controls associated with an entry row
+ * @param {string|number} entryId - The entry ID
+ * @returns {object} Entry edit controls
+ */
+function getEntryEditControls(entryId) {
+  const elements = getEntryElements(entryId);
+  const formInputs = elements.form
+    ? Array.from(elements.form.querySelectorAll("input"))
+    : [];
+  return {
+    ...elements,
+    formInputs,
+    saveButton: document.querySelector(`#edit-controls-${entryId} .save-btn`),
+    cancelButton: document.querySelector(
+      `#edit-controls-${entryId} .cancel-btn`,
+    ),
+  };
+}
+
+/**
+ * Returns all entry rows on the page
+ * @returns {NodeListOf<Element>} Entry row elements
+ */
+function getEntryRows() {
+  return document.querySelectorAll("tr[data-entry-id]");
+}
+
+/**
+ * Sets the display style for an element when present
+ * @param {HTMLElement|null} element - Element to update
+ * @param {string} display - CSS display value
+ */
+function setElementDisplay(element, display) {
+  if (element?.style) {
+    element.style.display = display;
+  }
+}
+
+/**
+ * Updates the inline editor visibility for a single entry row
+ * @param {string|number} entryId - The entry ID
+ * @param {boolean} editing - Whether the row is in edit mode
+ * @returns {object} Entry element references
+ */
+function setEntryEditingState(entryId, editing) {
+  const elements = getEntryElements(entryId);
+  setElementDisplay(elements.display, editing ? "none" : "inline");
+  setElementDisplay(elements.form, editing ? "inline" : "none");
+  setElementDisplay(elements.actionButtons, editing ? "none" : "inline-flex");
+  setElementDisplay(elements.editControls, editing ? "inline-flex" : "none");
+
+  if (elements.startInput) {
+    setElementDisplay(elements.startInput, editing ? "inline" : "none");
+  }
+  if (elements.startDisplay) {
+    setElementDisplay(elements.startDisplay, editing ? "none" : "inline");
+  }
+
+  return elements;
+}
+
+/**
+ * Updates the shared Edit All / Save All control state
+ * @param {boolean} editing - Whether bulk edit mode is active
+ * @returns {object} Control references
+ */
+function setEditAllControls(editing) {
+  const buttonContainer = document.getElementById("edit-all-controls");
+  const editAllBtn = document.getElementById("edit-all-btn");
+  const saveAllBtn = document.getElementById("save-all-btn");
+
+  if (!editAllBtn || !saveAllBtn) {
+    return { buttonContainer, editAllBtn, saveAllBtn };
+  }
+
+  if (editing) {
+    buttonContainer?.classList.add("btn-group");
+    editAllBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel All';
+    editAllBtn.classList.remove("btn-outline-secondary");
+    editAllBtn.classList.add("btn-warning");
+    saveAllBtn.style.display = "inline-block";
+    return { buttonContainer, editAllBtn, saveAllBtn };
+  }
+
+  editAllBtn.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Edit All';
+  buttonContainer?.classList.remove("btn-group");
+  editAllBtn.classList.remove("btn-warning");
+  editAllBtn.classList.add("btn-outline-secondary");
+  saveAllBtn.style.display = "none";
+  return { buttonContainer, editAllBtn, saveAllBtn };
+}
+
+/**
+ * Enables or disables the controls for a single inline editor
+ * @param {object} controls - Entry edit controls
+ * @param {boolean} disabled - Whether controls should be disabled
+ */
+function setEntryControlsDisabled(controls, disabled) {
+  controls.formInputs.forEach((input) => {
+    input.disabled = disabled;
+  });
+  if (controls.saveButton) {
+    controls.saveButton.disabled = disabled;
+  }
+  if (controls.cancelButton) {
+    controls.cancelButton.disabled = disabled;
+  }
+}
+
+/**
+ * Returns the CSRF token stored in a form input collection
+ * @param {HTMLInputElement[]} inputs - Inputs to inspect
+ * @returns {string} CSRF token value or an empty string
+ */
+function getCsrfTokenFromInputs(inputs) {
+  const csrfInput = inputs.find((input) => input.name === "csrf_token");
+  return csrfInput?.value || "";
+}
+
+/**
  * Shows an in-page notification, with alert fallback for isolated contexts
  * @param {string} message - Message to show
  * @param {string} type - Notification type
@@ -38,7 +178,7 @@ function escapeHtml(text) {
  * @param {Event} event - The click event
  */
 async function copyToClipboard(event) {
-  const rows = document.querySelectorAll("tr[data-entry-id]");
+  const rows = getEntryRows();
   const dateElement = document.getElementById("sheet-date");
   const isWeekendOrHoliday =
     document.querySelector(".start-time-cell") !== null;
@@ -204,34 +344,19 @@ function initializeLockConfirmation() {
  * @param {number} entryId - The entry ID to edit
  */
 function editEntry(entryId) {
-  // Store original value for exit time
-  const input = document.getElementById("input-" + entryId);
-  originalValues[entryId] = { exit: input.value };
-
-  // Store original value for start time if it exists (backup roles)
-  const startInput = document.getElementById("start-input-" + entryId);
-  if (startInput) {
-    originalValues[entryId].start = startInput.value;
-    // Show start time input
-    const startDisplay = document.getElementById("start-display-" + entryId);
-    if (startDisplay) {
-      startDisplay.style.display = "none";
-    }
-    startInput.style.display = "inline";
+  const elements = setEntryEditingState(entryId, true);
+  if (!elements.exitInput) {
+    return;
   }
 
-  // Toggle visibility
-  document.getElementById("display-" + entryId).style.display = "none";
-  document.getElementById("form-" + entryId).style.display = "inline";
+  originalValues[entryId] = { exit: elements.exitInput.value };
+  if (elements.startInput) {
+    originalValues[entryId].start = elements.startInput.value;
+  }
 
-  // Toggle buttons
-  const editBtnGroup = document.getElementById("edit-controls-" + entryId);
-  const actionsGroup = document.getElementById("action-buttons-" + entryId);
-  actionsGroup.style.display = "none";
-  editBtnGroup.style.display = "inline-flex";
-
-  // Focus the input
-  input.focus();
+  if (typeof elements.exitInput.focus === "function") {
+    elements.exitInput.focus();
+  }
 }
 
 /**
@@ -240,46 +365,43 @@ function editEntry(entryId) {
  * @param {object} entry - Saved entry payload
  */
 function applyEntryUpdate(entryId, entry) {
-  const display = document.getElementById("display-" + entryId);
-  if (display) {
+  const elements = getEntryElements(entryId);
+  if (elements.display) {
     if (entry.missing_exit_time) {
-      display.innerHTML =
+      elements.display.innerHTML =
         '<span class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Exit time?</span>';
     } else {
-      display.innerHTML = escapeHtml(entry.exit_time_display || "");
+      elements.display.innerHTML = escapeHtml(entry.exit_time_display || "");
     }
   }
 
-  const exitCell = document.getElementById("cell-" + entryId);
-  if (exitCell) {
-    exitCell.classList.toggle("missing", entry.missing_exit_time);
+  if (elements.exitCell) {
+    elements.exitCell.classList.toggle("missing", entry.missing_exit_time);
   }
 
-  const startDisplay = document.getElementById("start-display-" + entryId);
-  if (startDisplay) {
-    startDisplay.innerHTML = entry.start_time_display
+  if (elements.startDisplay) {
+    elements.startDisplay.innerHTML = entry.start_time_display
       ? escapeHtml(entry.start_time_display)
       : '<span class="text-muted">-</span>';
   }
 
-  const overtimeDisplay = document.getElementById("overtime-" + entryId);
-  if (overtimeDisplay) {
-    overtimeDisplay.textContent = entry.overtime_display;
+  if (elements.overtimeDisplay) {
+    elements.overtimeDisplay.textContent = entry.overtime_display;
   }
 
-  const row = document.getElementById("entry-row-" + entryId);
-  if (row) {
-    row.classList.toggle("entry-missing-data", entry.missing_exit_time);
+  if (elements.row) {
+    elements.row.classList.toggle(
+      "entry-missing-data",
+      entry.missing_exit_time,
+    );
   }
 
-  const exitInput = document.getElementById("input-" + entryId);
-  if (exitInput) {
-    exitInput.value = entry.exit_time || "";
+  if (elements.exitInput) {
+    elements.exitInput.value = entry.exit_time || "";
   }
 
-  const startInput = document.getElementById("start-input-" + entryId);
-  if (startInput) {
-    startInput.value = entry.start_time || "";
+  if (elements.startInput) {
+    elements.startInput.value = entry.start_time || "";
   }
 
   originalValues[entryId] = {
@@ -293,7 +415,7 @@ function applyEntryUpdate(entryId, entry) {
  */
 function updateTotalOvertime() {
   let total = 0;
-  const rows = document.querySelectorAll("tr[data-entry-id]");
+  const rows = getEntryRows();
 
   rows.forEach((row) => {
     const overtimeText =
@@ -336,36 +458,21 @@ async function parseJsonResponse(response) {
  * @returns {Promise<boolean>} Whether the save succeeded
  */
 async function saveEntry(entryId, options = {}) {
-  const form = document.getElementById("form-" + entryId);
+  const controls = getEntryEditControls(entryId);
+  const { form } = controls;
   if (!form) {
     return false;
   }
 
-  const saveButton = document.querySelector(
-    `#edit-controls-${entryId} .save-btn`,
-  );
-  const cancelButton = document.querySelector(
-    `#edit-controls-${entryId} .cancel-btn`,
-  );
-  const inputs = form.querySelectorAll("input");
-  const startInput = document.getElementById("start-input-" + entryId);
-  const originalSaveHtml = saveButton?.innerHTML;
+  const originalSaveHtml = controls.saveButton?.innerHTML;
   const formData = new FormData(form);
+  const csrfToken = getCsrfTokenFromInputs(controls.formInputs);
 
-  if (saveButton) {
-    saveButton.disabled = true;
-    saveButton.innerHTML =
+  if (controls.saveButton) {
+    controls.saveButton.innerHTML =
       '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
   }
-  if (cancelButton) {
-    cancelButton.disabled = true;
-  }
-  inputs.forEach((input) => {
-    input.disabled = true;
-  });
-  if (startInput) {
-    startInput.disabled = true;
-  }
+  setEntryControlsDisabled(controls, true);
 
   try {
     const response = await fetch(form.action, {
@@ -374,6 +481,7 @@ async function saveEntry(entryId, options = {}) {
       credentials: "same-origin",
       headers: {
         "Accept": "application/json",
+        "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
         "X-Requested-With": "XMLHttpRequest",
       },
@@ -399,18 +507,9 @@ async function saveEntry(entryId, options = {}) {
     console.error("Save entry error:", error);
     return false;
   } finally {
-    if (saveButton) {
-      saveButton.disabled = false;
-      saveButton.innerHTML = originalSaveHtml;
-    }
-    if (cancelButton) {
-      cancelButton.disabled = false;
-    }
-    inputs.forEach((input) => {
-      input.disabled = false;
-    });
-    if (startInput) {
-      startInput.disabled = false;
+    setEntryControlsDisabled(controls, false);
+    if (controls.saveButton) {
+      controls.saveButton.innerHTML = originalSaveHtml;
     }
   }
 }
@@ -420,41 +519,17 @@ async function saveEntry(entryId, options = {}) {
  * @param {number} entryId - The entry ID to cancel
  */
 function cancelEdit(entryId) {
-  // Restore original values
+  const elements = getEntryElements(entryId);
   if (originalValues[entryId] !== undefined) {
-    const exitInput = document.getElementById("input-" + entryId);
-    if (typeof originalValues[entryId] === "object") {
-      exitInput.value = originalValues[entryId].exit || "";
-      // Restore start time if it exists
-      const startInput = document.getElementById("start-input-" + entryId);
-      if (startInput && originalValues[entryId].start !== undefined) {
-        startInput.value = originalValues[entryId].start;
-      }
-    } else {
-      // Legacy: single value for exit time only
-      exitInput.value = originalValues[entryId];
+    if (elements.exitInput) {
+      elements.exitInput.value = originalValues[entryId].exit || "";
+    }
+    if (elements.startInput && originalValues[entryId].start !== undefined) {
+      elements.startInput.value = originalValues[entryId].start;
     }
   }
 
-  // Hide start time input if it exists
-  const startInput = document.getElementById("start-input-" + entryId);
-  const startDisplay = document.getElementById("start-display-" + entryId);
-  if (startInput) {
-    startInput.style.display = "none";
-  }
-  if (startDisplay) {
-    startDisplay.style.display = "inline";
-  }
-
-  // Toggle visibility
-  document.getElementById("display-" + entryId).style.display = "inline";
-  document.getElementById("form-" + entryId).style.display = "none";
-
-  // Toggle buttons
-  const editBtnGroup = document.getElementById("edit-controls-" + entryId);
-  const actionsGroup = document.getElementById("action-buttons-" + entryId);
-  actionsGroup.style.display = "inline-flex";
-  editBtnGroup.style.display = "none";
+  setEntryEditingState(entryId, false);
 }
 
 /**
@@ -462,39 +537,16 @@ function cancelEdit(entryId) {
  */
 function toggleEditAll() {
   editAllMode = !editAllMode;
-  const buttonContainer = document.getElementById("edit-all-controls");
-  const editAllBtn = document.getElementById("edit-all-btn");
-  const saveAllBtn = document.getElementById("save-all-btn");
+  setEditAllControls(editAllMode);
 
-  if (editAllMode) {
-    // Enable edit mode for all entries
-    buttonContainer.classList.add("btn-group");
-    editAllBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel All';
-    editAllBtn.classList.remove("btn-outline-secondary");
-    editAllBtn.classList.add("btn-warning");
-    saveAllBtn.style.display = "inline-block";
-
-    // Get all entry rows and enable editing
-    const rows = document.querySelectorAll("tr[data-entry-id]");
-    rows.forEach((row) => {
-      const entryId = row.dataset.entryId;
+  getEntryRows().forEach((row) => {
+    const entryId = row.dataset.entryId;
+    if (editAllMode) {
       editEntry(entryId);
-    });
-  } else {
-    // Disable edit mode for all entries
-    editAllBtn.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Edit All';
-    buttonContainer.classList.remove("btn-group");
-    editAllBtn.classList.remove("btn-warning");
-    editAllBtn.classList.add("btn-outline-secondary");
-    saveAllBtn.style.display = "none";
-
-    // Cancel all edits
-    const rows = document.querySelectorAll("tr[data-entry-id]");
-    rows.forEach((row) => {
-      const entryId = row.dataset.entryId;
-      cancelEdit(entryId);
-    });
-  }
+      return;
+    }
+    cancelEdit(entryId);
+  });
 }
 
 /**
@@ -509,31 +561,22 @@ function buildBulkSaveRequest(rows) {
 
   rows.forEach((row) => {
     const entryId = row.dataset.entryId;
-    const form = document.getElementById("form-" + entryId);
+    const controlsForEntry = getEntryEditControls(entryId);
+    const { form, exitInput, startInput, formInputs } = controlsForEntry;
     if (!form) {
       return;
     }
 
-    const formInputs = Array.from(form.querySelectorAll("input"));
-    const startInput = document.getElementById("start-input-" + entryId);
-    const csrfInput = formInputs.find((input) => input.name === "csrf_token");
-    if (!csrfToken && csrfInput?.value) {
-      csrfToken = csrfInput.value;
+    if (!csrfToken) {
+      csrfToken = getCsrfTokenFromInputs(formInputs);
     }
 
     entries.push({
       id: entryId,
-      exit_time: document.getElementById("input-" + entryId)?.value || "",
+      exit_time: exitInput?.value || "",
       ...(startInput ? { start_time: startInput.value || "" } : {}),
     });
-    controls.push({
-      formInputs,
-      startInput,
-      saveButton: document.querySelector(`#edit-controls-${entryId} .save-btn`),
-      cancelButton: document.querySelector(
-        `#edit-controls-${entryId} .cancel-btn`,
-      ),
-    });
+    controls.push(controlsForEntry);
   });
 
   return { csrfToken, entries, controls };
@@ -545,19 +588,8 @@ function buildBulkSaveRequest(rows) {
  * @param {boolean} disabled - Whether controls should be disabled
  */
 function setBulkSaveDisabled(controls, disabled) {
-  controls.forEach(({ formInputs, startInput, saveButton, cancelButton }) => {
-    formInputs.forEach((input) => {
-      input.disabled = disabled;
-    });
-    if (startInput) {
-      startInput.disabled = disabled;
-    }
-    if (saveButton) {
-      saveButton.disabled = disabled;
-    }
-    if (cancelButton) {
-      cancelButton.disabled = disabled;
-    }
+  controls.forEach((controlsForEntry) => {
+    setEntryControlsDisabled(controlsForEntry, disabled);
   });
 }
 
@@ -565,7 +597,7 @@ function setBulkSaveDisabled(controls, disabled) {
  * Saves all entries asynchronously
  */
 async function saveAll() {
-  const rows = document.querySelectorAll("tr[data-entry-id]");
+  const rows = getEntryRows();
   const saveAllBtn = document.getElementById("save-all-btn");
   const editAllBtn = document.getElementById("edit-all-btn");
   const { csrfToken, entries, controls } = buildBulkSaveRequest(rows);
@@ -583,10 +615,14 @@ async function saveAll() {
   }
 
   // Disable buttons and show loading state
-  saveAllBtn.disabled = true;
-  editAllBtn.disabled = true;
-  saveAllBtn.innerHTML =
-    '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+  if (saveAllBtn) {
+    saveAllBtn.disabled = true;
+    saveAllBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+  }
+  if (editAllBtn) {
+    editAllBtn.disabled = true;
+  }
   setBulkSaveDisabled(controls, true);
 
   try {
@@ -617,20 +653,20 @@ async function saveAll() {
     updateTotalOvertime();
 
     editAllMode = false;
-    editAllBtn.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Edit All';
-    document.getElementById("edit-all-controls")?.classList.remove("btn-group");
-    editAllBtn.classList.remove("btn-warning");
-    editAllBtn.classList.add("btn-outline-secondary");
-    saveAllBtn.style.display = "none";
+    setEditAllControls(false);
     notify(payload.message || "All entries updated successfully.", "success");
   } catch (error) {
     notify(error.message || "Error saving entries. Please try again.", "error");
     console.error("Save all error:", error);
   } finally {
     setBulkSaveDisabled(controls, false);
-    saveAllBtn.disabled = false;
-    editAllBtn.disabled = false;
-    saveAllBtn.innerHTML = '<i class="bi bi-check-all me-1"></i>Save All';
+    if (saveAllBtn) {
+      saveAllBtn.disabled = false;
+      saveAllBtn.innerHTML = '<i class="bi bi-check-all me-1"></i>Save All';
+    }
+    if (editAllBtn) {
+      editAllBtn.disabled = false;
+    }
   }
 }
 
