@@ -6,7 +6,7 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 
 // Import Bootstrap JS and expose globally
 import * as bootstrap from "bootstrap/dist/js/bootstrap.bundle.min.js";
-window.bootstrap = bootstrap;
+window.bootstrap = bootstrap.default ?? bootstrap;
 
 // Import Luxon
 import * as luxon from "luxon";

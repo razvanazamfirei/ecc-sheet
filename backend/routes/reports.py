@@ -1,18 +1,19 @@
 """Report routes."""
 
 import logging
+from collections.abc import Callable
 from datetime import date
 from logging import Logger
 
 from flask import (
     Blueprint,
-    Response,
     flash,
     redirect,
     render_template,
     request,
     url_for,
 )
+from werkzeug.wrappers import Response
 
 from ..audit import log_update
 from ..auth import (
@@ -38,7 +39,7 @@ bp: Blueprint = Blueprint("reports", __name__)
 logger: Logger = logging.getLogger(__name__)
 
 
-def _reports_index_redirect():
+def _reports_index_redirect() -> Response:
     """Return the reports index redirect."""
     return redirect(url_for("reports.index"))
 
@@ -160,13 +161,13 @@ def _run_file_report_action(
     *,
     filename: str,
     mimetype: str,
-    content_builder,
+    content_builder: Callable[[date, date, int | None], bytes | str],
     log_message: str,
     error_message: str,
-):
+) -> Response:
     """Run a report action that returns a downloadable file."""
 
-    def _export(start_date: date, end_date: date, resident_id: int | None):
+    def _export(start_date: date, end_date: date, resident_id: int | None) -> Response:
         return _file_response(
             content_builder(start_date, end_date, resident_id),
             mimetype=mimetype,
@@ -180,7 +181,12 @@ def _run_file_report_action(
     )
 
 
-def _run_report_action(action, *, log_message: str, error_message: str):
+def _run_report_action(
+    action: Callable[[date, date, int | None], Response],
+    *,
+    log_message: str,
+    error_message: str,
+) -> Response:
     """Run a report action with shared validation and error handling."""
     try:
         start_date, end_date, resident_id = _parse_report_params()

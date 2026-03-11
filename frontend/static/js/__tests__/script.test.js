@@ -365,9 +365,9 @@ describe("Script Functions", () => {
 });
 
 describe("Time Input Rounding", () => {
-  test("roundToFiveMinutes rounds up to next quarter", () => {
+  test("roundToFiveMinutes rounds up to the next 5 minutes", () => {
     const result = global.window.LuxonUtils.roundToFiveMinutes("14:07");
-    expect(result).toBe("14:15");
+    expect(result).toBe("14:10");
   });
 
   test("roundToFiveMinutes does not change already rounded times", () => {
@@ -376,7 +376,7 @@ describe("Time Input Rounding", () => {
   });
 
   test("roundToFiveMinutes handles hour rollover", () => {
-    const result = global.window.LuxonUtils.roundToFiveMinutes("23:55");
+    const result = global.window.LuxonUtils.roundToFiveMinutes("23:56");
     expect(result).toBe("00:00");
   });
 
@@ -393,20 +393,23 @@ describe("Time Input Rounding", () => {
 
 describe("Notification System", () => {
   test("showNotification creates alert element", () => {
-    let createdElement = null;
     const documentCreateElement = global.document.createElement;
     global.document.createElement = (tag) => {
-      createdElement = {
+      const el = {
         tagName: tag.toUpperCase(),
         className: "",
         textContent: "",
         style: {},
         remove: () => {},
-        appendChild: () => {},
+        appendChild: function (child) {
+          if (child && child.textContent) {
+            el.textContent += child.textContent;
+          }
+        },
         setAttribute: () => {},
         addEventListener: () => {},
       };
-      return createdElement;
+      return el;
     };
 
     const mockContainer = {
@@ -432,19 +435,22 @@ describe("Notification System", () => {
   });
 
   test("showNotification handles error type", () => {
-    let createdElement = null;
     const documentCreateElement = global.document.createElement;
     global.document.createElement = () => {
-      createdElement = {
+      const el = {
         className: "",
         textContent: "",
         style: {},
         remove: () => {},
-        appendChild: () => {},
+        appendChild: function (child) {
+          if (child && child.textContent) {
+            el.textContent += child.textContent;
+          }
+        },
         setAttribute: () => {},
         addEventListener: () => {},
       };
-      return createdElement;
+      return el;
     };
 
     const mockContainer = { insertBefore: () => {} };
@@ -489,17 +495,7 @@ describe("Form Validation", () => {
       ],
     };
 
-    // The script script.js exposes `validateForm` as a global function during initialize()
-    // It is possible it's only exported explicitly if initialize happened, but we mocked earlier.
-    // So we'll access the actual globally scoped file method directly if unavailable in exportedFunctions
-    // Actually, script.js doesn't explicitly put validateForm on window in initialize(), it's just defined.
-    // Wait, let's look at script.js: `function validateForm(form) { ... }` but it is NOT exported to window!
-    // Since we're in a JS module test, the function isn't globally exposed yet.
-    // Oh wait - script.js doesn't export `validateForm` to `window`. We need to use the mock simulate, OR we should have updated script.js.
-    // In our plan we wrote: "Ensure `showNotification` and `validateForm` are added to the global `window` object or exported". Let's assume we do that next.
-    let isValid = global.window.validateForm
-      ? global.window.validateForm(form)
-      : true;
+    let isValid = global.window.validateForm(form);
 
     expect(isValid).toBe(true);
   });
@@ -514,9 +510,7 @@ describe("Form Validation", () => {
       ],
     };
 
-    let isValid = global.window.validateForm
-      ? global.window.validateForm(form)
-      : false;
+    let isValid = global.window.validateForm(form);
     expect(isValid).toBe(false);
   });
 
@@ -535,8 +529,7 @@ describe("Form Validation", () => {
       querySelectorAll: () => [field],
     };
 
-    if (global.window.validateForm) global.window.validateForm(form);
-    else removeWasCalled = true;
+    global.window.validateForm(form);
 
     expect(removeWasCalled).toBe(true);
   });
@@ -556,8 +549,7 @@ describe("Form Validation", () => {
       querySelectorAll: () => [field],
     };
 
-    if (global.window.validateForm) global.window.validateForm(form);
-    else addWasCalled = true;
+    global.window.validateForm(form);
 
     expect(addWasCalled).toBe(true);
   });
