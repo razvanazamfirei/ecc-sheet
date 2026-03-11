@@ -10,6 +10,7 @@ from flask import (
     abort,
     flash,
     jsonify,
+    make_response,
     redirect,
     request,
     url_for,
@@ -274,11 +275,11 @@ def _normalize_bulk_updates_payload(
 
     normalized_updates = []
     seen_entry_ids: set[int] = set()
-    for update in updates_raw:
-        if not isinstance(update, dict):
+    for individual_update in updates_raw:
+        if not isinstance(individual_update, dict):
             return _json_error("Each entry update must be an object.", 400)
 
-        entry_id_raw = update.get("id")
+        entry_id_raw = individual_update.get("id")
         try:
             entry_id = int(entry_id_raw)
         except (TypeError, ValueError):
@@ -291,7 +292,7 @@ def _normalize_bulk_updates_payload(
         normalized_updates.append(
             {
                 "id": entry_id,
-                "time_updates": _present_time_updates(update),
+                "time_updates": _present_time_updates(individual_update),
             }
         )
 
@@ -302,7 +303,7 @@ def _load_validated_bulk_entries(
     normalized_updates: list[dict],
 ) -> dict[int, TimeEntry] | tuple[Response, int]:
     """Load bulk-update entries and validate access for all touched dates."""
-    entry_ids = {update["id"] for update in normalized_updates}
+    entry_ids = {individual_update["id"] for individual_update in normalized_updates}
     entries = {
         entry.id: entry
         for entry in TimeEntry.query.filter(TimeEntry.id.in_(entry_ids))
@@ -310,9 +311,9 @@ def _load_validated_bulk_entries(
         .all()
     }
     missing_entry_ids = [
-        str(update["id"])
-        for update in normalized_updates
-        if update["id"] not in entries
+        str(individual_update["id"])
+        for individual_update in normalized_updates
+        if individual_update["id"] not in entries
     ]
     if missing_entry_ids:
         return _json_error(
@@ -354,7 +355,8 @@ def _validated_add_entry_request():
         permission_message="Only the first call resident or an admin can add entries.",
         lock_message="Cannot add entry - sheet is locked",
     ):
-        return resp
+        # _entry_action_guard may return a (Response, int) tuple for JSON callers
+        return make_response(*resp) if isinstance(resp, tuple) else resp
 
     parsed_ids = _parse_add_entry_ids(
         request.form.get("resident_id"),
@@ -365,13 +367,21 @@ def _validated_add_entry_request():
         return _sheet_view_redirect(sheet_date_str)
 
     resident_id, role_id = parsed_ids
+
+    try:
+        exit_time = _parse_time_value(request.form.get("exit_time"), "Exit time")
+        start_time = _parse_time_value(request.form.get("start_time"), "Start time")
+    except ValidationError as exc:
+        flash(str(exc), "error")
+        return _sheet_view_redirect(sheet_date_str)
+
     return (
         sheet_date,
         sheet_date_str,
         resident_id,
         role_id,
-        request.form.get("exit_time"),
-        request.form.get("start_time"),
+        exit_time,
+        start_time,
     )
 
 
@@ -387,14 +397,11 @@ def add():
         sheet_date_str,
         resident_id,
         role_id,
-        exit_time_str,
-        start_time_str,
+        exit_time,
+        start_time,
     ) = validated_request
 
     try:
-        exit_time = _parse_time_value(exit_time_str, "Exit time")
-        start_time = _parse_time_value(start_time_str, "Start time")
-
         entry = TimeEntry(
             date=sheet_date,
             resident_id=resident_id,
@@ -420,8 +427,8 @@ def add():
                 "resident_id": resident_id,
                 "resident": resident_name,
                 "role": role_name,
-                "exit_time": exit_time_str or None,
-                "start_time": start_time_str or None,
+                "exit_time": exit_time.isoformat() if exit_time else None,
+                "start_time": start_time.isoformat() if start_time else None,
             },
         )
         db.session.commit()
@@ -506,10 +513,10 @@ def update_all():
 
     entry_updates: list[tuple[TimeEntry, dict]] = []
     try:
-        for update in normalized_updates:
-            entry = entries[update["id"]]
+        for individual_update in normalized_updates:
+            entry = entries[individual_update["id"]]
             entry_updates.append(
-                (entry, _apply_time_updates(entry, update["time_updates"]))
+                (entry, _apply_time_updates(entry, individual_update["time_updates"]))
             )
 
         db.session.flush()
@@ -530,8 +537,8 @@ def update_all():
             "success": True,
             "message": "All entries updated successfully.",
             "entries": [
-                _entry_json_payload(entries[update["id"]])
-                for update in normalized_updates
+                _entry_json_payload(entries[individual_update["id"]])
+                for individual_update in normalized_updates
             ],
         }
     )

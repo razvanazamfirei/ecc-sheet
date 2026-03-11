@@ -483,6 +483,7 @@ class TestReportRestriction:
             )
             assert response.status_code == 200
             assert sample_resident.name.encode() in response.data
+            assert b'name="resident_id"' in response.data
             assert f'value="{sample_resident.id}"'.encode() in response.data
         finally:
             with app.app_context():

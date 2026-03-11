@@ -10,6 +10,7 @@ from backend.models import AuditLog, Holiday, db
 from backend.utils import get_effective_date
 
 
+@pytest.mark.integration
 class TestHolidaysIndex:
     """Tests for holidays index page."""
 

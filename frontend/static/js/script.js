@@ -54,20 +54,20 @@ function showNotification(message, type = "success") {
     return null;
   }
 
-  const alertType =
-    type === "error"
-      ? "danger"
-      : ["success", "warning", "info", "danger"].includes(type)
-        ? type
-        : "success";
-  const icon =
-    alertType === "success"
-      ? "check-circle"
-      : alertType === "warning"
-        ? "exclamation-circle"
-        : alertType === "info"
-          ? "info-circle"
-          : "exclamation-triangle";
+  let alertType;
+  let icon;
+  if (["success", "warning", "info", "danger"].includes(type)) {
+    alertType = type === "error" ? "danger" : type;
+  } else {
+    alertType = type === "error" ? "danger" : "success";
+  }
+  if (alertType === "warning") {
+    icon = alertType === "success" ? "check-circle" : "exclamation-circle";
+  } else if (alertType === "info") {
+    icon = alertType === "success" ? "check-circle" : "info-circle";
+  } else {
+    icon = alertType === "success" ? "check-circle" : "exclamation-triangle";
+  }
 
   const notification = document.createElement("div");
   notification.className = `alert alert-${alertType} alert-dismissible fade show`;
@@ -107,90 +107,78 @@ function initializeAlerts() {
 }
 
 /**
- * Returns the shared confirmation dialog elements
+ * Returns the shared confirmation modal elements
  * @returns {object|null}
  */
 function getDialogElements() {
-  const root = document.getElementById("page-dialog-root");
-  const backdrop = document.getElementById("page-dialog-backdrop");
-  const title = document.getElementById("page-dialog-title");
-  const message = document.getElementById("page-dialog-message");
-  const confirmButton = document.getElementById("page-dialog-confirm");
-  const cancelButton = document.getElementById("page-dialog-cancel");
+  const modalEl = document.getElementById("confirm-modal");
+  const title = document.getElementById("confirm-modal-title");
+  const message = document.getElementById("confirm-modal-message");
+  const confirmButton = document.getElementById("confirm-modal-confirm");
+  const cancelButton = document.getElementById("confirm-modal-cancel");
 
-  if (
-    !root ||
-    !backdrop ||
-    !title ||
-    !message ||
-    !confirmButton ||
-    !cancelButton
-  ) {
+  if (!modalEl || !title || !message || !confirmButton || !cancelButton) {
     return null;
   }
 
-  return {
-    root,
-    backdrop,
-    title,
-    message,
-    confirmButton,
-    cancelButton,
-  };
+  return { modalEl, title, message, confirmButton, cancelButton };
 }
 
 let activeDialogResolver = null;
 
 /**
- * Closes the shared confirmation dialog
+ * Closes the shared confirmation modal
  * @param {boolean} result - The confirmation result to resolve with
  */
 function closeDialog(result) {
   const elements = getDialogElements();
-  if (!elements || elements.root.hidden) {
+  if (!elements) {
     return;
   }
 
-  elements.root.hidden = true;
-  if (document.body?.classList) {
-    document.body.classList.remove("page-dialog-open");
-  }
-
+  // Null resolver before hiding so the hide event handler doesn't double-fire
   const resolver = activeDialogResolver;
   activeDialogResolver = null;
+  window.bootstrap?.Modal.getInstance(elements.modalEl)?.hide();
   if (resolver) {
     resolver(result);
   }
 }
 
 /**
- * Initializes the shared confirmation dialog
+ * Initializes the shared confirmation modal
  */
 function initializeDialog() {
   const elements = getDialogElements();
-  if (!elements || elements.root.dataset.initialized === "true") {
+  if (!elements || elements.modalEl.dataset.initialized === "true") {
     return;
   }
 
-  elements.root.dataset.initialized = "true";
-  elements.confirmButton.addEventListener("click", () => closeDialog(true));
-  elements.cancelButton.addEventListener("click", () => closeDialog(false));
-  elements.backdrop.addEventListener("click", () => closeDialog(false));
-  document.addEventListener("keydown", (event) => {
-    if (elements.root.hidden) {
-      return;
-    }
+  elements.modalEl.dataset.initialized = "true";
 
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeDialog(false);
+  // Confirm button: resolve true, then let Bootstrap hide the modal
+  elements.confirmButton.addEventListener("click", () => {
+    const resolver = activeDialogResolver;
+    activeDialogResolver = null;
+    window.bootstrap?.Modal.getInstance(elements.modalEl)?.hide();
+    if (resolver) {
+      resolver(true);
+    }
+  });
+
+  // All other dismiss paths (cancel, header X, Escape, backdrop) fire hide.bs.modal
+  elements.modalEl.addEventListener("hide.bs.modal", () => {
+    const resolver = activeDialogResolver;
+    if (resolver) {
+      activeDialogResolver = null;
+      resolver(false);
     }
   });
 }
 
 /**
- * Shows the shared confirmation dialog
- * @param {object} options - Dialog options
+ * Shows the shared confirmation modal
+ * @param {object} options - Modal options
  * @returns {Promise<boolean>}
  */
 function showConfirmationDialog(options = {}) {
@@ -215,13 +203,7 @@ function showConfirmationDialog(options = {}) {
     elements.confirmButton.className = `btn btn-${options.confirmVariant || "primary"}`;
     elements.cancelButton.className =
       options.showCancel === false ? "btn d-none" : "btn btn-outline-secondary";
-    elements.root.hidden = false;
-    if (document.body?.classList) {
-      document.body.classList.add("page-dialog-open");
-    }
-    if (typeof elements.confirmButton.focus === "function") {
-      elements.confirmButton.focus();
-    }
+    window.bootstrap.Modal.getOrCreateInstance(elements.modalEl).show();
   });
 }
 
@@ -354,6 +336,7 @@ function updateDisplayedDate(dateString) {
  * @param {string} placeholder - Placeholder option label
  */
 function populateResidentSelect(select, residents, placeholder) {
+  const previousValue = select.value;
   select.innerHTML = `<option value="">${placeholder}</option>`;
   residents.forEach((resident) => {
     const option = document.createElement("option");
@@ -361,6 +344,9 @@ function populateResidentSelect(select, residents, placeholder) {
     option.textContent = resident.name;
     select.appendChild(option);
   });
+  if (previousValue) {
+    select.value = previousValue;
+  }
 }
 
 /**

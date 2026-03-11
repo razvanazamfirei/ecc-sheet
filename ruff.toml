@@ -5,56 +5,58 @@ target-version = "py313"
 [lint]
 fixable = ["ALL"]
 ignore = [
-  "PLR2004", # Magic value comparisons
-  "S104",    # Binding to all interfaces (acceptable in dev)
-  "S201",    # Flask debug mode (acceptable in dev)
+    "PLR2004", # Magic value comparisons
+    "S104", # Binding to all interfaces (acceptable in dev)
+    "S201", # Flask debug mode (acceptable in dev)
 ]
 preview = true
 select = [
-  "B",
-  "C4",
-  "DTZ",
-  "E",
-  "F",
-  "FLY",
-  "FURB",
-  "G",
-  "I",
-  "LOG",
-  "N",
-  "NPY",
-  "PD",
-  "PERF",
-  "PL",
-  "PT",
-  "PTH",
-  "RET",
-  "RUF",
-  "S",
-  "SIM",
-  "UP",
-  "W",
+    "B",
+    "C4",
+    "DTZ",
+    "E",
+    "F",
+    "FLY",
+    "FURB",
+    "G",
+    "I",
+    "LOG",
+    "N",
+    "NPY",
+    "PD",
+    "PERF",
+    "PL",
+    "PT",
+    "PTH",
+    "RET",
+    "RUF",
+    "S",
+    "SIM",
+    "UP",
+    "W",
 ]
 
 [lint.per-file-ignores]
 "tests/**/*.py" = [
-  "S101",    # Use of assert in tests is expected
-  "PLR6301", # Test methods don't need to be static
-  "PLC0415", # Imports in test functions is acceptable
-  "DTZ001",  # Naive datetime in tests is acceptable (using pytz.localize)
+    "S101", # Use of assert in tests is expected
+    "PLR6301", # Test methods don't need to be static
+    "PLC0415", # Imports in test functions is acceptable
+    "DTZ001", # Naive datetime in tests is acceptable (using pytz.localize)
+    "PLR0914", # Too many arguments in test functions is acceptable
+    "PLR0915", # Too many local variables in test functions is acceptable
 ]
 "tests/conftest.py" = [
-  "E402", # Imports after env-var setup (intentional: env vars must precede Flask import)
+    "E402", # Imports after env-var setup (intentional: env vars must precede Flask import)
 ]
 "scripts/*.py" = [
-  "S104", # Binding to all interfaces acceptable in scripts
-  "S201", # Debug mode acceptable in scripts
+    "S104", # Binding to all interfaces acceptable in scripts
+    "S201", # Debug mode acceptable in scripts
 ]
 "backend/holidays.py" = [
-  "PLC0415", # Deferred import to break models ↔ holidays circular import
+    "PLC0415", # Deferred import to break models ↔ holidays circular import
 ]
 ".claude/hooks/*.py" = [
-  "PLR0913",
+    "PLR0913",
 ]
 [format]
 indent-style = "space"

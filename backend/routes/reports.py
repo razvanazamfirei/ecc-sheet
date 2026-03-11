@@ -57,10 +57,12 @@ def _report_form_text(key: str) -> str:
 def _report_form_int(key: str) -> int | None:
     """Return an optional integer from the report form."""
     value = _report_form_text(key)
-    try:
-        return int(value) if value else None
-    except ValueError:
+    if not value:
         return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValidationError(f"'{key}' must be an integer.") from exc
 
 
 def _apply_payroll_settings_form(settings: PayrollSettings) -> None:
@@ -319,12 +321,12 @@ def payroll_settings_save():
     _apply_payroll_settings_form(settings)
 
     try:
-        db.session.commit()
         log_update(
             "PayrollSettings",
             settings.id,
             details=_payroll_settings_details(settings),
         )
+        db.session.commit()
         flash("Payroll settings saved successfully.", "success")
     except Exception:
         db.session.rollback()

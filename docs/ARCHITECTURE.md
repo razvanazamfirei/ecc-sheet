@@ -1,4 +1,4 @@
-# ECC Sheet - Architecture Reference
+# ECC Sheet — Architecture Reference
 
 ## System Overview
 
@@ -93,14 +93,14 @@ ecc-sheet/
 │       │   ├── reports.js     # Report page logic
 │       │   ├── luxon-utils.js # Timezone utilities
 │       │   ├── vendor.js      # Vite entry point
-│       │   └── __tests__/     # Jest test suites
+│       │   └── __tests__/     # Vitest test suites
 │       ├── css/style.css      # Custom styles
 │       └── dist/              # Vite build output (vendor bundles)
 │
 ├── scripts/
 │   └── logs/                   # Script execution logs
 │
-├── tests/                      # Pytest test suite (25 modules)
+├── tests/                      # Pytest test suite
 │   ├── conftest.py
 │   ├── test_models.py
 │   ├── test_models_extended.py
@@ -390,7 +390,7 @@ def log_import(date, entries_count):
 
 **Federal Holidays:**
 
-- New Year's Day, MLK Day, Presidents Day, Memorial Day
+- New Year's Day, MLK Day, Presidents' Day, Memorial Day
 - Independence Day, Labor Day, Columbus Day
 - Veterans Day, Thanksgiving, Christmas Day
 
@@ -522,37 +522,31 @@ Configured in database, editable via UI:
 ### Implemented ✅
 
 1. **CSRF Protection**
-
    - Flask-WTF CSRFProtect enabled
    - All POST requests require token
    - Tokens in all templates
 
 2. **Input Validation**
-
    - Route-level parsing and model validation
    - Type coercion (strings → dates/times)
    - Length limits enforced
 
 3. **SQL Injection Prevention**
-
    - SQLAlchemy ORM (parameterized queries)
    - No raw SQL execution
    - Use of `db.session.get()` for safe queries
 
 4. **XSS Prevention**
-
    - Jinja2 auto-escaping enabled
    - All user input escaped
 
 5. **Error Handling**
-
    - Custom exception classes
    - Try-catch blocks on all DB operations
    - Graceful degradation
    - Error logging
 
 6. **Logging**
-
    - Application logging configured
    - All errors logged
    - Audit trail for all actions
@@ -565,18 +559,15 @@ Configured in database, editable via UI:
 ### Not Implemented ❌
 
 1. **Authentication**
-
    - No user login system
    - No password management
    - Must use external auth (SSO, reverse proxy)
 
 2. **Rate Limiting**
-
    - No request throttling
    - Vulnerable to abuse without external protection
 
 3. **HTTPS**
-
    - HTTP only (local dev)
    - Must configure SSL/TLS in production
 
@@ -610,7 +601,7 @@ Configured in database, editable via UI:
 
 **Coverage: 99%**
 
-- 26 test modules
+- 22 test modules
 - ~7,500 lines of test code
 - Fixtures in `conftest.py`
 - Markers: unit, integration, slow, timezone, overtime
@@ -622,7 +613,7 @@ Configured in database, editable via UI:
 - Utility tests (helpers and functions)
 - Integration tests (end-to-end flows)
 
-### Frontend Testing (Jest)
+### Frontend Testing (Vitest)
 
 **Coverage: 78%**
 
@@ -642,11 +633,11 @@ Configured in database, editable via UI:
 
 GitHub Actions workflow:
 
-1. **Backend Tests** - Python 3.13, pytest with coverage
-2. **Frontend Tests** - Bun, Jest with coverage
-3. **Build & Lint** - Prettier, Stylelint, Vite
-4. **Security Scan** - Bandit
-5. **Coverage Upload** - Codecov
+1. **Backend Tests** — Python 3.13, pytest with coverage
+2. **Frontend Tests** — Bun, Vitest with coverage
+3. **Build & Lint** — Prettier, Stylelint, Vite
+4. **Security Scan** — Bandit
+5. **Coverage Upload** — Codecov
 
 ## Monitoring & Operations
 
@@ -711,10 +702,3 @@ uv run flask --app backend.app shell
 - Easier to maintain and test
 - Clear separation of concerns
 - Modular architecture
-
-### Why Jest for Frontend?
-
-- Industry standard
-- Good ES6 module support
-- Built-in mocking
-- Coverage reporting

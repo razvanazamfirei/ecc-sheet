@@ -604,10 +604,14 @@ async function saveAll() {
   }
 
   // Disable buttons and show loading state
-  saveAllBtn.disabled = true;
-  editAllBtn.disabled = true;
-  saveAllBtn.innerHTML =
-    '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+  if (saveAllBtn) {
+    saveAllBtn.disabled = true;
+    saveAllBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+  }
+  if (editAllBtn) {
+    editAllBtn.disabled = true;
+  }
   setBulkSaveDisabled(controls, true);
 
   try {
@@ -645,9 +649,13 @@ async function saveAll() {
     console.error("Save all error:", error);
   } finally {
     setBulkSaveDisabled(controls, false);
-    saveAllBtn.disabled = false;
-    editAllBtn.disabled = false;
-    saveAllBtn.innerHTML = '<i class="bi bi-check-all me-1"></i>Save All';
+    if (saveAllBtn) {
+      saveAllBtn.disabled = false;
+      saveAllBtn.innerHTML = '<i class="bi bi-check-all me-1"></i>Save All';
+    }
+    if (editAllBtn) {
+      editAllBtn.disabled = false;
+    }
   }
 }
 

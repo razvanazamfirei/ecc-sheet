@@ -5,31 +5,6 @@
 **Last Updated:** 2026-01-31 | **Status:** Production-ready with 99% test
 coverage
 
-## Recent Major Updates (2026–01)
-
-### Enhanced Features
-
-- Holiday management system with US federal holidays and custom holiday support
-- Staff import from Amion API (Report 706) with class year, email, phone
-- Billing CSV and payroll XLSX exports
-- Backup role support with start/exit times
-- Route blueprint architecture for modular code organization
-- Extended test coverage: 99% backend, 78% frontend
-
-### Test Infrastructure
-
-- Comprehensive pytest suite with 22 test modules
-- Jest frontend testing with 4 test suites
-- GitHub Actions CI/CD with automated testing
-- Codecov integration for coverage tracking
-
-### Code Quality
-
-- Route blueprints for better organization
-- Database query optimization using `db.session.get()`
-- Improved error handling with custom exception classes
-- Code formatting with Prettier and Stylelint
-
 ## Quick Start
 
 ```bash
@@ -81,8 +56,7 @@ environment)
 
 - **pytest 9.0.2** - Python testing framework
 - **pytest-cov 7.0.0** - Coverage plugin
-- **Jest 30.2.0** - JavaScript testing framework
-- **jest-junit 16.0.0** - JUnit reporter for CI/CD
+- **Vitest 30.2.0** - JavaScript testing framework
 
 ### Build Tools
 
@@ -97,7 +71,7 @@ environment)
 
 ```
 ecc-sheet/
-├── backend/                 # Backend Python code
+├── backend/                # Backend Python code
 │   ├── app.py              # Main Flask application initialization
 │   ├── models.py           # SQLAlchemy database models
 │   ├── audit.py            # Audit logging utilities
@@ -141,7 +115,7 @@ ecc-sheet/
 │       │   ├── daily-sheet.js   # Daily sheet UI interactions
 │       │   ├── reports.js  # Report page logic
 │       │   ├── luxon-utils.js   # Luxon timezone utilities
-│       │   └── __tests__/  # Jest test suites
+│       │   └── __tests__/  # Vitest test suites
 │       │       ├── script.test.js
 │       │       ├── daily-sheet.test.js
 │       │       ├── luxon-utils.test.js
@@ -157,7 +131,7 @@ ecc-sheet/
 ├── instance/                # Instance-specific files
 │   └── ecc_sheet.db        # SQLite database (git-ignored)
 │
-├── tests/                   # Python test suite (25 modules, 99% coverage)
+├── tests/                   # Python test suite
 │   ├── conftest.py         # Pytest fixtures
 │   ├── test_models.py
 │   ├── test_models_extended.py
@@ -173,14 +147,8 @@ ecc-sheet/
 │   └── ... (additional test modules)
 │
 ├── docs/                    # Documentation
-│   ├── DATABASE_MIGRATIONS.md  # Migration workflow guide
 │   ├── ARCHITECTURE.md     # System architecture reference
-│   ├── PRODUCTION.md       # Production deployment guide
-│   ├── README.md           # Documentation overview
-│   ├── RESIDENT_MODEL_GUIDE.md
-│   ├── RESIDENT_EXTENSION_EXAMPLE.py
-│   ├── TODO.md             # Development roadmap
-│   └── archive/            # Archived documentation
+│   └── README.md           # Documentation overview
 │
 ├── scripts/                 # Utility scripts
 │   └── logs/
@@ -197,7 +165,7 @@ ecc-sheet/
 ├── package.json            # Node.js dependencies and scripts
 ├── bun.lock                # Bun lock file
 ├── vite.config.js          # Vite bundler configuration
-├── jest.config.js          # Jest testing configuration
+├── vitest.config.js        # Vitest configuration
 ├── pyproject.toml          # Python dependencies and configuration
 ├── uv.lock                 # Python dependency lock file
 ├── pytest.ini              # Pytest configuration
@@ -281,26 +249,6 @@ ecc-sheet/
 - `name` - Holiday name
 - `is_recurring` - Boolean for yearly recurrence
 - Includes US federal holidays by default
-
-### Database Migrations
-
-See `docs/DATABASE_MIGRATIONS.md` for complete migration workflow.
-
-**Key Commands:**
-
-```bash
-# Create new migration after model changes
-uv run flask --app backend.app db migrate -m "description"
-
-# Apply migrations
-uv run flask --app backend.app db upgrade
-
-# Check current revision
-uv run flask --app backend.app db current
-
-# View migration history
-uv run flask --app backend.app db history
-```
 
 ## Key Features
 
@@ -726,72 +674,9 @@ log_import("2025-11-25", entries_count=15)
 
 **Test Coverage: 99%**
 
-```bash
+````bash
 # Run all tests
 uv run pytest tests/ -v
-
-# Run with coverage
-uv run pytest tests/ --cov=backend --cov-report=html
-
-# Run specific test file
-uv run pytest tests/test_models.py -v
-
-# Run specific test
-uv run pytest tests/test_models.py::test_overtime_calculation -v
-```
-
-**Test Modules (25 total):**
-
-- `conftest.py` - Shared fixtures
-- `test_models.py` - Database models
-- `test_models_extended.py` - Extended model tests
-- `test_audit.py` - Audit logging
-- `test_auth.py` - Authorization
-- `test_entries.py` - Time entry routes
-- `test_schedule.py` - Schedule import
-- `test_residents_routes.py` - Resident management
-- `test_roles_routes.py` - Role management
-- `test_reports_routes.py` - Report generation
-- `test_holidays_routes.py` - Holiday management
-- `test_api_routes.py` - API endpoints
-- And more...
-
-### Frontend Testing (Jest)
-
-**Test Coverage: 78%**
-
-```bash
-# Run all tests
-bun run test
-
-# Run with coverage
-bun run test:coverage
-
-# Run specific test
-bun test frontend/static/js/__tests__/luxon-utils.test.js
-```
-
-**Test Suites (4 total):**
-
-- `luxon-utils.test.js` - DateTime utilities
-- `daily-sheet.test.js` - Daily sheet UI
-- `script.test.js` - Main application logic
-- `reports.test.js` - Report functionality
-
-### CI/CD Pipeline
-
-**GitHub Actions** (`.github/workflows/ci.yml`):
-
-1. Backend Tests - Python 3.13, pytest with coverage
-2. Frontend Tests - Bun, Jest with coverage
-3. Frontend Build & Lint - Prettier, Stylelint, Vite build
-4. Security Scan - Bandit for Python security issues
-
-**Coverage Reporting:**
-
-- Codecov integration
-- Coverage badges in README
-- HTML coverage reports
 
 ## Security
 
@@ -844,7 +729,7 @@ uv run flask --app backend.app db upgrade
 
 # Run application
 uv run python -m backend.app
-```
+````
 
 ### Making Schema Changes
 
@@ -908,51 +793,6 @@ bun run test:coverage
 
 ## Troubleshooting
 
-### Migration Issues
-
-**Problem:** "Target database is not up to date"
-
-```bash
-# Check current revision
-uv run flask --app backend.app db current
-
-# View pending migrations
-uv run flask --app backend.app db heads
-
-# Apply pending migrations
-uv run flask --app backend.app db upgrade
-```
-
-**Problem:** Migration conflicts
-
-```bash
-# View migration history
-uv run flask --app backend.app db history
-
-# Downgrade if needed
-uv run flask --app backend.app db downgrade <revision>
-```
-
-### Frontend Build Issues
-
-**Problem:** Vite build fails
-
-```bash
-# Clear node_modules and reinstall
-rm -rf node_modules
-bun install
-bun run build
-```
-
-**Problem:** Icons not displaying
-
-```bash
-# Rebuild assets to regenerate font paths
-bun run build
-# Verify vendor.css contains relative paths: ./bootstrap-icons.woff2
-grep "bootstrap-icons" frontend/static/dist/vendor.css
-```
-
 ### Database Issues
 
 **Problem:** Database locked
@@ -982,131 +822,3 @@ grep "bootstrap-icons" frontend/static/dist/vendor.css
 - Check Report 706 format
 - Review error logs
 - Ensure network connectivity
-
-## File References
-
-### Core Application Files
-
-**`backend/app.py`** - Main application
-
-- Flask app initialization
-- Database setup with SQLAlchemy
-- Blueprint registration
-- Error handler registration
-
-**`backend/routes/`** - Route blueprints (9 modules)
-
-- `api.py` - API endpoints
-- `entries.py` - Time entry CRUD
-- `sheets.py` - Daily sheet operations
-- `schedule.py` - Amion schedule import
-- `residents.py` - Resident management
-- `roles.py` - Role configuration
-- `reports.py` - Report generation
-- `holidays.py` - Holiday management
-- `audit.py` - Audit log viewer
-
-**`backend/auth.py`** - Authorization utilities
-
-- `get_current_user()` - Returns USER_NAME from env
-- `is_admin()` - Checks ADMIN_USERS list
-- `@admin_required` - Route decorator for admin features
-
-**`backend/models.py`** - Database models
-
-- Resident model with EPIC ID, class year, email, phone
-- Role model with cutoff_hour, cutoff_minute, is_backup
-- TimeEntry model with overtime calculation
-- DailySheet model with lock tracking
-- AuditLog model
-- Holiday model for custom holidays
-
-**`backend/audit.py`** - Audit utilities
-
-- Main log_action function
-- Helper functions for each action type
-- Automatic IP address and user capture
-
-**`backend/holidays.py`** - Holiday utilities
-
-- US federal holiday detection
-- Custom holiday management
-- Weekend detection
-- Holiday-aware overtime calculations
-
-**`backend/staff_import.py`** - Staff import
-
-- Amion Report 706 parsing
-- Resident data extraction
-- EPIC ID matching
-
-**`frontend/templates/base.html`** - Base template
-
-- lang="en-GB" for 24-hour time format
-- Admin submenu structure
-- Bundled vendor CSS/JS from Vite
-
-**`frontend/templates/index.html`** - Daily sheet UI
-
-- Inline editing with tooltips
-- Edit All / Save All with loading states
-- Required exit time field
-- Time rounding message
-- Backup role support
-
-**`frontend/templates/holidays.html`** - Holiday management
-
-- Federal holidays display
-- Custom holiday CRUD
-- Recurring holiday support
-
-**`frontend/static/js/vendor.js`** - Vite entry point
-
-- Imports Bootstrap CSS/JS
-- Imports Bootstrap Icons
-- Imports Luxon and makes it global
-
-**`frontend/static/js/luxon-utils.js`** - DateTime utilities
-
-- `roundToQuarterHour` - Always rounds UP
-- Timezone-aware date operations
-- Philadelphia timezone (America/New_York)
-
-**`frontend/static/js/daily-sheet.js`** - Daily sheet UI
-
-- Inline editing interactions
-- Edit All / Save All functionality
-- Form validation
-
-**`frontend/static/js/reports.js`** - Report page
-
-- Quick report buttons
-- Date range selection
-- CSV export handling
-
-**`vite.config.js`** - Vite configuration
-
-- Bundles to frontend/static/dist
-- Relative paths for assets (base: './')
-
-**`prettier.config.js`** - Prettier configuration
-
-- 4-space indentation
-- 120-character line width for HTML
-- HTML/CSS/JS/Jinja formatting rules
-
-**`jest.config.js`** - Jest configuration
-
-- Test environment setup
-- Coverage configuration
-- Module path mapping
-
-**`pytest.ini`** - Pytest configuration
-
-- Test discovery patterns
-- Custom markers (unit, integration, slow, timezone, overtime)
-- Coverage settings
-
-## License
-
-Apache License 2.0 - Free to use and modify

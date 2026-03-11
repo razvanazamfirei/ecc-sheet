@@ -1,6 +1,4 @@
-"""
-Utility functions for logging, validation, and error handling
-"""
+"""Utility functions for logging and validation."""
 
 import logging
 import shutil

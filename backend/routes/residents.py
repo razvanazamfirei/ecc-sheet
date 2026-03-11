@@ -50,23 +50,19 @@ def _optional_form_text(key: str) -> str | None:
 
 
 def _optional_form_int(key: str) -> int | None:
-    """Return an optional integer form value."""
-    value = _form_text(key)
-    try:
-        return int(value) if value else None
-    except ValueError:
-        return None
-
-
-def _optional_form_date(key: str) -> date | None:
-    """Return an optional ISO date form value."""
+    """Return an optional integer form value, raising ValueError if malformed."""
     value = _form_text(key)
     if not value:
         return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError:
+    return int(value)
+
+
+def _optional_form_date(key: str) -> date | None:
+    """Return an optional ISO date form value, raising ValueError if malformed."""
+    value = _form_text(key)
+    if not value:
         return None
+    return date.fromisoformat(value)
 
 
 def _resident_snapshot(resident: Resident) -> dict[str, str | int | None]:
@@ -113,13 +109,18 @@ def add():
         resident = Resident(name=name)
         db.session.add(resident)
         db.session.commit()
-        log_create("Resident", resident.id, {"name": name})
-        flash(f"Resident {name} added successfully", "success")
     except Exception:
         db.session.rollback()
         logger.exception("Error adding resident")
         flash("Error adding resident. Check logs for details.", "error")
+        return _residents_index_redirect()
 
+    try:
+        log_create("Resident", resident.id, {"name": name})
+    except Exception:
+        logger.exception("Audit log failed for resident %s", resident.id)
+
+    flash(f"Resident {name} added successfully", "success")
     return _residents_index_redirect()
 
 
@@ -131,22 +132,28 @@ def toggle(resident_id):
     if resident is None:
         abort(404)
 
+    previous_active = resident.active
+    resident.active = not resident.active
+    status = "activated" if resident.active else "deactivated"
+
     try:
-        previous_active = resident.active
-        resident.active = not resident.active
         db.session.commit()
-        status = "activated" if resident.active else "deactivated"
+    except Exception:
+        db.session.rollback()
+        logger.exception("Error toggling resident status")
+        flash("Error updating resident. Check logs for details.", "error")
+        return _residents_index_redirect()
+
+    try:
         log_update(
             "Resident",
             resident.id,
             changes={"active": {"before": previous_active, "after": resident.active}},
         )
-        flash(f"Resident {resident.name} {status}", "success")
     except Exception:
-        db.session.rollback()
-        logger.exception("Error toggling resident status")
-        flash("Error updating resident. Check logs for details.", "error")
+        logger.exception("Audit log failed for resident %s", resident.id)
 
+    flash(f"Resident {resident.name} {status}", "success")
     return _residents_index_redirect()
 
 
@@ -170,17 +177,26 @@ def edit_save(resident_id):
     if resident is None:
         abort(404)
 
+    name = _form_text("name")
+    if not name:
+        flash("Resident name is required.", "error")
+        return _residents_index_redirect()
+
     before = _resident_snapshot(resident)
 
-    resident.name = _form_text("name") or resident.name
-    resident.first_name = _optional_form_text("first_name")
-    resident.last_name = _optional_form_text("last_name")
-    resident.class_year = _optional_form_text("class_year")
-    resident.email = _optional_form_text("email")
-    resident.phone = _optional_form_text("phone")
-    resident.abbreviation = _optional_form_text("abbreviation")
-    resident.lawson_id = _optional_form_int("lawson_id")
-    resident.hire_date = _optional_form_date("hire_date")
+    try:
+        resident.name = name
+        resident.first_name = _optional_form_text("first_name")
+        resident.last_name = _optional_form_text("last_name")
+        resident.class_year = _optional_form_text("class_year")
+        resident.email = _optional_form_text("email")
+        resident.phone = _optional_form_text("phone")
+        resident.abbreviation = _optional_form_text("abbreviation")
+        resident.lawson_id = _optional_form_int("lawson_id")
+        resident.hire_date = _optional_form_date("hire_date")
+    except ValueError as exc:
+        flash(str(exc) or "Invalid input.", "error")
+        return _residents_index_redirect()
 
     after = _resident_snapshot(resident)
     changes = {
@@ -195,13 +211,18 @@ def edit_save(resident_id):
 
     try:
         db.session.commit()
-        log_update("Resident", resident.id, changes=changes)
-        flash(f"Resident {resident.name} updated successfully.", "success")
     except Exception:
         db.session.rollback()
         logger.exception("Error saving resident")
         flash("Error updating resident. Check logs for details.", "error")
+        return _residents_index_redirect()
 
+    try:
+        log_update("Resident", resident.id, changes=changes)
+    except Exception:
+        logger.exception("Audit log failed for resident %s", resident.id)
+
+    flash(f"Resident {resident.name} updated successfully.", "success")
     return _residents_index_redirect()
 
 

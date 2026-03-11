@@ -24,7 +24,7 @@ function toDateTime(date) {
     return DateTime.fromISO(date, { zone: TIMEZONE });
   }
   if (date instanceof DateTime) {
-    return date;
+    return date.setZone(TIMEZONE);
   }
   return DateTime.fromJSDate(date, { zone: TIMEZONE });
 }

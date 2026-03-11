@@ -4,8 +4,9 @@ import "bootstrap/dist/css/bootstrap.min.css";
 // Import Bootstrap Icons
 import "bootstrap-icons/font/bootstrap-icons.css";
 
-// Import Bootstrap JS
-import "bootstrap/dist/js/bootstrap.bundle.min.js";
+// Import Bootstrap JS and expose globally
+import * as bootstrap from "bootstrap/dist/js/bootstrap.bundle.min.js";
+window.bootstrap = bootstrap;
 
 // Import Luxon
 import * as luxon from "luxon";

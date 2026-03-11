@@ -142,7 +142,7 @@ def _parse_schedule_rows(csv_text: str) -> list[ScheduleRow]:
 def _load_schedule_rows(sheet_date: date) -> list[ScheduleRow]:
     """Fetch and parse schedule rows from Amion for a sheet date."""
     amion_url = _build_schedule_import_url(sheet_date)
-    logger.info("Fetching schedule from Amion: %s", amion_url)
+    logger.info("Fetching schedule from Amion for date: %s", sheet_date)
     response = requests.get(amion_url, timeout=10)
     response.raise_for_status()
     rows = _parse_schedule_rows(response.text)
@@ -487,15 +487,16 @@ def _process_entries(
         resident = resolution.resident
         if resident is None:
             continue
-        if resolution.created_resident is not None:
-            created_residents.append(resolution.created_resident)
-        if resolution.updated_changes is not None:
-            updated_residents.append((resident, resolution.updated_changes))
 
         role = roles_by_name.get(row.assignment_name)
         if not role:
             logger.warning("Role not found: %s", row.assignment_name)
             continue
+
+        if resolution.created_resident is not None:
+            created_residents.append(resolution.created_resident)
+        if resolution.updated_changes is not None:
+            updated_residents.append((resident, resolution.updated_changes))
 
         if _create_time_entry_if_missing(sheet_date, resident, role, created_entries):
             entries_created += 1

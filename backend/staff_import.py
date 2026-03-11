@@ -338,6 +338,7 @@ def import_staff_list(schedule_code: str, user: str | None = None) -> ImportResu
         )
 
     except requests.RequestException:
+        logger.exception("Failed to fetch staff list from Amion")
         return ImportResult(
             success=False,
             error="Failed to fetch staff list from Amion.",

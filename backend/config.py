@@ -69,12 +69,10 @@ class Config:
     PAYROLL_LABEL_SUFFIX: ClassVar[str | None] = env_str("PAYROLL_LABEL_SUFFIX")
 
     # Time tracking configuration
-    DEFAULT_CUTOFF_HOUR: ClassVar[int] = int(os.getenv("DEFAULT_CUTOFF_HOUR", "17"))
-    DEFAULT_CUTOFF_MINUTE: ClassVar[int] = int(os.getenv("DEFAULT_CUTOFF_MINUTE", "30"))
+    DEFAULT_CUTOFF_HOUR: ClassVar[int] = env_int("DEFAULT_CUTOFF_HOUR") or 17
+    DEFAULT_CUTOFF_MINUTE: ClassVar[int] = env_int("DEFAULT_CUTOFF_MINUTE") or 30
     TIMEZONE: ClassVar[str] = env_str("TIMEZONE") or "America/New_York"
-    DAY_RESET_HOUR: ClassVar[int] = int(
-        os.getenv("DAY_RESET_HOUR", "8")
-    )  # Day resets at 8 AM
+    DAY_RESET_HOUR: ClassVar[int] = env_int("DAY_RESET_HOUR") or 8  # Day resets at 8 AM
 
     # Role-specific cutoff times (can be customized per role)
     # Format: (hour, minute) for 17:30 cutoff

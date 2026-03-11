@@ -8,7 +8,6 @@ shifts, calculating overtime, and generating reports with full audit logging.
 ## Features
 
 - **Daily Shift Management**
-
   - Inline time editing with 24-hour format
   - Automatic time rounding to 5-minute increments (always rounds up)
   - Automatic overtime calculation based on configurable cutoff times
@@ -18,20 +17,17 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Copy to clipboard and print for signing
 
 - **Staff Management**
-
   - Import staff from Amion (Report 706)
   - Track class year, email, phone, EPIC ID
   - Active/inactive status
   - Backup resident assignments
 
 - **Holiday Management**
-
   - US federal holidays (automatic)
   - Custom holidays with recurring support
   - Holiday-aware overtime calculations
 
 - **Comprehensive Reporting**
-
   - Quick reports (Last 7/30/90 days)
   - Custom date range reports
   - Resident-specific filtering
@@ -40,7 +36,6 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Payroll XLSX export for Lawson/UPHS workflows
 
 - **Audit Trail**
-
   - Complete change tracking for all operations
   - Enhanced logging with old/new value tracking
   - User and IP address logging
@@ -135,37 +130,37 @@ see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 ### Backend
 
 - **Python 3.13** with Flask 3.1.2
-- **SQLite** - File-based database with migration support
-- **SQLAlchemy** - ORM with relationship management
-- **Flask-Migrate 4.1.0 (Alembic)** - Database version control
-- **Flask-WTF 1.2.2** - CSRF protection
-- **pytz 2025.2** - Timezone handling
-- **holidays 0.89** - US federal holiday tracking
+- **SQLite** — File-based database with migration support
+- **SQLAlchemy** — ORM with relationship management
+- **Flask-Migrate 4.1.0 (Alembic)** — Database version control
+- **Flask-WTF 1.2.2** — CSRF protection
+- **pytz 2025.2** — Timezone handling
+- **holidays 0.89** — US federal holiday tracking
 
 ### Frontend
 
-- **Jinja2** - Server-side templates with 24-hour time format
-- **Vanilla JavaScript** - ES6+ with Luxon for timezone handling
-- **Bootstrap 5.3.8** - UI framework (bundled locally)
-- **Bootstrap Icons 1.13.1** - Icon library
-- **Luxon 3.7.2** - DateTime library with timezone support
-- **Vite 7.3.1** - Build tool for asset bundling
-- **Prettier 3.8.1** - Code formatter
+- **Jinja2** — Server-side templates with 24-hour time format
+- **Vanilla JavaScript** — ES6+ with Luxon for timezone handling
+- **Bootstrap 5.3.8** — UI framework (bundled locally)
+- **Bootstrap Icons 1.13.1** — Icon library
+- **Luxon 3.7.2** — DateTime library with timezone support
+- **Vite 7.3.1** — Build tool for asset bundling
+- **Prettier 3.8.1** — Code formatter
 
 ### Testing
 
-- **pytest 9.0.2** - Python testing framework (99% coverage)
-- **Jest 30.2.0** - JavaScript testing framework (78% coverage)
-- **GitHub Actions** - Automated CI/CD pipeline
-- **Codecov** - Coverage tracking and reporting
+- **pytest** — Python testing framework
+- **Vitest** — JavaScript testing framework
+- **GitHub Actions** — Automated CI/CD pipeline
+- **Codecov** — Coverage tracking and reporting
 
 ### Build Tools
 
 - **UV** - Python package manager
-- **Bun** - JavaScript runtime and package manager
+- **Bun** — JavaScript runtime and package manager
 - **Vite** - Frontend build tool
-- **Ruff** - Python linting
-- **Stylelint** - CSS linting
+- **Ruff** — Python linting
+- **Stylelint** — CSS linting
 
 ## Development
 
@@ -216,22 +211,6 @@ bun run format:check
 bun run lint:css
 ```
 
-### Database Migrations
-
-```bash
-# Create migration after model changes
-uv run flask --app backend.app db migrate -m "description"
-
-# Apply migrations
-uv run flask --app backend.app db upgrade
-
-# Check current revision
-uv run flask --app backend.app db current
-
-# View migration history
-uv run flask --app backend.app db history
-```
-
 ## Project Structure
 
 ```
@@ -251,10 +230,10 @@ ecc-sheet/
 │   └── static/
 │       ├── dist/           # Vite build output
 │       ├── js/             # JavaScript source
-│       │   └── __tests__/  # Jest test suites
+│       │   └── __tests__/  # Vitest test suites
 │       └── css/            # Stylesheets
 ├── migrations/              # Database migrations
-├── tests/                   # Python test suite (25 modules)
+├── tests/                   # Python test suite
 ├── docs/                    # Documentation
 ├── scripts/                 # Utility scripts
 └── instance/                # Instance files (database)
@@ -323,9 +302,9 @@ All POST endpoints require CSRF token.
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)** - Comprehensive project documentation
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture reference
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture reference
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
-- **[docs/README.md](docs/README.md)** - Documentation overview
+- **[docs/README.md](docs/README.md)** — Documentation overview
 
 ## Testing
 
@@ -348,7 +327,7 @@ bun run test:coverage
 
 ### Test Coverage
 
-- **Backend:** 99% coverage (26 test modules, ~7,500 lines)
+- **Backend:** 99% coverage
 - **Frontend:** 78% coverage (4 test suites)
 - **CI/CD:** GitHub Actions with automated testing
 - **Coverage Reporting:** Codecov integration
@@ -357,17 +336,17 @@ bun run test:coverage
 
 GitHub Actions workflow includes:
 
-1. **Backend Tests** - Python 3.13, pytest with coverage
-2. **Frontend Tests** - Bun, Jest with coverage
+1. **Backend Tests** — Python 3.13, pytest with coverage
+2. **Frontend Tests** — Bun, Vitest with coverage
 3. **Frontend Build & Lint** - Prettier, Stylelint, Vite build
-4. **Security Scan** - Bandit security analysis
-5. **Coverage Upload** - Codecov reporting
+4. **Security Scan** — Bandit security analysis
+5. **Coverage Upload** — Codecov reporting
 
 ## Troubleshooting
 
 ### Database Issues
 
-- **Database locked**: SQLite write locks - usually resolves on retry
+- **Database locked**: SQLite write locks — usually resolves on retry
 - **Migration conflicts**: Run `uv run flask --app backend.app db history` to
   view
 
@@ -389,57 +368,14 @@ See `CLAUDE.md` for detailed troubleshooting.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
 
 - Code style and formatting
-- Testing requirements (99% backend, 78% frontend)
+- Testing requirements
 - Pull request process
 - Database migration workflow
 - Route blueprint organization
 
 ## License
 
-Apache License 2.0 - See [LICENSE](LICENSE) file for details.
-
-## Changelog
-
-### Version 3.1 (2026-02-11)
-
-- Changed time rounding from 15-minute to 5-minute increments
-- Added billing/payroll CSV export (resident name + total overtime)
-- Enhanced audit logging with old/new value tracking
-- Simplified email reports to payroll format (name + total only)
-- Moved Amion schedule code to environment variable (AMION_SCHEDULE_CODE)
-- Updated all documentation and setup scripts
-
-**Migration Note:** Add `AMION_SCHEDULE_CODE=your-schedule-code-here` to your
-`.env` file
-
-### Version 3.0 (2026-01-31)
-
-- Added holiday management system
-- Added staff import from Amion (Report 706)
-- Added email reporting with CSV attachments
-- Added backup role support
-- Implemented route blueprint architecture
-- Increased test coverage to 99% backend, 78% frontend
-- Added Jest frontend testing
-- Added GitHub Actions CI/CD
-- Code quality improvements and refactoring
-
-### Version 2.0 (2025-11-25)
-
-- Simplified authentication to environment-based
-- Added comprehensive audit logging
-- Migrated to Vite for frontend bundling
-- Implemented 24-hour time format
-- Added Prettier code formatting
-- Enhanced UX with loading states and confirmations
-- Full hour/minute editing for role cutoffs
-
-### Version 1.0
-
-- Initial release
-- Daily shift tracking
-- Overtime calculations
-- Report generation
+Apache License 2.0 — See [LICENSE](LICENSE) file for details.
 
 ## Support
 
