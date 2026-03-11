@@ -73,6 +73,9 @@ environment)
 ecc-sheet/
 ├── backend/                # Backend Python code
 │   ├── app.py              # Main Flask application initialization
+│   ├── init_db.py          # Database initialization
+│   ├── instance_config.py  # Loader for instance settings
+│   ├── instance_settings.json # Configurable role definitions and cutoffs
 │   ├── models.py           # SQLAlchemy database models
 │   ├── audit.py            # Audit logging utilities
 │   ├── auth.py             # Environment-based authorization

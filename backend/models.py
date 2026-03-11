@@ -30,6 +30,7 @@ from sqlalchemy.orm import (
 
 from .config import Config
 from .holidays import is_weekend_or_holiday
+from .instance_config import DEFAULT_CUTOFF_HOUR, DEFAULT_CUTOFF_MINUTE
 from .type_defs import ResidentDict, ResidentTimeEntryDict
 
 logger = logging.getLogger(__name__)
@@ -256,10 +257,10 @@ class Role(ModelBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     cutoff_hour: Mapped[int] = mapped_column(
-        Integer, default=Config.DEFAULT_CUTOFF_HOUR
+        Integer, default=DEFAULT_CUTOFF_HOUR
     )  # Default cutoff hour for overtime calculation (17:30)
     cutoff_minute: Mapped[int] = mapped_column(
-        Integer, default=Config.DEFAULT_CUTOFF_MINUTE
+        Integer, default=DEFAULT_CUTOFF_MINUTE
     )  # Default cutoff minute (17:30)
     display_order: Mapped[int | None] = mapped_column(Integer, default=0)
     is_backup: Mapped[bool] = mapped_column(Boolean, default=False)

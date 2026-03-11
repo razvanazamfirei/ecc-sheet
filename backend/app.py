@@ -17,41 +17,19 @@ from .auth import (
 )
 from .config import Config
 from .holidays import get_federal_holidays
+from .instance_config import (
+    BACKUP_ROLE_NAMES,
+    CALL_TEAM_ROLE_NAMES,
+    DEFAULT_CUTOFF_HOUR,
+    DEFAULT_CUTOFF_MINUTE,
+    DEFAULT_ROLES,
+    ROLE_CUTOFF_HOURS,
+    ROLE_CUTOFF_MINUTES,
+)
 from .models import Holiday, Resident, Role, db
 from .routes import dev as _dev_module
 from .routes import register_blueprints
 from .utils import _wants_json_response, get_effective_date, setup_logging
-
-BACKUP_ROLE_NAMES = frozenset({"Backup", "Cardiac Backup", "Moonlighting"})
-CALL_TEAM_ROLE_NAMES = frozenset(
-    {"First Call", "Second Call", "Third Call", "OB Flex", "Cardiac Call"}
-)
-DEFAULT_ROLES = (
-    ("ECA 1", 1),
-    ("ECA 2", 2),
-    ("ECC 1", 3),
-    ("ECC 2", 4),
-    ("ECC 3", 5),
-    ("ECC 4", 6),
-    ("ECC 5", 7),
-    ("PPMC", 8),
-    ("Late Late 1", 9),
-    ("Late Late 2", 10),
-    ("Held", 11),
-    ("EP/HUP 13", 12),
-    ("H12", 13),
-    ("H13", 14),
-    ("H14", 15),
-    ("HUP EP 12", 16),
-    ("Backup", 17),
-    ("Cardiac Backup", 18),
-    ("Moonlighting", 19),
-    ("First Call", 20),
-    ("Second Call", 21),
-    ("Third Call", 22),
-    ("Cardiac Call", 23),
-    ("OB Flex", 24),
-)
 
 # Get the project root directory (parent of backend/)
 project_root: Path = Path(__file__).parent.parent
@@ -183,11 +161,9 @@ def init_db():
         for role_name, order in DEFAULT_ROLES:
             existing_role = Role.query.filter_by(name=role_name).first()
             if not existing_role:
-                cutoff_hour = app.config["ROLE_CUTOFF_HOURS"].get(
-                    role_name, app.config["DEFAULT_CUTOFF_HOUR"]
-                )
-                cutoff_minute = app.config["ROLE_CUTOFF_MINUTES"].get(
-                    role_name, app.config["DEFAULT_CUTOFF_MINUTE"]
+                cutoff_hour = ROLE_CUTOFF_HOURS.get(role_name, DEFAULT_CUTOFF_HOUR)
+                cutoff_minute = ROLE_CUTOFF_MINUTES.get(
+                    role_name, DEFAULT_CUTOFF_MINUTE
                 )
                 role = Role(
                     name=role_name,

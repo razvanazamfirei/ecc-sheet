@@ -14,41 +14,16 @@ from sqlalchemy.exc import IntegrityError
 from ..audit import log_create_strict, log_import_strict, log_update_strict
 from ..auth import get_first_call_role_names, is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
+from ..instance_config import (
+    LATE_ROLE_NAMES,
+    SCHEDULE_ROLE_NAMES,
+    WEEKDAY_BACKUP_ROLE_NAMES,
+)
 from ..models import DailySheet, Resident, Role, TimeEntry, db
 from ..type_defs import ScheduleImportResult, ScheduleResidentChanges
 
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
-
-LATE_ROLE_NAMES = frozenset({"Late Late 1", "Late Late 2"})
-WEEKDAY_BACKUP_ROLE_NAMES = frozenset({"Backup"})
-SCHEDULE_ROLE_NAMES = frozenset(
-    {
-        "First Call",
-        "Second Call",
-        "Third Call",
-        "OB Flex",
-        "Cardiac Call",
-        "ECC 1",
-        "ECC 2",
-        "ECC 3",
-        "ECC 4",
-        "ECC 5",
-        "ECA 1",
-        "ECA 2",
-        "Late Late 1",
-        "Late Late 2",
-        "PPMC",
-        "Held",
-        "EP/HUP 13",
-        "H12",
-        "H13",
-        "H14",
-        "HUP EP 12",
-        "Backup",
-        "Cardiac Backup",
-    }
-)
 
 
 @dataclass(frozen=True, slots=True)
