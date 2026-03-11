@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import resend
 from email_validator import EmailNotValidError, validate_email
@@ -86,7 +86,7 @@ def send_email(
         logger.warning("Email not sent. recipients=0")
         return None
 
-    params: resend.Emails.SendParams = {
+    params: dict[str, Any] = {
         "from": normalized_from_email,
         "to": to_list,
         "subject": subject,
@@ -94,7 +94,7 @@ def send_email(
     }
 
     try:
-        email_response = resend.Emails.send(params)
+        email_response = resend.Emails.send(cast(resend.Emails.SendParams, params))
         response_id = (
             email_response.get("id")
             if isinstance(email_response, Mapping)
