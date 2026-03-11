@@ -81,47 +81,7 @@ class Config:
     PAYROLL_LABEL_SUFFIX: ClassVar[str | None] = env_str("PAYROLL_LABEL_SUFFIX")
 
     # Time tracking configuration
-    DEFAULT_CUTOFF_HOUR: ClassVar[int] = _env_int_default("DEFAULT_CUTOFF_HOUR", 17)
-    DEFAULT_CUTOFF_MINUTE: ClassVar[int] = _env_int_default("DEFAULT_CUTOFF_MINUTE", 30)
     TIMEZONE: ClassVar[str] = _env_str_default("TIMEZONE", "America/New_York")
     DAY_RESET_HOUR: ClassVar[int] = _env_int_default(
         "DAY_RESET_HOUR", 8
     )  # Day resets at 8 AM
-
-    # Role-specific cutoff times (can be customized per role)
-    # Format: (hour, minute) for 17:30 cutoff
-    ROLE_CUTOFF_HOURS: ClassVar[dict[str, int]] = {
-        "ECA 1": 17,
-        "ECA 2": 17,
-        "ECC 1": 17,
-        "ECC 2": 17,
-        "ECC 3": 17,
-        "ECC 4": 17,
-        "ECC 5": 17,
-        "PPMC": 17,
-        "Late Late 1": 17,
-        "Late Late 2": 17,
-        "EP/HUP 13": 17,
-        "H12": 17,
-        "H13": 17,
-        "H14": 17,
-        "HUP EP 12": 17,
-    }
-
-    ROLE_CUTOFF_MINUTES: ClassVar[dict[str, int]] = {
-        "ECA 1": 30,
-        "ECA 2": 30,
-        "ECC 1": 30,
-        "ECC 2": 30,
-        "ECC 3": 30,
-        "ECC 4": 30,
-        "ECC 5": 30,
-        "PPMC": 30,
-        "Late Late 1": 30,
-        "Late Late 2": 30,
-        "EP/HUP 13": 30,
-        "H12": 30,
-        "H13": 30,
-        "H14": 30,
-        "HUP EP 12": 30,
-    }

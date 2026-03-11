@@ -53,6 +53,8 @@ comprehensive audit logging.
 ecc-sheet/
 ├── backend/
 │   ├── app.py                  # Flask app initialization, DB setup
+│   ├── instance_config.py      # Loader for instance settings
+│   ├── instance_settings.json  # Configurable role definitions and cutoffs
 │   ├── models.py               # Database models (Resident, Role, TimeEntry, DailySheet, AuditLog, Holiday)
 │   ├── config.py               # Environment configuration
 │   ├── auth.py                 # Authorization (@admin_required)
@@ -503,19 +505,28 @@ ADMIN_USERS                   # Comma-separated admin list
 
 # Optional
 TIMEZONE                      # Default: America/New_York
-DEFAULT_CUTOFF_HOUR          # Default: 17 (5 PM)
-DEFAULT_CUTOFF_MINUTE        # Default: 30
 PORT                         # Default: 5000
 ```
 
+### Instance Configuration
+
+The application roles, default cutoffs, and their characteristics are configured
+via `backend/instance_settings.json`. Examples of configurations included are:
+
+- `default_cutoff_hour`
+- `default_cutoff_minute`
+- A list of `roles`, each specifying its visibility (`is_schedule_importable`,
+  `display_order`), and features like `is_backup`, `is_call_team`,
+  `is_late_role`, etc.
+
 ### Role-Specific Cutoffs
 
-Configured in database, editable via UI:
+Configured in `instance_settings.json` (defaults to 17:30), editable via UI:
 
-- ECA 1, ECA 2: 17:30
-- ECC 1-5: 17:30
-- PPMC: 17:30
-- Late Late 1-2: 17:30
+- ECA 1, ECA 2: default 17:30
+- ECC 1-5: default 17:30
+- PPMC: default 17:30
+- Late Late 1-2: default 17:30
 - Backup roles: Special handling
 
 ## Security Architecture

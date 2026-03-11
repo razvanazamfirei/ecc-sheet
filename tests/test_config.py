@@ -122,46 +122,18 @@ class TestConfig:
             reload(backend.config)
             assert backend.config.Config.DAY_RESET_HOUR == 8
 
-    def test_default_cutoff_hour(self):
-        """Test DEFAULT_CUTOFF_HOUR from environment."""
-        with patch.dict(os.environ, {"DEFAULT_CUTOFF_HOUR": "18"}):
-            reload(backend.config)
-            assert backend.config.Config.DEFAULT_CUTOFF_HOUR == 18
-
-    def test_default_cutoff_minute(self):
-        """Test DEFAULT_CUTOFF_MINUTE from environment."""
-        with patch.dict(os.environ, {"DEFAULT_CUTOFF_MINUTE": "45"}):
-            reload(backend.config)
-            assert backend.config.Config.DEFAULT_CUTOFF_MINUTE == 45
-
     def test_zero_value_time_config_from_env(self):
         """Test explicit zero values are preserved for time-related settings."""
         with patch.dict(
             os.environ,
             {
-                "DEFAULT_CUTOFF_HOUR": "0",
-                "DEFAULT_CUTOFF_MINUTE": "0",
                 "DAY_RESET_HOUR": "0",
                 "TIMEZONE": "UTC",
             },
         ):
             reload(backend.config)
-            assert backend.config.Config.DEFAULT_CUTOFF_HOUR == 0
-            assert backend.config.Config.DEFAULT_CUTOFF_MINUTE == 0
             assert backend.config.Config.DAY_RESET_HOUR == 0
             assert backend.config.Config.TIMEZONE == "UTC"
-
-    def test_role_cutoff_hours_contains_common_roles(self):
-        """Test ROLE_CUTOFF_HOURS contains expected roles."""
-        assert "ECC 1" in backend.config.Config.ROLE_CUTOFF_HOURS
-        assert "ECA 1" in backend.config.Config.ROLE_CUTOFF_HOURS
-        assert "PPMC" in backend.config.Config.ROLE_CUTOFF_HOURS
-
-    def test_role_cutoff_minutes_contains_common_roles(self):
-        """Test ROLE_CUTOFF_MINUTES contains expected roles."""
-        assert "ECC 1" in backend.config.Config.ROLE_CUTOFF_MINUTES
-        assert "ECA 1" in backend.config.Config.ROLE_CUTOFF_MINUTES
-        assert "PPMC" in backend.config.Config.ROLE_CUTOFF_MINUTES
 
     def test_sqlalchemy_track_modifications_disabled(self):
         """Test SQLALCHEMY_TRACK_MODIFICATIONS is disabled."""
