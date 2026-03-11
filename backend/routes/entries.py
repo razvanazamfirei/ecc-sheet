@@ -349,6 +349,10 @@ def _validated_add_entry_request():
         flash(str(exc), "error")
         return redirect(url_for("sheets.index"))
 
+    # Use a normalized, server-generated ISO date string to avoid reflecting
+    # potentially malicious user input back to the client.
+    sheet_date_str = sheet_date.isoformat()
+
     if resp := _entry_action_guard(
         sheet_date,
         sheet_date_str,
