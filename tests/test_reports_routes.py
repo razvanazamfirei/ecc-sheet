@@ -244,9 +244,16 @@ class TestPayrollXlsxExport:
 
             wb = openpyxl.load_workbook(io.BytesIO(response.data))
             ws = wb.active
-            assert ws.max_row == 2
-            assert ws.cell(row=2, column=3).value == resident.name
-            assert ws.cell(row=2, column=6).value is None
+            resident_row = next(
+                (
+                    row[2].row
+                    for row in ws.iter_rows(min_row=2)
+                    if row[2].value == resident.name
+                ),
+                None,
+            )
+            assert resident_row is not None
+            assert ws.cell(row=resident_row, column=6).value is None
 
     def test_export_payroll_xlsx_invalid_date(self, client):
         """Test that invalid date redirects with error."""

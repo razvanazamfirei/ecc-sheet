@@ -119,7 +119,7 @@ DEFAULT_SENDER_EMAIL=noreply@example.edu
 # Optional MSSQL anesthesia stop-time sync
 ANESTHESIA_SQL_CONNECTION_STRING=Driver={ODBC Driver 18 for SQL Server};Server=tcp:sql.example.edu,1433;Database=EpicReporting;Uid=svc_user;Pwd=secret;Encrypt=yes;TrustServerCertificate=no;
 ANESTHESIA_SQL_SOURCE_TABLE=dbo.AnesthesiaResidentStops
-ANESTHESIA_SQL_PROVIDER_TYPE=Anes Resident
+ANESTHESIA_SQL_PROVIDER_TYPE="Anes Resident"
 ANESTHESIA_SQL_TIMEOUT=30
 ANESTHESIA_FETCHER_ENABLED=false
 
@@ -202,17 +202,35 @@ uv run python -m backend.app
 
 ### Optional MSSQL Stop-Time Sync
 
-Install the MSSQL extra when you want to pull anesthesia stop times from SQL Server:
+Install the host ODBC prerequisites before the Python extra when you want to
+pull anesthesia stop times from SQL Server. `uv sync --extra mssql` only
+installs `pyodbc`; missing `unixODBC` / `msodbcsql18` packages will cause
+driver-import or connection failures.
 
 ```bash
+# Ubuntu/Debian: install unixODBC headers, add the Microsoft package repo,
+# then install the SQL Server ODBC driver:
+# sudo apt-get install -y unixodbc-dev
+# sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+
+# RHEL/Oracle Linux: add the Microsoft package repo, then install:
+# sudo ACCEPT_EULA=Y yum install -y msodbcsql18 unixODBC-devel
+
+# macOS:
+# brew install unixodbc
+# brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
+# HOMEBREW_ACCEPT_EULA=Y brew install msodbcsql18
+
+# Python package:
 uv sync --extra mssql
 ```
 
-Then configure `ANESTHESIA_SQL_CONNECTION_STRING` and `ANESTHESIA_SQL_SOURCE_TABLE`.
-The source must expose these columns: `ProviderType`, `ProviderName`, `ProviderID`,
-`DutyStarted`, `SCHED_START_TIME`, and `ANESTHESIA_STOP_EVENTTIME`.
-The sync stores the latest stop time per resident/work date in
-`TimeEntry.anesthesia_stop_time`; it does not modify `exit_time` or overtime.
+Then configure `ANESTHESIA_SQL_CONNECTION_STRING` and
+`ANESTHESIA_SQL_SOURCE_TABLE`. The source must expose these columns:
+`ProviderType`, `ProviderName`, `ProviderID`, `DutyStarted`, `SCHED_START_TIME`,
+and `ANESTHESIA_STOP_EVENTTIME`. The sync stores the latest stop time per
+resident/work date in `TimeEntry.anesthesia_stop_time`; it does not modify
+`exit_time` or overtime.
 
 To keep this updated automatically while the server process is running, enable:
 
@@ -252,14 +270,14 @@ uv run flask --app backend.app bootstrap-application \
   --residents-csv docs/examples/residents.bootstrap.csv
 ```
 
-Supported CSV columns:
-`name` (required), `epic_id`, `class_year`, `email`, `phone`,
-`abbreviation`, `backup_id`, `first_name`, `last_name`, `lawson_id`,
+Supported CSV columns: `name` (required), `epic_id`, `class_year`, `email`,
+`phone`, `abbreviation`, `backup_id`, `first_name`, `last_name`, `lawson_id`,
 `hire_date`, and `active`.
 
 Notes:
 
-- `class_year` accepts `CA1`, `CA2`, `CA3`, `CA-1`, `CA-2`, `CA-3`, `Fellow`, and `OMFS`.
+- `class_year` accepts `CA1`, `CA2`, `CA3`, `CA-1`, `CA-2`, `CA-3`, `Fellow`,
+  and `OMFS`.
 - `hire_date` must use `YYYY-MM-DD`.
 - `active` accepts `true`/`false`, `yes`/`no`, or `1`/`0`.
 - Blank optional values do not overwrite existing resident data.

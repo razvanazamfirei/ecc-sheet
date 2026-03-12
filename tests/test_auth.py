@@ -2,6 +2,7 @@
 
 import os
 from datetime import time
+from unittest.mock import patch
 
 from backend.auth import (
     can_filter_reports_by_resident,
@@ -93,6 +94,29 @@ class TestGetCurrentUser:
             response = client.get("/")
             assert response.status_code == 401
             assert b"Authentication required" in response.data
+        finally:
+            app.config["AUTH_PROXY_USERNAME_HEADER"] = original_header or ""
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+
+    def test_proxy_auth_401_skips_schema_and_background_bootstrap(self, client, app):
+        """Unauthorized proxy-auth requests should not trigger bootstrap work."""
+        original_header = app.config.get("AUTH_PROXY_USERNAME_HEADER")
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            app.config["AUTH_PROXY_USERNAME_HEADER"] = "X-Auth-User"
+            os.environ.pop("MOCK_USERS_ENABLED", None)
+            with (
+                patch("backend.app._ensure_runtime_schema") as mock_schema,
+                patch("backend.app.start_background_services") as mock_start,
+            ):
+                response = client.get("/")
+
+            assert response.status_code == 401
+            mock_schema.assert_not_called()
+            mock_start.assert_not_called()
         finally:
             app.config["AUTH_PROXY_USERNAME_HEADER"] = original_header or ""
             if original_mock is not None:

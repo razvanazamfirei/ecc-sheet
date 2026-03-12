@@ -1,4 +1,3 @@
-import fcntl
 import os
 import sys
 import threading
@@ -42,6 +41,11 @@ from .resident_csv_import import import_residents_csv_file
 from .routes import dev as _dev_module
 from .routes import register_blueprints
 from .utils import _wants_json_response, get_effective_date, setup_logging
+
+try:
+    import fcntl
+except ModuleNotFoundError:  # pragma: no cover - exercised in import-safe tests
+    fcntl = None
 
 # Get the project root directory (parent of backend/)
 project_root: Path = Path(__file__).parent.parent
@@ -126,12 +130,6 @@ if mock_users_enabled():
 
 
 @app.before_request
-def ensure_background_services_started() -> None:
-    """Start background services for import-based server processes."""
-    start_background_services()
-
-
-@app.before_request
 def require_authenticated_request():
     """Fail closed when proxy-auth is enabled and the identity header is absent."""
     proxy_header = str(app.config.get("AUTH_PROXY_USERNAME_HEADER") or "").strip()
@@ -174,6 +172,21 @@ def apply_security_headers(response):
     return response
 
 
+def _is_duplicate_column_error(exc: SQLAlchemyError, column_name: str) -> bool:
+    """Return True when a schema ALTER failed because the column already exists."""
+    messages = [str(exc)]
+    original_error = getattr(exc, "orig", None)
+    if original_error is not None and original_error is not exc:
+        messages.append(str(original_error))
+
+    normalized_message = " ".join(messages).casefold()
+    normalized_column = column_name.casefold()
+    duplicate_markers = ("duplicate column", "already exists")
+    return normalized_column in normalized_message and any(
+        marker in normalized_message for marker in duplicate_markers
+    )
+
+
 def _ensure_time_entry_columns() -> None:
     """Backfill nullable TimeEntry columns for existing databases."""
     inspector = sqlalchemy_inspect(db.engine)
@@ -181,10 +194,20 @@ def _ensure_time_entry_columns() -> None:
         column["name"] for column in inspector.get_columns("time_entries")
     }
     if "anesthesia_stop_time" not in time_entry_columns:
-        db.session.execute(
-            text("ALTER TABLE time_entries ADD COLUMN anesthesia_stop_time TIME")
-        )
-        db.session.commit()
+        try:
+            db.session.execute(
+                text("ALTER TABLE time_entries ADD COLUMN anesthesia_stop_time TIME")
+            )
+            db.session.commit()
+        except SQLAlchemyError as exc:
+            db.session.rollback()
+            if _is_duplicate_column_error(exc, "anesthesia_stop_time"):
+                logger.info(
+                    "Column anesthesia_stop_time already exists; "
+                    "skipping runtime schema backfill.",
+                )
+                return
+            raise
 
 
 def _ensure_runtime_schema() -> None:
@@ -254,6 +277,13 @@ def _background_service_lock_path() -> Path:
 def _acquire_background_service_process_lock() -> TextIO | None:
     """Acquire a cross-process lock so only one worker runs auto-sync."""
     lock_handle = _background_service_lock_path().open("a+", encoding="utf-8")
+    if fcntl is None:
+        logger.warning(
+            "fcntl is unavailable on this platform; continuing without a "
+            "cross-process background-service lock.",
+        )
+        return lock_handle
+
     try:
         fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -270,6 +300,10 @@ def _acquire_background_service_process_lock() -> TextIO | None:
 def _release_background_service_process_lock(lock_handle: TextIO | None) -> None:
     """Release the cross-process lock for the anesthesia auto-sync worker."""
     if lock_handle is None:
+        return
+
+    if fcntl is None:
+        lock_handle.close()
         return
 
     try:

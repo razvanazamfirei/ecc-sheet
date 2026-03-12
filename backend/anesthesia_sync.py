@@ -573,7 +573,7 @@ def sync_anesthesia_stop_times(  # noqa: PLR0913
     user: str | None = None,
     records: Sequence[AnesthesiaStopRecord] | None = None,
 ) -> AnesthesiaSyncResult:
-    """Sync anesthesia stop times into matching time-entry exit times."""
+    """Sync anesthesia stop times into matching anesthesia-stop fields."""
     if end_date < start_date:
         raise AnesthesiaSyncError("end_date must be on or after start_date.")
 

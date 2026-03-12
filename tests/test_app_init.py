@@ -253,13 +253,13 @@ class TestContextProcessor:
 class TestBackgroundServices:
     """Tests for background service startup."""
 
-    def test_request_attempts_to_start_background_services(self, client):
-        """Requests should attempt to bootstrap background services."""
+    def test_requests_do_not_attempt_to_start_background_services(self, client):
+        """Requests should not rerun background-service startup checks."""
         with patch("backend.app.start_background_services") as mock_start:
             response = client.get("/")
 
         assert response.status_code == 200
-        mock_start.assert_called_once_with()
+        mock_start.assert_not_called()
 
     def test_should_start_background_services_during_wsgi_import(self):
         """WSGI-style imports should eagerly bootstrap background services."""
@@ -373,3 +373,50 @@ class TestBackgroundServices:
             stop_background_services()
             app.config["TESTING"] = original_testing
             app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
+
+    def test_ensure_time_entry_columns_ignores_duplicate_column_race(self, app):
+        """Runtime schema backfill should ignore duplicate-column races."""
+        import backend.app as app_module
+
+        class _Inspector:
+            @staticmethod
+            def get_columns(_table_name):
+                return [{"name": "id"}]
+
+        with (
+            app.app_context(),
+            patch.object(
+                app_module,
+                "sqlalchemy_inspect",
+                return_value=_Inspector(),
+            ),
+            patch.object(
+                app_module.db.session,
+                "execute",
+                side_effect=SQLAlchemyError(
+                    "duplicate column name: anesthesia_stop_time",
+                ),
+            ) as mock_execute,
+            patch.object(app_module.db.session, "commit") as mock_commit,
+            patch.object(app_module.db.session, "rollback") as mock_rollback,
+        ):
+            app_module._ensure_time_entry_columns()
+
+        mock_execute.assert_called_once()
+        mock_commit.assert_not_called()
+        mock_rollback.assert_called_once_with()
+
+    def test_background_service_lock_helpers_allow_missing_fcntl(self, app):
+        """Lock helpers should remain usable when fcntl is unavailable."""
+        import backend.app as app_module
+
+        with app.app_context(), patch.object(app_module, "fcntl", None):
+            lock_path = app_module._background_service_lock_path()
+            lock_handle = app_module._acquire_background_service_process_lock()
+            assert lock_handle is not None
+            assert lock_handle.closed is False
+
+            app_module._release_background_service_process_lock(lock_handle)
+            assert lock_handle.closed is True
+
+        lock_path.unlink(missing_ok=True)
