@@ -1,7 +1,7 @@
 """Tests for app initialization and init_db function."""
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -248,3 +248,128 @@ class TestContextProcessor:
                 os.environ["MOCK_USERS_ENABLED"] = original
             else:
                 os.environ.pop("MOCK_USERS_ENABLED", None)
+
+
+class TestBackgroundServices:
+    """Tests for background service startup."""
+
+    def test_request_attempts_to_start_background_services(self, client):
+        """Requests should attempt to bootstrap background services."""
+        with patch("backend.app.start_background_services") as mock_start:
+            response = client.get("/")
+
+        assert response.status_code == 200
+        mock_start.assert_called_once_with()
+
+    def test_should_start_background_services_during_wsgi_import(self):
+        """WSGI-style imports should eagerly bootstrap background services."""
+        import backend.app as app_module
+
+        with (
+            patch.object(app_module, "__name__", "backend.app"),
+            patch.object(app_module.sys, "argv", ["gunicorn"]),
+            patch.dict(
+                os.environ,
+                {
+                    "FLASK_RUN_FROM_CLI": "",
+                    "FLASK_DEBUG": "",
+                    "WERKZEUG_RUN_MAIN": "",
+                },
+                clear=False,
+            ),
+        ):
+            assert app_module._should_start_background_services_during_import() is True
+
+    def test_should_skip_eager_start_for_non_run_flask_cli(self):
+        """Non-server Flask CLI commands should not start background services."""
+        import backend.app as app_module
+
+        with (
+            patch.object(app_module, "__name__", "backend.app"),
+            patch.object(app_module.sys, "argv", ["flask", "db", "upgrade"]),
+            patch.dict(
+                os.environ,
+                {"FLASK_RUN_FROM_CLI": "true"},
+                clear=False,
+            ),
+        ):
+            assert app_module._should_start_background_services_during_import() is False
+
+    def test_start_background_services_starts_once_when_fetcher_enabled(self, app):
+        """Background services should start once for the server process."""
+        from backend.app import start_background_services, stop_background_services
+
+        original_testing = app.config["TESTING"]
+        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        lock_handle = MagicMock()
+        try:
+            app.config["TESTING"] = False
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = True
+
+            with (
+                patch("backend.app.threading.Thread") as mock_thread,
+                patch(
+                    "backend.app._acquire_background_service_process_lock",
+                    return_value=lock_handle,
+                ) as mock_acquire_lock,
+                patch(
+                    "backend.app._release_background_service_process_lock"
+                ) as mock_release_lock,
+            ):
+                worker = mock_thread.return_value
+                worker.is_alive.return_value = False
+
+                try:
+                    assert start_background_services() is True
+                    assert start_background_services() is False
+                    worker.start.assert_called_once()
+                    mock_acquire_lock.assert_called_once_with()
+                finally:
+                    stop_background_services()
+
+                mock_release_lock.assert_called_once_with(lock_handle)
+        finally:
+            app.config["TESTING"] = original_testing
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
+
+    def test_start_background_services_requires_fetcher_flag(self, app):
+        """Background services should not start without the fetcher flag."""
+        from backend.app import start_background_services, stop_background_services
+
+        original_testing = app.config["TESTING"]
+        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        try:
+            app.config["TESTING"] = False
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = False
+
+            with patch("backend.app.threading.Thread") as mock_thread:
+                assert start_background_services() is False
+                mock_thread.assert_not_called()
+        finally:
+            stop_background_services()
+            app.config["TESTING"] = original_testing
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
+
+    def test_start_background_services_skips_when_lock_owned_elsewhere(self, app):
+        """Only one worker process should bootstrap the auto-sync thread."""
+        from backend.app import start_background_services, stop_background_services
+
+        original_testing = app.config["TESTING"]
+        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        try:
+            app.config["TESTING"] = False
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = True
+
+            with (
+                patch("backend.app.threading.Thread") as mock_thread,
+                patch(
+                    "backend.app._acquire_background_service_process_lock",
+                    return_value=None,
+                ),
+            ):
+                assert start_background_services() is False
+                mock_thread.assert_not_called()
+        finally:
+            stop_background_services()
+            app.config["TESTING"] = original_testing
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled

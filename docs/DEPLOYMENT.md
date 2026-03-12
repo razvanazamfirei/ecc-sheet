@@ -82,6 +82,8 @@ PAYROLL_ADMIN_USERS=Razvan Azamfirei
 REPORT_VIEW_ALL_USERS=*
 
 AMION_SCHEDULE_CODE=<your_schedule_code>
+RESEND_API_KEY=<your_resend_api_key>
+DEFAULT_SENDER_EMAIL=noreply@example.edu
 TIMEZONE=America/New_York
 FLASK_ENV=production
 PORT=5000  # Used for local/non-systemd runs; the systemd unit binds 127.0.0.1:5000 directly
@@ -95,8 +97,34 @@ What this does:
 - `AMION_SCHEDULE_CODE` overrides the default in `backend/config.py` so schedule
   and staff imports target your intended Amion schedule.
 - The reverse proxy must enforce authentication and set `X-Auth-User`; if that
-  header is absent, `backend/auth.py:get_current_user()` returns an empty
-  username rather than Flask rejecting the request on its own.
+  header is absent, the app returns HTTP 401.
+
+## Bootstrap the App
+
+Run the supported bootstrap command once after creating `.env`:
+
+```bash
+sudo -u eccsheet bash -lc '
+  cd /opt/ecc-sheet
+  export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+  .venv/bin/flask --app backend.app bootstrap-application
+'
+```
+
+If you have a resident source-of-truth CSV, import it explicitly:
+
+```bash
+sudo -u eccsheet bash -lc '
+  cd /opt/ecc-sheet
+  export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+  .venv/bin/flask --app backend.app import-residents-csv \
+    --path docs/examples/residents.bootstrap.csv
+'
+```
+
+The example file at
+[examples/residents.bootstrap.csv](./examples/residents.bootstrap.csv) documents
+the supported columns. Replace it with your real dataset before importing.
 
 ## Install the systemd Service
 
@@ -121,11 +149,10 @@ sudo systemctl restart ecc-sheet
 
 The unit runs:
 
-- `flask db upgrade`
-- `python -c "from backend.app import init_db; init_db()"`
+- `flask --app backend.app bootstrap-application`
 - `gunicorn --workers 2 --bind 127.0.0.1:5000 backend.app:app`
 
-on each start, so schema changes and default seeded data stay aligned.
+on each start, so schema creation and default seeded data stay aligned.
 
 ## Reverse Proxy Notes
 

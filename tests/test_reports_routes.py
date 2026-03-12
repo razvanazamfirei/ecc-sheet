@@ -221,6 +221,33 @@ class TestPayrollXlsxExport:
             resident.lawson_id = None
             db.session.commit()
 
+    def test_export_payroll_xlsx_without_lawson_id(
+        self, client, app, sample_time_entry
+    ):
+        """Test xlsx export still includes residents without Lawson IDs."""
+        with app.app_context():
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            resident = db.session.get(Resident, entry.resident_id)
+            resident.lawson_id = None
+            db.session.commit()
+
+            entry_date = entry.date
+            response = client.post(
+                "/api/report/export_payroll_xlsx",
+                data={
+                    "start_date": entry_date.strftime("%Y-%m-%d"),
+                    "end_date": entry_date.strftime("%Y-%m-%d"),
+                },
+            )
+            assert response.status_code == 200
+            assert "spreadsheetml" in response.content_type
+
+            wb = openpyxl.load_workbook(io.BytesIO(response.data))
+            ws = wb.active
+            assert ws.max_row == 2
+            assert ws.cell(row=2, column=3).value == resident.name
+            assert ws.cell(row=2, column=6).value is None
+
     def test_export_payroll_xlsx_invalid_date(self, client):
         """Test that invalid date redirects with error."""
         response = client.post(

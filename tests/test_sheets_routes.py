@@ -1,6 +1,6 @@
 """Tests for sheet routes."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from unittest.mock import patch
 
 import pytz
@@ -179,6 +179,111 @@ class TestSheetsView:
                 response = client.get(f"/sheets/{date_str}")
                 assert response.status_code == 200
                 assert sample_resident.name.encode() in response.data
+            finally:
+                db.session.rollback()
+                _delete_entry(entry_id)
+                if not sheet_existed:
+                    sheet = DailySheet.query.filter_by(date=test_date).first()
+                    if sheet is not None:
+                        db.session.delete(sheet)
+                db.session.commit()
+
+    def test_view_shows_anesthesia_stop_time_column(
+        self, client, app, sample_resident, sample_role
+    ):
+        """The ECC sheet shows the read-only anesthesia stop time column."""
+        with app.app_context():
+            test_date = get_effective_date() - timedelta(days=4)
+            date_str = test_date.strftime("%Y-%m-%d")
+            sheet_existed = (
+                DailySheet.query.filter_by(date=test_date).first() is not None
+            )
+
+            entry = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=sample_role.id,
+                anesthesia_stop_time=time(16, 11),
+            )
+            db.session.add(entry)
+            db.session.commit()
+            entry_id = entry.id
+
+            try:
+                response = client.get(f"/sheets/{date_str}")
+                assert response.status_code == 200
+                assert b"Anes Stop" in response.data
+                assert b"04:11 PM" in response.data
+            finally:
+                db.session.rollback()
+                _delete_entry(entry_id)
+                if not sheet_existed:
+                    sheet = DailySheet.query.filter_by(date=test_date).first()
+                    if sheet is not None:
+                        db.session.delete(sheet)
+                db.session.commit()
+
+    def test_view_footer_colspan_matches_weekday_columns(
+        self, client, app, sample_resident, sample_role
+    ):
+        """Weekday totals should span the added anesthesia stop column."""
+        with app.app_context():
+            test_date = date(2026, 3, 9)
+            date_str = test_date.strftime("%Y-%m-%d")
+            sheet_existed = (
+                DailySheet.query.filter_by(date=test_date).first() is not None
+            )
+
+            entry = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=sample_role.id,
+                anesthesia_stop_time=time(16, 11),
+                exit_time=time(18, 5),
+            )
+            db.session.add(entry)
+            db.session.commit()
+            entry_id = entry.id
+
+            try:
+                response = client.get(f"/sheets/{date_str}")
+                assert response.status_code == 200
+                assert b'<td colspan="4">' in response.data
+            finally:
+                db.session.rollback()
+                _delete_entry(entry_id)
+                if not sheet_existed:
+                    sheet = DailySheet.query.filter_by(date=test_date).first()
+                    if sheet is not None:
+                        db.session.delete(sheet)
+                db.session.commit()
+
+    def test_view_footer_colspan_matches_weekend_columns(
+        self, client, app, sample_resident, sample_role
+    ):
+        """Weekend totals should span the added anesthesia stop column."""
+        with app.app_context():
+            test_date = date(2026, 3, 8)
+            date_str = test_date.strftime("%Y-%m-%d")
+            sheet_existed = (
+                DailySheet.query.filter_by(date=test_date).first() is not None
+            )
+
+            entry = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=sample_role.id,
+                anesthesia_stop_time=time(16, 11),
+                exit_time=time(18, 5),
+            )
+            db.session.add(entry)
+            db.session.commit()
+            entry_id = entry.id
+
+            try:
+                response = client.get(f"/sheets/{date_str}")
+                assert response.status_code == 200
+                assert b'<td colspan="5">' in response.data
             finally:
                 db.session.rollback()
                 _delete_entry(entry_id)

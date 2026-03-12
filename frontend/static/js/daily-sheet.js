@@ -382,7 +382,7 @@ function applyEntryUpdate(entryId, entry) {
   if (elements.startDisplay) {
     elements.startDisplay.innerHTML = entry.start_time_display
       ? escapeHtml(entry.start_time_display)
-      : '<span class="text-muted">-</span>';
+      : '<span class="text-body-secondary">-</span>';
   }
 
   if (elements.overtimeDisplay) {

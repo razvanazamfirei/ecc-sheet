@@ -43,7 +43,7 @@
     class="d-flex justify-content-between align-items-center mb-4 sheet-header">
     <div>
       <h2 class="mb-0"><i class="bi bi-calendar3 me-2"></i>ECC Sheet</h2>
-      <p class="text-muted mb-0" id="sheet-date">
+      <p class="text-body-secondary mb-0" id="sheet-date">
         {{ today.strftime('%B %d, %Y') }}
         {% if is_weekend_or_holiday %}
           <span class="badge bg-info ms-2">
@@ -138,12 +138,14 @@
                 {{ entry.resident.name }}
               </a>
               {% if entry.resident.phone %}
-                <span class="text-muted">({{ entry.resident.phone }})</span>
+                <span class="text-body-secondary"
+                  >({{ entry.resident.phone }})</span
+                >
               {% endif %}
             </span>
           {% endfor %}
         {% else %}
-          <span class="text-muted small">No call team assigned</span>
+          <span class="text-body-secondary small">No call team assigned</span>
         {% endif %}
       </div>
     </div>
@@ -235,7 +237,7 @@
   <div class="card entries-table">
     <div
       class="card-header d-flex justify-content-between align-items-center entries-header">
-      <h5 class="mb-0"><i class="bi bi-table me-2"></i>Entries</h5>
+      <h5 class="mb-0">Entries</h5>
       {% if can_edit and not daily_sheet.locked and overtime_entries %}
         <div
           class="btn-group-sm edit-all-controls"
@@ -268,7 +270,8 @@
                 {% if is_weekend_or_holiday %}
                   <th class="col-3">Start Time</th>
                 {% endif %}
-                <th class="col-3">Exit Time</th>
+                <th class="col-1">Anes Stop</th>
+                <th class="col-2">Exit Time</th>
                 <th class="col-1">Overtime</th>
                 {% if can_edit and not daily_sheet.locked %}
                   <th class="col-1">Actions</th>
@@ -323,7 +326,7 @@
                           {% if entry.start_time %}
                             {{ entry.start_time.strftime('%I:%M %p') }}
                           {% else %}
-                            <span class="text-muted">-</span>
+                            <span class="text-body-secondary">-</span>
                           {% endif %}
                         </span>
                         <input
@@ -337,12 +340,25 @@
                           class="form-control"
                           style="display: none; width: 150px;" />
                       {% else %}
-                        <span class="text-muted">-</span>
+                        <span class="text-body-secondary">-</span>
                       {% endif %}
                     </td>
                   {% endif %}
+                  <td class="anesthesia-stop-time-cell">
+                    <span class="text-body-secondary fw-lighter fs-6">
+                      {% if entry.anesthesia_stop_time %}
+                        {{ entry.anesthesia_stop_time.strftime('%I:%M %p') }}
+                      {% else %}
+                        -
+                      {% endif %}
+                    </span>
+                  </td>
                   <td
-                    class="exit-time-cell{% if not entry.exit_time %}missing{% endif %}"
+                    {% if not entry.exit_time %}
+                      class="exit-time-cell missing"
+                    {% else %}
+                      class="exit-time-cell "
+                    {% endif %}
                     id="cell-{{ entry.id }}">
                     <span
                       class="time-display"
@@ -366,7 +382,7 @@
                         {% if entry.exit_time %}
                           {{ entry.exit_time.strftime('%I:%M %p') }}
                         {% else %}
-                          <span class="text-muted">-</span>
+                          <span class="text-body-secondary">-</span>
                         {% endif %}
                       {% endif %}
                     </span>
@@ -460,7 +476,7 @@
             </tbody>
             <tfoot class="table-light">
               <tr>
-                <td colspan="{{ 4 if is_weekend_or_holiday else 3 }}">
+                <td colspan="{{ 5 if is_weekend_or_holiday else 4 }}">
                   <strong>Total Overtime:</strong>
                 </td>
                 <td class="overtime-cell">
@@ -477,7 +493,7 @@
           </table>
         </div>
       {% else %}
-        <div class="p-4 text-center text-muted no-entries">
+        <div class="p-4 text-center text-body-secondary no-entries">
           <i class="bi bi-inbox display-4 d-block mb-2"></i>
           <p>No entries for this date.</p>
         </div>

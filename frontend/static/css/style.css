@@ -2,6 +2,8 @@
   --bs-primary: #06c;
   --primary: #06c;
   --dark: #2c3e50;
+
+  font-variant-numeric: tabular-nums;
 }
 
 #notification-container:empty {
@@ -203,7 +205,7 @@
     font-size: unset;
   }
 
-  .text-muted {
+  .text-body-secondary {
     color: black !important;
   }
 

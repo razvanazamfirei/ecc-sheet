@@ -997,6 +997,79 @@ def test_import_supports_first_call_role_aliases(mock_get, client, app, monkeypa
         db.session.commit()
 
 
+@patch("backend.routes.schedule.requests.get")
+@pytest.mark.integration
+def test_import_includes_full_call_team(mock_get, client, app):
+    """Second/third/cardiac/OB call-team roles are imported from Amion."""
+    with app.app_context():
+        test_date = date(2024, 4, 16)
+
+        sheet = DailySheet.query.filter_by(date=test_date).first()
+        if sheet:
+            sheet.locked = False
+            db.session.commit()
+
+        residents_by_role = {
+            "First Call": ("First Call Resident", "R710001"),
+            "Second Call": ("Second Call Resident", "R710002"),
+            "Third Call": ("Third Call Resident", "R710003"),
+            "Cardiac Call": ("Cardiac Call Resident", "R710004"),
+            "OB Flex": ("OB Flex Resident", "R710005"),
+        }
+
+        residents: list[Resident] = []
+        for resident_name, epic_id in residents_by_role.values():
+            resident = Resident(name=resident_name, epic_id=epic_id, active=True)
+            db.session.add(resident)
+            residents.append(resident)
+        db.session.commit()
+
+        csv_lines = []
+        for role_name, (resident_name, epic_id) in residents_by_role.items():
+            role = Role.query.filter_by(name=role_name).first()
+            assert role is not None
+            csv_lines.append(
+                f'"{resident_name}","EPICID:{epic_id}","","{role_name}","","","","",""'
+            )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "\n".join(csv_lines) + "\n"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        response = client.post(
+            f"/schedule/{test_date.strftime('%Y-%m-%d')}/import",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Successfully imported 5 schedule entries from Amion" in response.data
+
+        for role_name, (resident_name, _epic_id) in residents_by_role.items():
+            resident = Resident.query.filter_by(name=resident_name).first()
+            role = Role.query.filter_by(name=role_name).first()
+            assert resident is not None
+            assert role is not None
+            assert (
+                TimeEntry.query.filter_by(
+                    date=test_date,
+                    resident_id=resident.id,
+                    role_id=role.id,
+                ).first()
+                is not None
+            )
+
+        TimeEntry.query.filter(
+            TimeEntry.date == test_date,
+            TimeEntry.resident_id.in_([resident.id for resident in residents]),
+        ).delete(synchronize_session=False)
+        for resident in residents:
+            persisted_resident = db.session.get(Resident, resident.id)
+            if persisted_resident is not None:
+                db.session.delete(persisted_resident)
+        db.session.commit()
+
+
 @pytest.mark.integration
 def test_import_invalid_date(client):
     """Test import with invalid date format."""

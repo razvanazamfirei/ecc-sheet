@@ -14,6 +14,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Automatic overtime calculation based on configurable cutoff times
   - Sheet locking with user tracking
   - Import schedules from Amion API
+  - Optional MSSQL sync for anesthesia stop times
   - Backup role support with start/exit times
   - Copy to clipboard and print for signing
 
@@ -78,8 +79,8 @@ uv sync
 bun install
 bun run build
 
-# Apply database migrations
-uv run flask --app backend.app db upgrade
+# Bootstrap schema and default data
+uv run flask --app backend.app bootstrap-application
 
 # Run application
 uv run python -m backend.app
@@ -110,6 +111,17 @@ REPORT_VIEW_ALL_USERS=
 
 # Amion Integration (for schedule/staff imports)
 AMION_SCHEDULE_CODE=your-schedule-code-here
+
+# Optional Resend email delivery
+RESEND_API_KEY=re_xxxxxxxxx
+DEFAULT_SENDER_EMAIL=noreply@example.edu
+
+# Optional MSSQL anesthesia stop-time sync
+ANESTHESIA_SQL_CONNECTION_STRING=Driver={ODBC Driver 18 for SQL Server};Server=tcp:sql.example.edu,1433;Database=EpicReporting;Uid=svc_user;Pwd=secret;Encrypt=yes;TrustServerCertificate=no;
+ANESTHESIA_SQL_SOURCE_TABLE=dbo.AnesthesiaResidentStops
+ANESTHESIA_SQL_PROVIDER_TYPE=Anes Resident
+ANESTHESIA_SQL_TIMEOUT=30
+ANESTHESIA_FETCHER_ENABLED=false
 
 # Optional
 TIMEZONE=America/New_York
@@ -187,6 +199,70 @@ uv run pytest tests/ --cov=backend --cov-report=html
 # Run application with auto-reload
 uv run python -m backend.app
 ```
+
+### Optional MSSQL Stop-Time Sync
+
+Install the MSSQL extra when you want to pull anesthesia stop times from SQL Server:
+
+```bash
+uv sync --extra mssql
+```
+
+Then configure `ANESTHESIA_SQL_CONNECTION_STRING` and `ANESTHESIA_SQL_SOURCE_TABLE`.
+The source must expose these columns: `ProviderType`, `ProviderName`, `ProviderID`,
+`DutyStarted`, `SCHED_START_TIME`, and `ANESTHESIA_STOP_EVENTTIME`.
+The sync stores the latest stop time per resident/work date in
+`TimeEntry.anesthesia_stop_time`; it does not modify `exit_time` or overtime.
+
+To keep this updated automatically while the server process is running, enable:
+
+```env
+ANESTHESIA_FETCHER_ENABLED=true
+ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS=120
+ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS=1
+```
+
+That runs a background sync every two minutes across the current effective sheet
+date plus one prior day.
+
+Run the sync with:
+
+```bash
+uv run flask --app backend.app sync-anesthesia-stop-times \
+  --start-date 2026-03-01 \
+  --end-date 2026-03-07
+```
+
+Use `--dry-run` to preview changes and `--overwrite-existing` to replace
+non-empty `anesthesia_stop_time` values instead of only filling blanks.
+
+### Resident Bootstrap CSV
+
+To bootstrap or update residents from a managed CSV file:
+
+```bash
+uv run flask --app backend.app import-residents-csv \
+  --path docs/examples/residents.bootstrap.csv
+```
+
+For a one-step first boot:
+
+```bash
+uv run flask --app backend.app bootstrap-application \
+  --residents-csv docs/examples/residents.bootstrap.csv
+```
+
+Supported CSV columns:
+`name` (required), `epic_id`, `class_year`, `email`, `phone`,
+`abbreviation`, `backup_id`, `first_name`, `last_name`, `lawson_id`,
+`hire_date`, and `active`.
+
+Notes:
+
+- `class_year` accepts `CA1`, `CA2`, `CA3`, `CA-1`, `CA-2`, `CA-3`, `Fellow`, and `OMFS`.
+- `hire_date` must use `YYYY-MM-DD`.
+- `active` accepts `true`/`false`, `yes`/`no`, or `1`/`0`.
+- Blank optional values do not overwrite existing resident data.
 
 ### Frontend Development
 

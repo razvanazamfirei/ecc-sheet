@@ -1,13 +1,22 @@
+import fcntl
 import os
+import sys
+import threading
 import warnings as _warnings
+from datetime import date, timedelta
 from logging import Logger
 from pathlib import Path
+from typing import TextIO
 
+import click
 from flask import Flask, jsonify, request, session
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
+from sqlalchemy import inspect as sqlalchemy_inspect
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from .anesthesia_sync import AnesthesiaSyncError, sync_anesthesia_stop_times
 from .auth import (
     get_admin_users,
     get_current_user,
@@ -17,6 +26,7 @@ from .auth import (
 )
 from .config import Config
 from .email_service import init_email_service
+from .errors import APIError
 from .holidays import get_federal_holidays
 from .instance_config import (
     BACKUP_ROLE_NAMES,
@@ -28,6 +38,7 @@ from .instance_config import (
     ROLE_CUTOFF_MINUTES,
 )
 from .models import Holiday, Resident, Role, db
+from .resident_csv_import import import_residents_csv_file
 from .routes import dev as _dev_module
 from .routes import register_blueprints
 from .utils import _wants_json_response, get_effective_date, setup_logging
@@ -58,6 +69,8 @@ migrate: Migrate = Migrate(app, db, render_as_batch=True)
 
 # Enable CSRF protection
 csrf: CSRFProtect = CSRFProtect(app)
+_background_sync_lock = threading.Lock()
+_runtime_schema_lock = threading.Lock()
 
 
 def _authentication_required_response():
@@ -113,6 +126,12 @@ if mock_users_enabled():
 
 
 @app.before_request
+def ensure_background_services_started() -> None:
+    """Start background services for import-based server processes."""
+    start_background_services()
+
+
+@app.before_request
 def require_authenticated_request():
     """Fail closed when proxy-auth is enabled and the identity header is absent."""
     proxy_header = str(app.config.get("AUTH_PROXY_USERNAME_HEADER") or "").strip()
@@ -155,10 +174,284 @@ def apply_security_headers(response):
     return response
 
 
+def _ensure_time_entry_columns() -> None:
+    """Backfill nullable TimeEntry columns for existing databases."""
+    inspector = sqlalchemy_inspect(db.engine)
+    time_entry_columns = {
+        column["name"] for column in inspector.get_columns("time_entries")
+    }
+    if "anesthesia_stop_time" not in time_entry_columns:
+        db.session.execute(
+            text("ALTER TABLE time_entries ADD COLUMN anesthesia_stop_time TIME")
+        )
+        db.session.commit()
+
+
+def _ensure_runtime_schema() -> None:
+    """Ensure required tables and additive columns exist for this process."""
+    with _runtime_schema_lock:
+        if app.extensions.get("runtime_schema_checked"):
+            return
+
+        db.create_all()
+        _ensure_time_entry_columns()
+        app.extensions["runtime_schema_checked"] = True
+
+
+def _auto_sync_window() -> tuple[date, date]:
+    """Return the rolling date window for automatic anesthesia stop syncing."""
+    effective_date = get_effective_date()
+    lookback_days = max(
+        0,
+        int(app.config.get("ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS", 1)),
+    )
+    return effective_date - timedelta(days=lookback_days), effective_date
+
+
+def _run_auto_anesthesia_sync_once() -> None:
+    """Run one automatic anesthesia stop-time sync cycle."""
+    with app.app_context():
+        _ensure_runtime_schema()
+        start_date, end_date = _auto_sync_window()
+        result = sync_anesthesia_stop_times(
+            start_date=start_date,
+            end_date=end_date,
+            overwrite_existing=False,
+            dry_run=False,
+            user="anesthesia-auto-sync",
+        )
+        logger.info("Automatic anesthesia stop-time sync: %s", result.summary())
+
+
+def _auto_anesthesia_sync_loop(stop_event: threading.Event) -> None:
+    """Run automatic anesthesia stop-time sync on a fixed interval."""
+    interval_seconds = max(
+        30,
+        int(app.config.get("ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS", 120)),
+    )
+    logger.info(
+        "Automatic anesthesia stop-time sync started (interval=%ss, lookback_days=%s).",
+        interval_seconds,
+        app.config.get("ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS", 1),
+    )
+    while not stop_event.is_set():
+        try:
+            _run_auto_anesthesia_sync_once()
+        except Exception:
+            logger.exception("Automatic anesthesia stop-time sync failed")
+
+        if stop_event.wait(interval_seconds):
+            break
+
+
+def _background_service_lock_path() -> Path:
+    """Return the process-lock path for the anesthesia auto-sync worker."""
+    instance_dir = Path(app.instance_path)
+    instance_dir.mkdir(parents=True, exist_ok=True)
+    return instance_dir / "anesthesia-auto-sync.lock"
+
+
+def _acquire_background_service_process_lock() -> TextIO | None:
+    """Acquire a cross-process lock so only one worker runs auto-sync."""
+    lock_handle = _background_service_lock_path().open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock_handle.close()
+        return None
+
+    lock_handle.seek(0)
+    lock_handle.truncate()
+    lock_handle.write(f"{os.getpid()}\n")
+    lock_handle.flush()
+    return lock_handle
+
+
+def _release_background_service_process_lock(lock_handle: TextIO | None) -> None:
+    """Release the cross-process lock for the anesthesia auto-sync worker."""
+    if lock_handle is None:
+        return
+
+    try:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        logger.debug("Background service lock was already released", exc_info=True)
+    finally:
+        lock_handle.close()
+
+
+def start_background_services() -> bool:
+    """Start background services once for the deployment."""
+    if app.config.get("TESTING"):
+        return False
+    if not app.config.get("ANESTHESIA_FETCHER_ENABLED"):
+        return False
+    if app.debug and os.getenv("WERKZEUG_RUN_MAIN") != "true":
+        return False
+
+    started = False
+    with _background_sync_lock:
+        existing_service = app.extensions.get("anesthesia_auto_sync_service")
+        if existing_service is None:
+            try:
+                lock_handle = _acquire_background_service_process_lock()
+            except OSError:
+                logger.exception(
+                    "Failed to initialize the anesthesia auto-sync process lock"
+                )
+            else:
+                if lock_handle is None:
+                    logger.info(
+                        "Skipping anesthesia auto-sync worker in pid=%s; "
+                        "another process already owns the service lock.",
+                        os.getpid(),
+                    )
+                else:
+                    stop_event = threading.Event()
+                    worker = threading.Thread(
+                        target=_auto_anesthesia_sync_loop,
+                        args=(stop_event,),
+                        name="anesthesia-auto-sync",
+                        daemon=True,
+                    )
+                    try:
+                        worker.start()
+                    except Exception:
+                        _release_background_service_process_lock(lock_handle)
+                        raise
+
+                    app.extensions["anesthesia_auto_sync_service"] = {
+                        "thread": worker,
+                        "stop_event": stop_event,
+                        "lock_handle": lock_handle,
+                    }
+                    started = True
+    return started
+
+
+def stop_background_services() -> bool:
+    """Stop background services for the current process when running."""
+    with _background_sync_lock:
+        existing_service = app.extensions.pop("anesthesia_auto_sync_service", None)
+        if existing_service is None:
+            return False
+
+        stop_event = existing_service["stop_event"]
+        worker = existing_service["thread"]
+        lock_handle = existing_service.get("lock_handle")
+        stop_event.set()
+        if worker.is_alive():
+            worker.join(timeout=1)
+        _release_background_service_process_lock(lock_handle)
+        return True
+
+
+def _should_start_background_services_during_import() -> bool:
+    """Return whether import-time startup should bootstrap background services."""
+    if __name__ == "__main__":
+        return False
+
+    process_name = Path(sys.argv[0]).name.casefold()
+    if "pytest" in process_name:
+        return False
+
+    if os.getenv("FLASK_RUN_FROM_CLI") != "true":
+        return True
+
+    flask_args = [arg.casefold() for arg in sys.argv[1:]]
+    if "run" not in flask_args:
+        return False
+
+    debug_enabled = (os.getenv("FLASK_DEBUG") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    } or "--debug" in flask_args
+    return not (debug_enabled and os.getenv("WERKZEUG_RUN_MAIN") != "true")
+
+
+@app.before_request
+def ensure_runtime_schema() -> None:
+    """Ensure runtime schema before handling requests."""
+    _ensure_runtime_schema()
+
+
+@app.cli.command("sync-anesthesia-stop-times")
+@click.option(
+    "--start-date",
+    required=True,
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    help="Start work date in YYYY-MM-DD format.",
+)
+@click.option(
+    "--end-date",
+    required=True,
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    help="End work date in YYYY-MM-DD format.",
+)
+@click.option(
+    "--overwrite-existing",
+    is_flag=True,
+    help="Replace existing anesthesia stop times instead of only filling blanks.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Preview matching updates without writing to the database.",
+)
+def sync_anesthesia_stop_times_command(
+    start_date, end_date, overwrite_existing: bool, dry_run: bool
+) -> None:
+    """Sync anesthesia stop times from MSSQL into time-entry records."""
+    result = None
+    try:
+        _ensure_runtime_schema()
+        result = sync_anesthesia_stop_times(
+            start_date=start_date.date(),
+            end_date=end_date.date(),
+            overwrite_existing=overwrite_existing,
+            dry_run=dry_run,
+            user=get_current_user(),
+        )
+    except AnesthesiaSyncError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(result.summary())
+
+
+@app.cli.command("import-residents-csv")
+@click.option(
+    "--path",
+    "csv_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to the residents CSV bootstrap file.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Validate and preview resident changes without writing to the database.",
+)
+def import_residents_csv_command(csv_path: Path, dry_run: bool) -> None:
+    """Import residents from a managed CSV file."""
+    _ensure_runtime_schema()
+    try:
+        result = import_residents_csv_file(
+            csv_path,
+            user=get_current_user(),
+            dry_run=dry_run,
+        )
+    except APIError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(result.summary())
+
+
 def init_db():
     """Initialize database with default roles"""
     with app.app_context():
-        db.create_all()
+        _ensure_runtime_schema()
 
         for role_name, order in DEFAULT_ROLES:
             existing_role = Role.query.filter_by(name=role_name).first()
@@ -199,10 +492,41 @@ def init_db():
         db.session.commit()
 
 
+@app.cli.command("bootstrap-application")
+@click.option(
+    "--residents-csv",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Optional residents CSV file to import after schema/default bootstrap.",
+)
+def bootstrap_application_command(residents_csv: Path | None) -> None:
+    """Bootstrap schema, defaults, and optionally residents from CSV."""
+    init_db()
+    click.echo("Schema and default data bootstrapped.")
+
+    if residents_csv is None:
+        return
+
+    try:
+        result = import_residents_csv_file(
+            residents_csv,
+            user=get_current_user(),
+            dry_run=False,
+        )
+    except APIError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(result.summary())
+
+
+if _should_start_background_services_during_import():
+    start_background_services()
+
+
 if __name__ == "__main__":
     import os
 
     init_db()
+    start_background_services()
     # Always use debug=False for security
     port = int(os.getenv("PORT", "5000"))
     app.run(debug=False, host="0.0.0.0", port=port)

@@ -138,3 +138,19 @@ class TestConfig:
     def test_sqlalchemy_track_modifications_disabled(self):
         """Test SQLALCHEMY_TRACK_MODIFICATIONS is disabled."""
         assert backend.config.Config.SQLALCHEMY_TRACK_MODIFICATIONS is False
+
+    def test_anesthesia_fetcher_settings_from_env(self):
+        """Test fetcher configuration is read from environment."""
+        with patch.dict(
+            os.environ,
+            {
+                "ANESTHESIA_FETCHER_ENABLED": "true",
+                "ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS": "120",
+                "ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS": "2",
+            },
+            clear=False,
+        ):
+            reload(backend.config)
+            assert backend.config.Config.ANESTHESIA_FETCHER_ENABLED is True
+            assert backend.config.Config.ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS == 120
+            assert backend.config.Config.ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS == 2

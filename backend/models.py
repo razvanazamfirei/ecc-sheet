@@ -304,6 +304,7 @@ class TimeEntry(ModelBase):
     # Time fields
     stop_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     exit_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    anesthesia_stop_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
 
     # Status
