@@ -354,11 +354,7 @@
                     </span>
                   </td>
                   <td
-                    {% if not entry.exit_time %}
-                      class="exit-time-cell missing"
-                    {% else %}
-                      class="exit-time-cell "
-                    {% endif %}
+                    class="exit-time-cell{{ ' missing' if not entry.exit_time else '' }}"
                     id="cell-{{ entry.id }}">
                     <span
                       class="time-display"

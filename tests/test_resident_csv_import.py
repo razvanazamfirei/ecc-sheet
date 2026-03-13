@@ -1,11 +1,12 @@
 """Tests for resident CSV bootstrap/import."""
 
 from datetime import date
+from unittest.mock import patch
 
 import pytest
 
 from backend.errors import ConflictError, ValidationError
-from backend.models import Resident, db
+from backend.models import AuditLog, Resident, db
 from backend.resident_csv_import import (
     ResidentCsvImportResult,
     import_resident_csv_records,
@@ -131,6 +132,128 @@ class TestImportResidentCsv:
 
             assert result.dry_run is True
             assert Resident.get_by_epic_id("RCSVDRY") is None
+
+    def test_import_persists_audit_logs_after_session_remove(self, app):
+        with app.app_context():
+            records = parse_resident_csv(
+                "name,epic_id,class_year\nAudit Bootstrap Resident,RCSVAUDIT,CA1\n"
+            )
+
+            result = import_resident_csv_records(
+                records,
+                user="resident-csv-audit-test",
+            )
+
+            resident = Resident.get_by_epic_id("RCSVAUDIT")
+            assert resident is not None
+            assert result.created == 1
+            resident_id = resident.id
+
+            db.session.remove()
+
+            create_log = AuditLog.query.filter_by(
+                action="CREATE",
+                entity_type="Resident",
+                entity_id=resident_id,
+            ).first()
+            import_log = AuditLog.query.filter_by(
+                action="IMPORT",
+                entity_type="resident_csv",
+                user="resident-csv-audit-test",
+            ).first()
+            assert create_log is not None
+            assert import_log is not None
+
+            resident = Resident.get_by_epic_id("RCSVAUDIT")
+            assert resident is not None
+            db.session.delete(create_log)
+            db.session.delete(import_log)
+            db.session.delete(resident)
+            db.session.commit()
+
+    def test_import_uses_single_flush_and_commit_for_data_and_audit(self, app):
+        with app.app_context():
+            records = parse_resident_csv(
+                "name,epic_id,class_year\nSingle Commit Resident,RCSVONE,CA2\n"
+            )
+
+            with (
+                patch.object(db.session, "flush", wraps=db.session.flush) as mock_flush,
+                patch.object(
+                    db.session,
+                    "commit",
+                    wraps=db.session.commit,
+                ) as mock_commit,
+            ):
+                result = import_resident_csv_records(records, user="single-commit-test")
+
+            assert result.created == 1
+            mock_flush.assert_called_once_with()
+            mock_commit.assert_called_once_with()
+
+            resident = Resident.get_by_epic_id("RCSVONE")
+            assert resident is not None
+            create_log = AuditLog.query.filter_by(
+                action="CREATE",
+                entity_type="Resident",
+                entity_id=resident.id,
+            ).first()
+            import_log = AuditLog.query.filter_by(
+                action="IMPORT",
+                entity_type="resident_csv",
+                user="single-commit-test",
+            ).first()
+            assert create_log is not None
+            assert import_log is not None
+
+            db.session.delete(create_log)
+            db.session.delete(import_log)
+            db.session.delete(resident)
+            db.session.commit()
+
+    def test_import_update_persists_update_audit_log(self, app):
+        with app.app_context():
+            resident = Resident(
+                name="Update Audit Resident",
+                epic_id="RCSVUPD",
+                class_year="CA-1",
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+
+            records = parse_resident_csv(
+                "name,epic_id,class_year,email\n"
+                "Update Audit Resident,RCSVUPD,CA3,updated-audit@example.com\n"
+            )
+
+            result = import_resident_csv_records(records, user="update-audit-test")
+
+            assert result.updated == 1
+            resident_id = resident.id
+            db.session.remove()
+
+            update_log = AuditLog.query.filter_by(
+                action="UPDATE",
+                entity_type="Resident",
+                entity_id=resident_id,
+            ).first()
+            import_log = AuditLog.query.filter_by(
+                action="IMPORT",
+                entity_type="resident_csv",
+                user="update-audit-test",
+            ).first()
+            assert update_log is not None
+            assert '"class_year"' in update_log.details
+            assert '"email"' in update_log.details
+            assert import_log is not None
+
+            refreshed = Resident.get_by_epic_id("RCSVUPD")
+            assert refreshed is not None
+            db.session.delete(update_log)
+            db.session.delete(import_log)
+            db.session.delete(refreshed)
+            db.session.commit()
 
 
 class TestResidentCsvCli:

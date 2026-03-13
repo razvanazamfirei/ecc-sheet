@@ -427,7 +427,7 @@ def import_resident_csv_records(
             dry_run=True,
         )
 
-    db.session.commit()
+    db.session.flush()
 
     for resident in created_residents:
         log_create(
@@ -446,6 +446,7 @@ def import_resident_csv_records(
         f"Created: {created}, Updated: {updated}, Skipped: {skipped}",
         user=user,
     )
+    db.session.commit()
 
     logger.info(
         "Resident CSV import completed. created=%s updated=%s skipped=%s",

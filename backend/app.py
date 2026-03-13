@@ -407,7 +407,10 @@ def _should_start_background_services_during_import() -> bool:
 
 @app.before_request
 def ensure_runtime_schema() -> None:
-    """Ensure runtime schema before handling requests."""
+    """Ensure runtime schema before handling non-static requests."""
+    if request.endpoint == "static" or app.extensions.get("runtime_schema_checked"):
+        return
+
     _ensure_runtime_schema()
 
 

@@ -555,6 +555,7 @@ def _persist_updates(
                     "provider_name": record.provider_name,
                     "source": "anesthesia_stop_sync",
                 },
+                user=user,
             )
 
         log_import_strict("anesthesia_stop_sync", result.summary(), user=user)

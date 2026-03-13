@@ -112,12 +112,13 @@ def log_update(
     entity_id: int,
     changes: Mapping[str, Any] | None = None,
     details: Mapping[str, Any] | None = None,
+    user: str | None = None,
 ) -> None:
     """Log an UPDATE action"""
     merged_details = dict(details) if details else {}
     if changes:
         merged_details["changes"] = dict(changes)
-    log_action("UPDATE", entity_type, entity_id, merged_details or None)
+    log_action("UPDATE", entity_type, entity_id, merged_details or None, user=user)
 
 
 def log_update_strict(
@@ -125,12 +126,19 @@ def log_update_strict(
     entity_id: int,
     changes: Mapping[str, Any] | None = None,
     details: Mapping[str, Any] | None = None,
+    user: str | None = None,
 ) -> None:
     """Log an UPDATE action and re-raise failures."""
     merged_details = dict(details) if details else {}
     if changes:
         merged_details["changes"] = dict(changes)
-    log_action_strict("UPDATE", entity_type, entity_id, merged_details or None)
+    log_action_strict(
+        "UPDATE",
+        entity_type,
+        entity_id,
+        merged_details or None,
+        user=user,
+    )
 
 
 def log_delete(

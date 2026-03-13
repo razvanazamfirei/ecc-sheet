@@ -253,6 +253,43 @@ class TestContextProcessor:
 class TestBackgroundServices:
     """Tests for background service startup."""
 
+    def test_runtime_schema_hook_runs_when_not_cached(self, client, app):
+        """Uncached requests should still bootstrap the runtime schema."""
+        original_checked = app.extensions.pop("runtime_schema_checked", None)
+        try:
+            with patch("backend.app._ensure_runtime_schema") as mock_ensure:
+                response = client.get("/")
+
+            assert response.status_code == 200
+            mock_ensure.assert_called_once_with()
+        finally:
+            if original_checked is not None:
+                app.extensions["runtime_schema_checked"] = original_checked
+
+    def test_runtime_schema_hook_skips_when_cached(self, client, app):
+        """Cached requests should bypass runtime schema bootstrap."""
+        original_checked = app.extensions.get("runtime_schema_checked")
+        app.extensions["runtime_schema_checked"] = True
+        try:
+            with patch("backend.app._ensure_runtime_schema") as mock_ensure:
+                response = client.get("/")
+
+            assert response.status_code == 200
+            mock_ensure.assert_not_called()
+        finally:
+            if original_checked is None:
+                app.extensions.pop("runtime_schema_checked", None)
+            else:
+                app.extensions["runtime_schema_checked"] = original_checked
+
+    def test_runtime_schema_hook_skips_static_requests(self, client):
+        """Static asset requests should bypass runtime schema bootstrap."""
+        with patch("backend.app._ensure_runtime_schema") as mock_ensure:
+            response = client.get("/static/css/style.css")
+
+        assert response.status_code == 200
+        mock_ensure.assert_not_called()
+
     def test_requests_do_not_attempt_to_start_background_services(self, client):
         """Requests should not rerun background-service startup checks."""
         with patch("backend.app.start_background_services") as mock_start:
@@ -380,7 +417,7 @@ class TestBackgroundServices:
 
         class _Inspector:
             @staticmethod
-            def get_columns(_table_name):
+            def get_columns(_table_name) -> list[dict[str, str]]:
                 return [{"name": "id"}]
 
         with (
