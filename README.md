@@ -91,6 +91,11 @@ SECRET_KEY=your-secret-key-here
 DATABASE_URL=sqlite:///ecc_sheet.db
 USER_NAME=Admin
 AUTH_PROXY_USERNAME_HEADER=X-Auth-User
+SAML_ENABLED=false
+SAML_SETTINGS_PATH=docs/examples/saml.settings.json
+SAML_USERNAME_ATTRIBUTES=name,email
+SAML_USE_NAME_ID=true
+SAML_DEFAULT_NEXT_URL=/
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_HTTPONLY=true
 SESSION_COOKIE_SAMESITE=Lax
@@ -337,13 +342,15 @@ The application uses environment-based authentication:
 
 - **User Identity**: Set via `USER_NAME` environment variable
 - **Admin Access**: Controlled by `ADMIN_USERS` (comma-separated list)
-- **External Auth**: Designed to work with SSO or reverse proxy
+- **External Auth**: Works either with reverse-proxy identity headers or an
+  in-app SAML SP session
 
 When `AUTH_PROXY_USERNAME_HEADER` is configured, requests that do not include
 that header are rejected instead of silently falling back to `USER_NAME`.
 
-Authentication must be handled externally (e.g., institutional SSO, reverse
-proxy).
+When `SAML_ENABLED=true`, unauthenticated browser requests are redirected to
+`/auth/login`, the SAML assertion populates the Flask session, and the existing
+authorization logic continues to use the resolved username.
 
 ## Security
 

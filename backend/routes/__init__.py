@@ -11,6 +11,7 @@ from . import (
     roles,
     schedule,
     sheets,
+    sso,
 )
 from ._registry import register_blueprints
 
@@ -26,4 +27,5 @@ __all__ = [
     "roles",
     "schedule",
     "sheets",
+    "sso",
 ]

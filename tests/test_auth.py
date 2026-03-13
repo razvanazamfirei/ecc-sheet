@@ -68,6 +68,16 @@ class TestGetCurrentUser:
                 os.environ.pop("USER_NAME", None)
             app.config["AUTH_PROXY_USERNAME_HEADER"] = original_header or ""
 
+    def test_uses_session_authenticated_user_when_present(self, client):
+        """Test SAML/session auth overrides USER_NAME inside requests."""
+        with client.session_transaction() as sess:
+            sess["auth_user"] = "Session User"
+
+        response = client.get("/")
+
+        assert response.status_code == 200
+        assert b"Session User" in response.data
+
     def test_proxy_header_returns_empty_user_when_missing(self, app):
         """Test proxy-auth configuration fails closed when the header is absent."""
         original_user = os.environ.get("USER_NAME")

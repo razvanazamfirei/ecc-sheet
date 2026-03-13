@@ -41,6 +41,11 @@ from .models import Holiday, Resident, Role, db
 from .resident_csv_import import import_residents_csv_file
 from .routes import dev as _dev_module
 from .routes import register_blueprints
+from .saml import (
+    get_session_authenticated_user,
+    saml_enabled,
+    saml_public_endpoint,
+)
 from .utils import _wants_json_response, get_effective_date, setup_logging
 
 try:
@@ -78,9 +83,12 @@ _background_sync_lock = threading.Lock()
 _runtime_schema_lock = threading.Lock()
 
 
-def _authentication_required_response():
-    """Return a 401 response when proxy-auth identity is missing."""
+def _authentication_required_response(*, redirect_to_login: bool = False):
+    """Return an auth challenge for missing identity."""
     message = "Authentication required."
+    if redirect_to_login and not _wants_json_response() and request.method == "GET":
+        next_url = request.full_path.rstrip("?") or request.path
+        return redirect(url_for("auth.login", next=next_url))
     if _wants_json_response():
         return jsonify({"success": False, "message": message}), 401
     return message, 401
@@ -132,22 +140,31 @@ if mock_users_enabled():
 
 @app.before_request
 def require_authenticated_request():
-    """Fail closed when proxy-auth is enabled and the identity header is absent."""
+    """Fail closed when external auth is enabled and identity is absent."""
+    if request.endpoint == "static" or mock_users_enabled():
+        return None
+
+    if saml_enabled(app.config):
+        if not saml_public_endpoint(request.endpoint) and not get_current_user():
+            return _authentication_required_response(redirect_to_login=True)
+        return None
+
     proxy_header = str(app.config.get("AUTH_PROXY_USERNAME_HEADER") or "").strip()
-    if not proxy_header or mock_users_enabled() or request.endpoint == "static":
-        return None
-
-    if get_current_user():
-        return None
-
-    return _authentication_required_response()
+    if proxy_header and not get_current_user():
+        return _authentication_required_response()
+    return None
 
 
 # Make auth functions available in templates
 @app.context_processor
 def inject_auth():
     """Inject authentication functions into template context."""
-    return {"current_user": get_current_user(), "is_admin": is_admin()}
+    session_user = get_session_authenticated_user()
+    return {
+        "current_user": get_current_user(),
+        "is_admin": is_admin(),
+        "can_logout": bool(session_user and saml_enabled(app.config)),
+    }
 
 
 @app.context_processor

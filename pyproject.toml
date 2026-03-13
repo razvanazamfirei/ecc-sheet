@@ -23,6 +23,9 @@ dependencies = [
 mssql = [
     "pyodbc>=5.2.0",
 ]
+saml = [
+    "python3-saml>=1.16.0",
+]
 
 [dependency-groups]
 dev = [

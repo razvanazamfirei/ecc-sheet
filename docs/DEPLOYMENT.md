@@ -99,6 +99,40 @@ What this does:
 - The reverse proxy must enforce authentication and set `X-Auth-User`; if that
   header is absent, the app returns HTTP 401.
 
+## Alternative: App-Managed SAML SP
+
+- keep Gunicorn and SQLite exactly as-is
+- do not set `AUTH_PROXY_USERNAME_HEADER`
+- set `SAML_ENABLED=true`
+- point `SAML_SETTINGS_PATH` at a OneLogin-compatible JSON settings file
+- expose `/auth/metadata`, `/auth/acs`, and `/auth/sls` at the public app URL
+
+Install the optional package set before bootstrapping:
+
+```bash
+sudo -u eccsheet bash -lc '
+  cd /opt/ecc-sheet
+  export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+  source .venv/bin/activate
+  uv sync --extra saml
+'
+```
+
+Template settings file:
+
+- [examples/saml.settings.json](./examples/saml.settings.json)
+
+Recommended `.env` additions:
+
+```env
+SAML_ENABLED=true
+SAML_SETTINGS_PATH=instance/saml/settings.json
+SAML_USERNAME_ATTRIBUTES=name,email
+SAML_USE_NAME_ID=true
+SAML_DEFAULT_NEXT_URL=/
+AUTH_PROXY_USERNAME_HEADER=
+```
+
 ## Bootstrap the App
 
 Run the supported bootstrap command once after creating `.env`:
