@@ -5,7 +5,7 @@ from typing import ClassVar
 
 from dotenv import dotenv_values
 
-from .env_utils import env_flag, env_int, env_str
+from .env_utils import env_csv, env_flag, env_int, env_str
 
 _PROJECT_DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 if _PROJECT_DOTENV_PATH.is_file():

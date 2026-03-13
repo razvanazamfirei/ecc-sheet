@@ -8,7 +8,7 @@ from io import StringIO
 from logging import Logger
 
 import requests
-from flask import Blueprint, current_app, flash, redirect, url_for
+from flask import Blueprint, current_app, flash
 from sqlalchemy.exc import IntegrityError
 
 from ..audit import log_create_strict, log_import_strict, log_update_strict
@@ -22,6 +22,7 @@ from ..instance_config import (
 )
 from ..models import DailySheet, Resident, Role, TimeEntry, db
 from ..type_defs import ScheduleImportResult, ScheduleResidentChanges
+from ._helpers import parse_iso_date, sheet_view_redirect
 
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
@@ -47,11 +48,6 @@ class ResidentResolution:
     skipped_conflict: bool = False
 
 
-def _sheet_view_redirect(date_str: str):
-    """Return the sheet view redirect for a given date."""
-    return redirect(url_for("sheets.view", date_str=date_str))
-
-
 def _validate_schedule_import_access(sheet_date: date, date_str: str):
     """Return a redirect response when schedule import is not allowed."""
     first_call_is_known = (
@@ -65,12 +61,12 @@ def _validate_schedule_import_access(sheet_date: date, date_str: str):
     )
     if first_call_is_known and not (is_admin() or is_first_call(sheet_date)):
         flash("Only the first call resident or an admin can import schedules", "error")
-        return _sheet_view_redirect(date_str)
+        return sheet_view_redirect(date_str)
 
     daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
     if daily_sheet and daily_sheet.locked:
         flash("Cannot import schedule - sheet is locked", "error")
-        return _sheet_view_redirect(date_str)
+        return sheet_view_redirect(date_str)
 
     return None
 
@@ -243,7 +239,7 @@ def _build_schedule_import_flash(
 def import_schedule(date_str):
     """Import schedule from Amion for a specific date."""
     try:
-        sheet_date = date.fromisoformat(date_str)
+        sheet_date = parse_iso_date(date_str)
         denial_response = _validate_schedule_import_access(sheet_date, date_str)
         if denial_response is not None:
             return denial_response
@@ -262,7 +258,7 @@ def import_schedule(date_str):
         logger.exception("Error importing schedule")
         _schedule_import_error("Error importing schedule.")
 
-    return _sheet_view_redirect(date_str)
+    return sheet_view_redirect(date_str)
 
 
 def _resident_keys(resident_name: str, epic_id: str | None) -> set[tuple[str, str]]:

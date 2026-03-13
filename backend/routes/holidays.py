@@ -4,26 +4,18 @@ import logging
 from datetime import date
 from logging import Logger
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, render_template
 
 from ..audit import log_create_strict, log_delete_strict, log_import_strict
 from ..auth import admin_required
 from ..holidays import get_federal_holidays
 from ..models import Holiday, db
 from ..utils import get_effective_date
+from ._forms import form_text
+from ._helpers import parse_iso_date, redirect_to
 
 bp: Blueprint = Blueprint("holidays", __name__)
 logger: Logger = logging.getLogger(__name__)
-
-
-def _holidays_index_redirect():
-    """Return a redirect to the holidays index."""
-    return redirect(url_for("holidays.index"))
-
-
-def _form_text(key: str) -> str:
-    """Return a trimmed form value."""
-    return request.form.get(key, "").strip()
 
 
 def _holiday_error(message: str) -> None:
@@ -34,13 +26,13 @@ def _holiday_error(message: str) -> None:
 
 def _parse_holiday_form() -> tuple[str, str, date] | None:
     """Parse the add-holiday form values or flash an error."""
-    date_str = _form_text("date")
-    name = _form_text("name")
+    date_str = form_text("date")
+    name = form_text("name")
     if not date_str or not name:
         flash("Date and name are required", "error")
         return None
     try:
-        return date_str, name, date.fromisoformat(date_str)
+        return date_str, name, parse_iso_date(date_str)
     except ValueError:
         flash("Invalid date format", "error")
         return None
@@ -79,13 +71,13 @@ def add():
     """Add a custom holiday."""
     parsed_form = _parse_holiday_form()
     if parsed_form is None:
-        return _holidays_index_redirect()
+        return redirect_to("holidays.index")
 
     date_str, name, holiday_date = parsed_form
 
     if Holiday.query.filter_by(date=holiday_date).first():
         flash(f"Holiday already exists for {date_str}", "error")
-        return _holidays_index_redirect()
+        return redirect_to("holidays.index")
 
     try:
         holiday = Holiday(
@@ -106,7 +98,7 @@ def add():
         logger.exception("Error adding holiday")
         _holiday_error("Error adding holiday.")
 
-    return _holidays_index_redirect()
+    return redirect_to("holidays.index")
 
 
 @bp.route("/holidays/<int:holiday_id>/delete", methods=["POST"])
@@ -134,7 +126,7 @@ def delete(holiday_id):
         logger.exception("Error deleting holiday")
         _holiday_error("Error deleting holiday.")
 
-    return _holidays_index_redirect()
+    return redirect_to("holidays.index")
 
 
 @bp.route("/holidays/refresh", methods=["POST"])
@@ -178,4 +170,4 @@ def refresh_federal():
         logger.exception("Error refreshing holidays")
         _holiday_error("Error refreshing holidays.")
 
-    return _holidays_index_redirect()
+    return redirect_to("holidays.index")

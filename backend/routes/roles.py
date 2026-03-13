@@ -3,19 +3,15 @@
 import logging
 from logging import Logger
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, render_template, request
 
 from ..audit import log_update_strict
 from ..auth import admin_required
 from ..models import Role, db
+from ._helpers import diff_snapshots, redirect_to
 
 bp: Blueprint = Blueprint("roles", __name__, url_prefix="/roles")
 logger: Logger = logging.getLogger(__name__)
-
-
-def _roles_index_redirect():
-    """Return a redirect to the roles index."""
-    return redirect(url_for("roles.index"))
 
 
 def _role_snapshot(role: Role) -> dict[str, int | bool | None]:
@@ -67,11 +63,7 @@ def update(role_id):
         for field, value in parsed_form.items():
             setattr(role, field, value)
 
-        changes = {
-            field: {"old": before[field], "new": getattr(role, field)}
-            for field in before
-            if before[field] != getattr(role, field)
-        }
+        changes = diff_snapshots(before, _role_snapshot(role))
         if changes:
             log_update_strict(
                 "Role",
@@ -92,4 +84,4 @@ def update(role_id):
         logger.exception("Error updating role")
         flash("Error updating role. Check logs for details.", "error")
 
-    return _roles_index_redirect()
+    return redirect_to("roles.index")
