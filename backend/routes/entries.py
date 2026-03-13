@@ -26,7 +26,7 @@ from ..utils import _wants_json_response
 
 bp = Blueprint("entries", __name__, url_prefix="/entries")
 logger = logging.getLogger(__name__)
-TIME_FIELDS = ("exit_time", "start_time")
+TIME_FIELDS = ("exit_time", "start_time", "anesthesia_stop_time")
 
 
 def _parse_sheet_date_value(raw: str) -> date:
@@ -129,18 +129,18 @@ def _format_time_display(raw_time) -> str | None:
 
 def _entry_json_payload(entry: "TimeEntry") -> dict:
     """Return the JSON payload describing a saved entry."""
-    return {
+    payload = {
         "id": entry.id,
         "resident_id": entry.resident_id,
         "role_id": entry.role_id,
-        "exit_time": _format_time_value(entry.exit_time),
-        "exit_time_display": _format_time_display(entry.exit_time),
-        "start_time": _format_time_value(entry.start_time),
-        "start_time_display": _format_time_display(entry.start_time),
         "missing_exit_time": entry.exit_time is None,
         "overtime_hours": entry.overtime_hours,
         "overtime_display": f"{entry.overtime_hours:.2f} hrs",
     }
+    for field in TIME_FIELDS:
+        payload[field] = _format_time_value(getattr(entry, field))
+        payload[f"{field}_display"] = _format_time_display(getattr(entry, field))
+    return payload
 
 
 def _snapshot_time_fields(entry: "TimeEntry") -> dict[str, str | None]:

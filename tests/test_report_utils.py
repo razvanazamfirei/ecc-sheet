@@ -5,7 +5,7 @@ from datetime import date, time
 
 import openpyxl
 
-from backend.models import PayrollSettings, Resident, TimeEntry, db
+from backend.models import PayrollSettings, Resident, Role, TimeEntry, db
 from backend.report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
@@ -35,6 +35,48 @@ class TestBuildEntriesQuery:
             end = date(2024, 1, 31)
             query = build_entries_query(start, end, sample_resident.id)
             assert query is not None
+
+    def test_query_excludes_call_team_roles(self, app):
+        """Call-team entries are filtered out of report/export queries."""
+        with app.app_context():
+            resident = Resident(name="Call Team Export Filter", active=True)
+            db.session.add(resident)
+            db.session.commit()
+
+            standard_role = Role.query.filter_by(name="ECC 1").first()
+            assert standard_role is not None
+
+            call_team_role = Role.query.filter_by(name="Second Call").first()
+            assert call_team_role is not None
+
+            standard_entry = TimeEntry(
+                date=date(2024, 1, 15),
+                resident_id=resident.id,
+                role_id=standard_role.id,
+                exit_time=time(18, 0),
+            )
+            call_team_entry = TimeEntry(
+                date=date(2024, 1, 15),
+                resident_id=resident.id,
+                role_id=call_team_role.id,
+                exit_time=time(18, 0),
+            )
+            db.session.add(standard_entry)
+            db.session.add(call_team_entry)
+            db.session.commit()
+
+            entries = build_entries_query(
+                date(2024, 1, 1),
+                date(2024, 1, 31),
+                resident.id,
+            ).all()
+
+            assert [entry.role.name for entry in entries] == ["ECC 1"]
+
+            db.session.delete(standard_entry)
+            db.session.delete(call_team_entry)
+            db.session.delete(resident)
+            db.session.commit()
 
 
 class TestGetResidentName:
@@ -257,8 +299,8 @@ class TestGeneratePayrollXlsx:
             assert ws.cell(row=1, column=1).value == "Program"
             assert ws.cell(row=1, column=9).value == "Hours"
 
-    def test_excludes_residents_without_lawson_id(self, app, sample_resident):
-        """Test that residents without lawson_id are excluded."""
+    def test_includes_residents_without_lawson_id(self, app, sample_resident):
+        """Residents without lawson_id still appear with a blank Lawson cell."""
         with app.app_context():
             resident = db.session.get(Resident, sample_resident.id)
             assert resident is not None
@@ -285,7 +327,10 @@ class TestGeneratePayrollXlsx:
             wb = openpyxl.load_workbook(io.BytesIO(result))
             ws = wb.active
             assert ws is not None
-            assert ws.max_row == 1  # Only header
+            assert ws.max_row == 2  # Header + 1 data row
+            assert ws.cell(row=2, column=3).value == resident.name
+            assert ws.cell(row=2, column=6).value is None
+            assert ws.cell(row=2, column=9).value == 3
 
     def test_includes_residents_with_lawson_id(self, app, sample_resident):
         """Test that residents with lawson_id appear as data rows."""

@@ -15,6 +15,7 @@ from ..audit import log_create_strict, log_import_strict, log_update_strict
 from ..auth import get_first_call_role_names, is_admin, is_first_call
 from ..holidays import is_weekend_or_holiday
 from ..instance_config import (
+    CALL_TEAM_ROLE_NAMES,
     LATE_ROLE_NAMES,
     SCHEDULE_ROLE_NAMES,
     WEEKDAY_BACKUP_ROLE_NAMES,
@@ -285,8 +286,10 @@ def _collect_late_assignment_keys(rows: list[ScheduleRow]) -> set[tuple[str, str
 
 
 def _schedule_role_names() -> frozenset[str]:
-    """Return importable schedule role names, including configured aliases."""
-    return SCHEDULE_ROLE_NAMES.union(get_first_call_role_names())
+    """Return importable schedule role names, including the full call team."""
+    return SCHEDULE_ROLE_NAMES.union(CALL_TEAM_ROLE_NAMES).union(
+        get_first_call_role_names()
+    )
 
 
 def _load_schedule_roles() -> dict[str, Role]:

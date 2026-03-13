@@ -66,6 +66,39 @@ class TestEntryUpdate:
             assert payload["entry"]["exit_time"] == "21:30"
             assert payload["entry"]["overtime_display"].endswith("hrs")
 
+    def test_update_anesthesia_stop_time_returns_json_for_async_requests(
+        self, client, app, sample_time_entry
+    ):
+        """Async entry updates should serialize anesthesia stop times."""
+        with app.app_context():
+            entry_id = sample_time_entry.id
+            entry_date = sample_time_entry.date
+
+            sheet = DailySheet.query.filter_by(date=entry_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            response = client.post(
+                f"/entries/{entry_id}/update",
+                data={"anesthesia_stop_time": "16:11"},
+                headers={
+                    "Accept": "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+            assert response.status_code == 200
+
+            payload = response.get_json()
+            assert payload is not None
+            assert payload["success"] is True
+            assert payload["entry"]["anesthesia_stop_time"] == "16:11"
+            assert payload["entry"]["anesthesia_stop_time_display"] == "04:11 PM"
+
+            entry = db.session.get(TimeEntry, entry_id)
+            assert entry is not None
+            assert entry.anesthesia_stop_time == time(16, 11)
+
     def test_update_all_returns_json_for_async_requests(
         self, client, app, sample_time_entry
     ):

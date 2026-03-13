@@ -6,7 +6,7 @@
   <div class="mb-4 d-flex justify-content-between align-items-center">
     <div>
       <h2 class="mb-0"><i class="bi bi-people me-2"></i>Manage Residents</h2>
-      <p class="text-muted mb-0">Add and manage resident status</p>
+      <p class="text-body-secondary mb-0">Add and manage resident status</p>
     </div>
     <div>
       <form
@@ -84,17 +84,19 @@
                     </a>
                     {% if resident.abbreviation %}
                       <br />
-                      <small class="text-muted"
+                      <small class="text-body-secondary"
                         >{{ resident.abbreviation }}</small
                       >
                     {% endif %}
                     {% if resident.phone %}
                       <br />
-                      <small class="text-muted">{{ resident.phone }}</small>
+                      <small class="text-body-secondary"
+                        >{{ resident.phone }}</small
+                      >
                     {% endif %}
                     {% if resident.created_at %}
                       <br />
-                      <small class="text-muted"
+                      <small class="text-body-secondary"
                         >Added
                         {{ resident.created_at.strftime('%Y-%m-%d') }}</small
                       >
@@ -106,7 +108,7 @@
                       {{- ', ' if resident.last_name and resident.first_name else '' -}}
                       {{- resident.first_name or '' -}}
                     {% else %}
-                      <span class="text-muted">-</span>
+                      <span class="text-body-secondary">-</span>
                     {% endif %}
                   </td>
                   <td>
@@ -115,25 +117,25 @@
                         >{{ resident.class_year }}</span
                       >
                     {% else %}
-                      <span class="text-muted">-</span>
+                      <span class="text-body-secondary">-</span>
                     {% endif %}
                   </td>
                   <td>
                     {% if resident.epic_id %}
                       <code
-                        class="text-muted"
+                        class="text-body-secondary"
                         title="Auto-populated from Amion imports">
                         {{- resident.epic_id -}}
                       </code>
                     {% else %}
-                      <span class="text-muted">-</span>
+                      <span class="text-body-secondary">-</span>
                     {% endif %}
                   </td>
                   <td>
                     {% if resident.lawson_id is not none %}
                       {{ resident.lawson_id }}
                     {% else %}
-                      <span class="text-muted">-</span>
+                      <span class="text-body-secondary">-</span>
                     {% endif %}
                   </td>
                   <td>
@@ -144,7 +146,7 @@
                         {{ resident.email }}
                       </a>
                     {% else %}
-                      <span class="text-muted">-</span>
+                      <span class="text-body-secondary">-</span>
                     {% endif %}
                   </td>
                   <td>
@@ -194,7 +196,7 @@
           </table>
         </div>
       {% else %}
-        <div class="p-4 text-center text-muted no-entries">
+        <div class="p-4 text-center text-body-secondary no-entries">
           <i class="bi bi-inbox display-4 d-block mb-2"></i>
           <p>No residents found. Add one above!</p>
         </div>

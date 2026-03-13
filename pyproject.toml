@@ -19,6 +19,11 @@ dependencies = [
     "resend>=2.6.1",
 ]
 
+[project.optional-dependencies]
+mssql = [
+    "pyodbc>=5.2.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",

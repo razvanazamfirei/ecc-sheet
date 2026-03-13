@@ -50,6 +50,27 @@ class TestAuditLogging:
             db.session.delete(log)
             db.session.commit()
 
+    def test_log_update_uses_explicit_user(self, app):
+        """Test logging an update action with an explicit user override."""
+        with app.app_context():
+            log_update(
+                "TestEntity",
+                22,
+                {"old_value": "a", "new_value": "b"},
+                user="Explicit Update User",
+            )
+
+            log = AuditLog.query.filter_by(
+                action="UPDATE",
+                entity_type="TestEntity",
+                entity_id=22,
+            ).first()
+            assert log is not None
+            assert log.user == "Explicit Update User"
+
+            db.session.delete(log)
+            db.session.commit()
+
     def test_log_delete(self, app):
         """Test logging a delete action."""
         with app.app_context():

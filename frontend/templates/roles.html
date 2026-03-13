@@ -3,7 +3,9 @@
 {% block content %}
   <div class="mb-4">
     <h2 class="mb-0"><i class="bi bi-briefcase me-2"></i>Manage Roles</h2>
-    <p class="text-muted">Configure cutoff times for overtime calculation</p>
+    <p class="text-body-secondary">
+      Configure cutoff times for overtime calculation
+    </p>
   </div>
   <div class="card roles-table">
     <div class="card-header">
@@ -84,7 +86,7 @@
                     >
                   </td>
                   <td>
-                    <span class="text-muted small">
+                    <span class="text-body-secondary small">
                       <i class="bi bi-clock me-1"></i>Current:
                       {{ "%02d"|format(role.cutoff_hour) }}:{{ "%02d"|format(role.cutoff_minute) }}
                       {% if role.is_backup %}
@@ -98,7 +100,7 @@
           </table>
         </div>
       {% else %}
-        <div class="p-4 text-center text-muted">
+        <div class="p-4 text-center text-body-secondary">
           <i class="bi bi-inbox display-4 d-block mb-2"></i>
           <p>No roles found.</p>
         </div>

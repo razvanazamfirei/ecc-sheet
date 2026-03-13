@@ -14,7 +14,9 @@
         {%- endif -%}
       </h2>
       {% if resident.first_name or resident.last_name %}
-        <p class="text-muted mb-1 small">Amion name: {{ resident.name }}</p>
+        <p class="text-body-secondary mb-1 small">
+          Amion name: {{ resident.name }}
+        </p>
       {% endif %}
       <div class="d-flex gap-2 flex-wrap">
         {% if resident.class_year %}
@@ -59,38 +61,38 @@
     <div class="card-body">
       <div class="row g-3">
         <div class="col-md-4">
-          <span class="text-muted small d-block">Email</span>
+          <span class="text-body-secondary small d-block">Email</span>
           {% if resident.email %}
             <a href="mailto:{{ resident.email }}" class="text-decoration-none">
               {{ resident.email }}
             </a>
           {% else %}
-            <span class="text-muted">-</span>
+            <span class="text-body-secondary">-</span>
           {% endif %}
         </div>
         <div class="col-md-4">
-          <span class="text-muted small d-block">Phone</span>
+          <span class="text-body-secondary small d-block">Phone</span>
           {{ resident.phone or '-' }}
         </div>
         <div class="col-md-4">
-          <span class="text-muted small d-block">Abbreviation</span>
+          <span class="text-body-secondary small d-block">Abbreviation</span>
           {{ resident.abbreviation or '-' }}
         </div>
         {% if show_sensitive_fields %}
           <div class="col-md-4">
-            <span class="text-muted small d-block">Hire Date</span>
+            <span class="text-body-secondary small d-block">Hire Date</span>
             {{ resident.hire_date.strftime('%B %d, %Y') if resident.hire_date else '-' }}
           </div>
           <div class="col-md-4">
-            <span class="text-muted small d-block">Lawson ID</span>
+            <span class="text-body-secondary small d-block">Lawson ID</span>
             {{ resident.lawson_id or '-' }}
           </div>
           <div class="col-md-4">
-            <span class="text-muted small d-block">EPIC ID</span>
+            <span class="text-body-secondary small d-block">EPIC ID</span>
             {% if resident.epic_id %}
-              <code class="text-muted">{{ resident.epic_id }}</code>
+              <code class="text-body-secondary">{{ resident.epic_id }}</code>
             {% else %}
-              <span class="text-muted">-</span>
+              <span class="text-body-secondary">-</span>
             {% endif %}
           </div>
         {% endif %}
@@ -146,7 +148,7 @@
             </table>
           </div>
         {% else %}
-          <div class="p-4 text-center text-muted">
+          <div class="p-4 text-center text-body-secondary">
             <i class="bi bi-inbox display-4 d-block mb-2"></i>
             <p>No time entries found.</p>
           </div>
@@ -209,7 +211,7 @@
                       </span>
                     </td>
                     <td>
-                      <small class="text-muted font-monospace">
+                      <small class="text-body-secondary font-monospace">
                         {{ log.details[:120] if log.details else '-' }}
                         {% if log.details and log.details|length > 120 %}...{% endif %}
                       </small>
@@ -220,7 +222,7 @@
             </table>
           </div>
         {% else %}
-          <div class="p-4 text-center text-muted">
+          <div class="p-4 text-center text-body-secondary">
             <i class="bi bi-journal display-4 d-block mb-2"></i>
             <p>No audit log entries found for this resident.</p>
           </div>

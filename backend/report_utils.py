@@ -142,7 +142,7 @@ def generate_payroll_xlsx(
     """
     Generate a Lawson/UPHS payroll export spreadsheet (A..AB).
 
-    Only residents with a non-null lawson_id are included.
+    Residents are included even when lawson_id is missing.
     Dates are written as true Excel dates; code-like fields are forced to text.
     """
     wb = openpyxl.Workbook()
@@ -184,13 +184,15 @@ def generate_payroll_xlsx(
         resident_data.items(), key=lambda item: item[1]["name"]
     ):
         resident = resident_lookup.get(resident_id)
-        if resident is None or resident.lawson_id is None:
+        if resident is None:
             continue
 
         row: list[object | None] = base_row.copy()
         row[hire_col] = resident.hire_date
         row[c["employee"]] = data["name"]
-        row[c["lawson_id"]] = str(resident.lawson_id)
+        row[c["lawson_id"]] = (
+            str(resident.lawson_id) if resident.lawson_id is not None else None
+        )
         row[c["hours"]] = round(data["total_overtime"], 2)
 
         ws.append(row)

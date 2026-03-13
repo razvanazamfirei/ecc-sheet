@@ -1,12 +1,17 @@
 import os
 from datetime import timedelta
+from pathlib import Path
 from typing import ClassVar
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 from .env_utils import env_flag, env_int, env_str
 
-load_dotenv()
+_PROJECT_DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+if _PROJECT_DOTENV_PATH.is_file():
+    for _key, _value in dotenv_values(_PROJECT_DOTENV_PATH, interpolate=False).items():
+        if _value is not None:
+            os.environ.setdefault(_key, _value)
 
 
 def _same_site_env(name: str, *, default: str | None = "Lax") -> str | None:
@@ -75,6 +80,29 @@ class Config:
         env_str("AMION_BASE_URL") or "https://www.amion.com/cgi-bin/ocs"
     )
     AMION_SCHEDULE_CODE: ClassVar[str] = env_str("AMION_SCHEDULE_CODE") or "upennane"
+
+    # Anesthesia stop-time sync
+    ANESTHESIA_SQL_CONNECTION_STRING: ClassVar[str | None] = env_str(
+        "ANESTHESIA_SQL_CONNECTION_STRING"
+    )
+    ANESTHESIA_SQL_SOURCE_TABLE: ClassVar[str | None] = env_str(
+        "ANESTHESIA_SQL_SOURCE_TABLE"
+    )
+    ANESTHESIA_SQL_PROVIDER_TYPE: ClassVar[str] = (
+        env_str("ANESTHESIA_SQL_PROVIDER_TYPE") or "Anes Resident"
+    )
+    ANESTHESIA_SQL_TIMEOUT: ClassVar[int] = _env_int_default(
+        "ANESTHESIA_SQL_TIMEOUT", 30
+    )
+    ANESTHESIA_FETCHER_ENABLED: ClassVar[bool] = env_flag(
+        "ANESTHESIA_FETCHER_ENABLED", default=False
+    )
+    ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS: ClassVar[int] = _env_int_default(
+        "ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS", 120
+    )
+    ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS: ClassVar[int] = _env_int_default(
+        "ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS", 1
+    )
 
     # Payroll export defaults (used to seed the DB on first run via PayrollSettings)
     PAYROLL_PROGRAM: ClassVar[str | None] = env_str("PAYROLL_PROGRAM")

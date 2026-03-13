@@ -1,7 +1,7 @@
 """Tests for app initialization and init_db function."""
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -248,3 +248,212 @@ class TestContextProcessor:
                 os.environ["MOCK_USERS_ENABLED"] = original
             else:
                 os.environ.pop("MOCK_USERS_ENABLED", None)
+
+
+class TestBackgroundServices:
+    """Tests for background service startup."""
+
+    def test_runtime_schema_hook_runs_when_not_cached(self, client, app):
+        """Uncached requests should still bootstrap the runtime schema."""
+        original_checked = app.extensions.pop("runtime_schema_checked", None)
+        try:
+            with patch("backend.app._ensure_runtime_schema") as mock_ensure:
+                response = client.get("/")
+
+            assert response.status_code == 200
+            mock_ensure.assert_called_once_with()
+        finally:
+            if original_checked is not None:
+                app.extensions["runtime_schema_checked"] = original_checked
+
+    def test_runtime_schema_hook_skips_when_cached(self, client, app):
+        """Cached requests should bypass runtime schema bootstrap."""
+        original_checked = app.extensions.get("runtime_schema_checked")
+        app.extensions["runtime_schema_checked"] = True
+        try:
+            with patch("backend.app._ensure_runtime_schema") as mock_ensure:
+                response = client.get("/")
+
+            assert response.status_code == 200
+            mock_ensure.assert_not_called()
+        finally:
+            if original_checked is None:
+                app.extensions.pop("runtime_schema_checked", None)
+            else:
+                app.extensions["runtime_schema_checked"] = original_checked
+
+    def test_runtime_schema_hook_skips_static_requests(self, client):
+        """Static asset requests should bypass runtime schema bootstrap."""
+        with patch("backend.app._ensure_runtime_schema") as mock_ensure:
+            response = client.get("/static/css/style.css")
+
+        assert response.status_code == 200
+        mock_ensure.assert_not_called()
+
+    def test_requests_do_not_attempt_to_start_background_services(self, client):
+        """Requests should not rerun background-service startup checks."""
+        with patch("backend.app.start_background_services") as mock_start:
+            response = client.get("/")
+
+        assert response.status_code == 200
+        mock_start.assert_not_called()
+
+    def test_should_start_background_services_during_wsgi_import(self):
+        """WSGI-style imports should eagerly bootstrap background services."""
+        import backend.app as app_module
+
+        with (
+            patch.object(app_module, "__name__", "backend.app"),
+            patch.object(app_module.sys, "argv", ["gunicorn"]),
+            patch.dict(
+                os.environ,
+                {
+                    "FLASK_RUN_FROM_CLI": "",
+                    "FLASK_DEBUG": "",
+                    "WERKZEUG_RUN_MAIN": "",
+                },
+                clear=False,
+            ),
+        ):
+            assert app_module._should_start_background_services_during_import() is True
+
+    def test_should_skip_eager_start_for_non_run_flask_cli(self):
+        """Non-server Flask CLI commands should not start background services."""
+        import backend.app as app_module
+
+        with (
+            patch.object(app_module, "__name__", "backend.app"),
+            patch.object(app_module.sys, "argv", ["flask", "db", "upgrade"]),
+            patch.dict(
+                os.environ,
+                {"FLASK_RUN_FROM_CLI": "true"},
+                clear=False,
+            ),
+        ):
+            assert app_module._should_start_background_services_during_import() is False
+
+    def test_start_background_services_starts_once_when_fetcher_enabled(self, app):
+        """Background services should start once for the server process."""
+        from backend.app import start_background_services, stop_background_services
+
+        original_testing = app.config["TESTING"]
+        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        lock_handle = MagicMock()
+        try:
+            app.config["TESTING"] = False
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = True
+
+            with (
+                patch("backend.app.threading.Thread") as mock_thread,
+                patch(
+                    "backend.app._acquire_background_service_process_lock",
+                    return_value=lock_handle,
+                ) as mock_acquire_lock,
+                patch(
+                    "backend.app._release_background_service_process_lock"
+                ) as mock_release_lock,
+            ):
+                worker = mock_thread.return_value
+                worker.is_alive.return_value = False
+
+                try:
+                    assert start_background_services() is True
+                    assert start_background_services() is False
+                    worker.start.assert_called_once()
+                    mock_acquire_lock.assert_called_once_with()
+                finally:
+                    stop_background_services()
+
+                mock_release_lock.assert_called_once_with(lock_handle)
+        finally:
+            app.config["TESTING"] = original_testing
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
+
+    def test_start_background_services_requires_fetcher_flag(self, app):
+        """Background services should not start without the fetcher flag."""
+        from backend.app import start_background_services, stop_background_services
+
+        original_testing = app.config["TESTING"]
+        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        try:
+            app.config["TESTING"] = False
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = False
+
+            with patch("backend.app.threading.Thread") as mock_thread:
+                assert start_background_services() is False
+                mock_thread.assert_not_called()
+        finally:
+            stop_background_services()
+            app.config["TESTING"] = original_testing
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
+
+    def test_start_background_services_skips_when_lock_owned_elsewhere(self, app):
+        """Only one worker process should bootstrap the auto-sync thread."""
+        from backend.app import start_background_services, stop_background_services
+
+        original_testing = app.config["TESTING"]
+        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        try:
+            app.config["TESTING"] = False
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = True
+
+            with (
+                patch("backend.app.threading.Thread") as mock_thread,
+                patch(
+                    "backend.app._acquire_background_service_process_lock",
+                    return_value=None,
+                ),
+            ):
+                assert start_background_services() is False
+                mock_thread.assert_not_called()
+        finally:
+            stop_background_services()
+            app.config["TESTING"] = original_testing
+            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
+
+    def test_ensure_time_entry_columns_ignores_duplicate_column_race(self, app):
+        """Runtime schema backfill should ignore duplicate-column races."""
+        import backend.app as app_module
+
+        class _Inspector:
+            @staticmethod
+            def get_columns(_table_name) -> list[dict[str, str]]:
+                return [{"name": "id"}]
+
+        with (
+            app.app_context(),
+            patch.object(
+                app_module,
+                "sqlalchemy_inspect",
+                return_value=_Inspector(),
+            ),
+            patch.object(
+                app_module.db.session,
+                "execute",
+                side_effect=SQLAlchemyError(
+                    "duplicate column name: anesthesia_stop_time",
+                ),
+            ) as mock_execute,
+            patch.object(app_module.db.session, "commit") as mock_commit,
+            patch.object(app_module.db.session, "rollback") as mock_rollback,
+        ):
+            app_module._ensure_time_entry_columns()
+
+        mock_execute.assert_called_once()
+        mock_commit.assert_not_called()
+        mock_rollback.assert_called_once_with()
+
+    def test_background_service_lock_helpers_allow_missing_fcntl(self, app):
+        """Lock helpers should remain usable when fcntl is unavailable."""
+        import backend.app as app_module
+
+        with app.app_context(), patch.object(app_module, "fcntl", None):
+            lock_path = app_module._background_service_lock_path()
+            lock_handle = app_module._acquire_background_service_process_lock()
+            assert lock_handle is not None
+            assert lock_handle.closed is False
+
+            app_module._release_background_service_process_lock(lock_handle)
+            assert lock_handle.closed is True
+
+        lock_path.unlink(missing_ok=True)

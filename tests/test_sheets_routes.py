@@ -1,9 +1,11 @@
 """Tests for sheet routes."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from unittest.mock import patch
 
+import pytest
 import pytz
+from sqlalchemy.exc import IntegrityError
 
 from backend.models import AuditLog, DailySheet, Resident, Role, TimeEntry, db
 from backend.utils import get_effective_date
@@ -179,6 +181,111 @@ class TestSheetsView:
                 response = client.get(f"/sheets/{date_str}")
                 assert response.status_code == 200
                 assert sample_resident.name.encode() in response.data
+            finally:
+                db.session.rollback()
+                _delete_entry(entry_id)
+                if not sheet_existed:
+                    sheet = DailySheet.query.filter_by(date=test_date).first()
+                    if sheet is not None:
+                        db.session.delete(sheet)
+                db.session.commit()
+
+    def test_view_shows_anesthesia_stop_time_column(
+        self, client, app, sample_resident, sample_role
+    ):
+        """The ECC sheet shows the read-only anesthesia stop time column."""
+        with app.app_context():
+            test_date = get_effective_date() - timedelta(days=4)
+            date_str = test_date.strftime("%Y-%m-%d")
+            sheet_existed = (
+                DailySheet.query.filter_by(date=test_date).first() is not None
+            )
+
+            entry = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=sample_role.id,
+                anesthesia_stop_time=time(16, 11),
+            )
+            db.session.add(entry)
+            db.session.commit()
+            entry_id = entry.id
+
+            try:
+                response = client.get(f"/sheets/{date_str}")
+                assert response.status_code == 200
+                assert b"Anes Stop" in response.data
+                assert b"04:11 PM" in response.data
+            finally:
+                db.session.rollback()
+                _delete_entry(entry_id)
+                if not sheet_existed:
+                    sheet = DailySheet.query.filter_by(date=test_date).first()
+                    if sheet is not None:
+                        db.session.delete(sheet)
+                db.session.commit()
+
+    def test_view_footer_colspan_matches_weekday_columns(
+        self, client, app, sample_resident, sample_role
+    ):
+        """Weekday totals should span the added anesthesia stop column."""
+        with app.app_context():
+            test_date = date(2026, 3, 9)
+            date_str = test_date.strftime("%Y-%m-%d")
+            sheet_existed = (
+                DailySheet.query.filter_by(date=test_date).first() is not None
+            )
+
+            entry = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=sample_role.id,
+                anesthesia_stop_time=time(16, 11),
+                exit_time=time(18, 5),
+            )
+            db.session.add(entry)
+            db.session.commit()
+            entry_id = entry.id
+
+            try:
+                response = client.get(f"/sheets/{date_str}")
+                assert response.status_code == 200
+                assert b'<td colspan="4">' in response.data
+            finally:
+                db.session.rollback()
+                _delete_entry(entry_id)
+                if not sheet_existed:
+                    sheet = DailySheet.query.filter_by(date=test_date).first()
+                    if sheet is not None:
+                        db.session.delete(sheet)
+                db.session.commit()
+
+    def test_view_footer_colspan_matches_weekend_columns(
+        self, client, app, sample_resident, sample_role
+    ):
+        """Weekend totals should span the added anesthesia stop column."""
+        with app.app_context():
+            test_date = date(2026, 3, 8)
+            date_str = test_date.strftime("%Y-%m-%d")
+            sheet_existed = (
+                DailySheet.query.filter_by(date=test_date).first() is not None
+            )
+
+            entry = TimeEntry(
+                date=test_date,
+                resident_id=sample_resident.id,
+                role_id=sample_role.id,
+                anesthesia_stop_time=time(16, 11),
+                exit_time=time(18, 5),
+            )
+            db.session.add(entry)
+            db.session.commit()
+            entry_id = entry.id
+
+            try:
+                response = client.get(f"/sheets/{date_str}")
+                assert response.status_code == 200
+                assert b'<td colspan="5">' in response.data
             finally:
                 db.session.rollback()
                 _delete_entry(entry_id)
@@ -560,6 +667,57 @@ class TestWeekendHolidayDisplay:
 class TestSheetsExceptionHandling:
     """Tests for exception handling in sheet routes."""
 
+    def test_get_or_create_daily_sheet_returns_existing_sheet_after_race(self, app):
+        """Concurrent insert races should fall back to the existing sheet."""
+        import backend.routes.sheets as sheets_module
+
+        with app.app_context():
+            sheet_date = get_effective_date() + timedelta(days=500)
+            existing_sheet = DailySheet(date=sheet_date)
+
+            with (
+                patch.object(sheets_module.DailySheet, "query") as mock_query,
+                patch.object(
+                    sheets_module.db.session,
+                    "flush",
+                    side_effect=IntegrityError("INSERT", {}, Exception("duplicate")),
+                ),
+            ):
+                mock_query.filter_by.return_value.first.side_effect = [
+                    None,
+                    existing_sheet,
+                ]
+
+                sheet = sheets_module._get_or_create_daily_sheet(
+                    sheet_date,
+                    commit=False,
+                )
+
+            assert sheet is existing_sheet
+
+    def test_get_or_create_daily_sheet_reraises_when_race_finds_no_sheet(self, app):
+        """Integrity errors should bubble up when no existing sheet can be found."""
+        import backend.routes.sheets as sheets_module
+
+        with app.app_context():
+            sheet_date = get_effective_date() + timedelta(days=501)
+
+            with (
+                patch.object(sheets_module.DailySheet, "query") as mock_query,
+                patch.object(
+                    sheets_module.db.session,
+                    "flush",
+                    side_effect=IntegrityError("INSERT", {}, Exception("duplicate")),
+                ),
+            ):
+                mock_query.filter_by.return_value.first.side_effect = [None, None]
+
+                with pytest.raises(IntegrityError):
+                    sheets_module._get_or_create_daily_sheet(
+                        sheet_date,
+                        commit=False,
+                    )
+
     def test_lock_sheet_db_error(self, client, app):
         """Test lock handles database errors gracefully."""
         with app.app_context():
@@ -586,6 +744,84 @@ class TestSheetsExceptionHandling:
                     )
                     assert response.status_code == 200
                     assert b"error" in response.data.lower()
+            finally:
+                _restore_sheet_state(
+                    today,
+                    existed=sheet_existed,
+                    locked=original_locked,
+                    locked_by=original_locked_by,
+                    locked_at=original_locked_at,
+                )
+
+    def test_lock_invalid_date_redirects_to_index(self, client):
+        """Invalid lock dates should redirect back to the dashboard."""
+        response = client.post("/sheets/not-a-date/lock", follow_redirects=True)
+
+        assert response.status_code == 200
+        assert b"Invalid date format" in response.data
+
+    def test_lock_sheet_get_or_create_error_flashes_generic_error(self, client, app):
+        """Unexpected pre-audit lock failures should redirect with an error flash."""
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            with patch(
+                "backend.routes.sheets._get_or_create_daily_sheet",
+                side_effect=RuntimeError("boom"),
+            ):
+                response = client.post(
+                    f"/sheets/{date_str}/lock",
+                    follow_redirects=False,
+                )
+
+        assert response.status_code == 302
+
+        follow_response = client.get(
+            response.headers["Location"],
+            follow_redirects=True,
+        )
+        assert follow_response.status_code == 200
+        assert (
+            b"An unexpected error occurred. Please try again." in follow_response.data
+        )
+
+    def test_lock_sheet_audit_failure_still_commits_lock(self, client, app):
+        """Audit logging failures should not prevent the lock toggle."""
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            sheet = DailySheet.query.filter_by(date=today).first()
+            sheet_existed = sheet is not None
+            original_locked = sheet.locked if sheet else False
+            original_locked_by = sheet.locked_by if sheet else None
+            original_locked_at = sheet.locked_at if sheet else None
+            if not sheet:
+                sheet = DailySheet(date=today, locked=False)
+                db.session.add(sheet)
+            else:
+                sheet.locked = False
+                sheet.locked_by = None
+                sheet.locked_at = None
+            db.session.commit()
+
+            try:
+                with patch(
+                    "backend.routes.sheets.log_lock",
+                    side_effect=RuntimeError("audit failed"),
+                ):
+                    response = client.post(
+                        f"/sheets/{date_str}/lock",
+                        follow_redirects=True,
+                    )
+
+                assert response.status_code == 200
+                assert b"locked successfully" in response.data.lower()
+
+                sheet = DailySheet.query.filter_by(date=today).first()
+                assert sheet is not None
+                assert sheet.locked is True
             finally:
                 _restore_sheet_state(
                     today,
