@@ -2,26 +2,28 @@
 
 import json
 import logging
-from datetime import date
 from logging import Logger
 
 from flask import (
     Blueprint,
     current_app,
-    flash,
-    redirect,
     render_template,
-    request,
-    url_for,
 )
 from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
-from werkzeug.wrappers import Response
 
 from ..audit import log_create, log_update
 from ..auth import admin_required, get_current_user, is_admin, is_first_call
 from ..models import AuditLog, Resident, TimeEntry, db
+from ..payroll_audit import filter_payroll_resident_changes
 from ..staff_import import import_staff_list
+from ._forms import (
+    form_text,
+    optional_form_int,
+    optional_form_iso_date,
+    optional_form_text,
+)
+from ._helpers import commit_flash_redirect, diff_snapshots, flash_redirect
 
 bp: Blueprint = Blueprint("residents", __name__, url_prefix="/residents")
 logger: Logger = logging.getLogger(__name__)
@@ -32,37 +34,6 @@ SAFE_STAFF_IMPORT_ERRORS = frozenset(
         "Staff import failed.",
     }
 )
-
-
-def _residents_index_redirect() -> Response:
-    """Return a redirect to the residents index."""
-    return redirect(url_for("residents.index"))
-
-
-def _form_text(key: str) -> str:
-    """Return a trimmed form value."""
-    return request.form.get(key, "").strip()
-
-
-def _optional_form_text(key: str) -> str | None:
-    """Return a trimmed optional form value."""
-    return _form_text(key) or None
-
-
-def _optional_form_int(key: str) -> int | None:
-    """Return an optional integer form value, raising ValueError if malformed."""
-    value = _form_text(key)
-    if not value:
-        return None
-    return int(value)
-
-
-def _optional_form_date(key: str) -> date | None:
-    """Return an optional ISO date form value, raising ValueError if malformed."""
-    value = _form_text(key)
-    if not value:
-        return None
-    return date.fromisoformat(value)
 
 
 def _resident_snapshot(resident: Resident) -> dict[str, str | int | None]:
@@ -87,6 +58,72 @@ def _staff_import_error_message(error: str | None) -> str:
     return "Staff list import failed."
 
 
+def _create_resident(name: str) -> Resident:
+    """Create a resident and persist the matching audit log."""
+    resident = Resident(name=name)
+    db.session.add(resident)
+    db.session.flush()
+    log_create("Resident", resident.id, {"name": name})
+    return resident
+
+
+def _toggle_resident_active(resident: Resident) -> str:
+    """Toggle a resident's active status and return the resulting verb."""
+    previous_active = resident.active
+    resident.active = not resident.active
+    log_update(
+        "Resident",
+        resident.id,
+        changes={"active": {"old": previous_active, "new": resident.active}},
+    )
+    return "activated" if resident.active else "deactivated"
+
+
+def _apply_resident_form_updates(resident: Resident, *, name: str) -> None:
+    """Apply the editable resident form fields to the model."""
+    resident.name = name
+    resident.first_name = optional_form_text("first_name")
+    resident.last_name = optional_form_text("last_name")
+    resident.class_year = optional_form_text("class_year")
+    resident.email = optional_form_text("email")
+    resident.phone = optional_form_text("phone")
+    resident.abbreviation = optional_form_text("abbreviation")
+    resident.lawson_id = optional_form_int("lawson_id")
+    resident.hire_date = optional_form_iso_date("hire_date")
+
+
+def _json_detail_fragment(field: str, value: str | int) -> str:
+    """Return the serialized JSON fragment for a single audit-detail field."""
+    return json.dumps({field: value})[1:-1]
+
+
+def _resident_time_entry_audit_filter(resident: Resident):
+    """Return the audit-log filter matching time-entry logs for a resident."""
+    resident_id_fragment = _json_detail_fragment("resident_id", resident.id)
+    resident_name_fragment = _json_detail_fragment("resident", resident.name)
+    return (AuditLog.entity_type == "TimeEntry") & or_(
+        AuditLog.details.contains(f"{resident_id_fragment},"),
+        AuditLog.details.contains(f"{resident_id_fragment}}}"),
+        AuditLog.details.contains(resident_name_fragment),
+    )
+
+
+def _resident_audit_logs(resident: Resident) -> list[AuditLog]:
+    """Return recent audit activity for a resident profile."""
+    return (
+        AuditLog.query.filter(
+            or_(
+                (AuditLog.entity_type == "Resident")
+                & (AuditLog.entity_id == resident.id),
+                _resident_time_entry_audit_filter(resident),
+            )
+        )
+        .order_by(AuditLog.timestamp.desc())
+        .limit(50)
+        .all()
+    )
+
+
 @bp.route("/")
 @admin_required
 def index():
@@ -99,26 +136,21 @@ def index():
 @admin_required
 def add():
     """Add a new resident."""
-    name = _form_text("name")
+    name = form_text("name")
 
     if not name:
-        flash("Resident name is required", "error")
-        return _residents_index_redirect()
+        return flash_redirect("residents.index", "Resident name is required", "error")
 
-    try:
-        resident = Resident(name=name)
-        db.session.add(resident)
-        db.session.flush()
-        log_create("Resident", resident.id, {"name": name})
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception("Error adding resident")
-        flash("Error adding resident. Check logs for details.", "error")
-        return _residents_index_redirect()
-
-    flash(f"Resident {name} added successfully", "success")
-    return _residents_index_redirect()
+    return commit_flash_redirect(
+        lambda: _create_resident(name),
+        endpoint="residents.index",
+        logger=logger,
+        errors=(
+            "Error adding resident",
+            "Error adding resident. Check logs for details.",
+        ),
+        success_message=f"Resident {name} added successfully",
+    )
 
 
 @bp.route("/<int:resident_id>/toggle", methods=["POST"])
@@ -127,25 +159,16 @@ def toggle(resident_id):
     """Toggle resident active status."""
     resident = db.get_or_404(Resident, resident_id)
 
-    previous_active = resident.active
-    resident.active = not resident.active
-    status = "activated" if resident.active else "deactivated"
-
-    try:
-        log_update(
-            "Resident",
-            resident.id,
-            changes={"active": {"old": previous_active, "new": resident.active}},
-        )
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception("Error toggling resident status")
-        flash("Error updating resident. Check logs for details.", "error")
-        return _residents_index_redirect()
-
-    flash(f"Resident {resident.name} {status}", "success")
-    return _residents_index_redirect()
+    return commit_flash_redirect(
+        lambda: _toggle_resident_active(resident),
+        endpoint="residents.index",
+        logger=logger,
+        errors=(
+            "Error toggling resident status",
+            "Error updating resident. Check logs for details.",
+        ),
+        success_message=lambda state: f"Resident {resident.name} {state}",
+    )
 
 
 @bp.route("/<int:resident_id>/edit", methods=["GET"])
@@ -164,54 +187,47 @@ def edit_save(resident_id):
     """Save resident details."""
     resident = db.get_or_404(Resident, resident_id)
 
-    name = _form_text("name")
+    name = form_text("name")
     if not name:
-        flash("Resident name is required.", "error")
-        return _residents_index_redirect()
+        return flash_redirect("residents.index", "Resident name is required.", "error")
 
     before = _resident_snapshot(resident)
 
     try:
-        resident.name = name
-        resident.first_name = _optional_form_text("first_name")
-        resident.last_name = _optional_form_text("last_name")
-        resident.class_year = _optional_form_text("class_year")
-        resident.email = _optional_form_text("email")
-        resident.phone = _optional_form_text("phone")
-        resident.abbreviation = _optional_form_text("abbreviation")
-        resident.lawson_id = _optional_form_int("lawson_id")
-        resident.hire_date = _optional_form_date("hire_date")
+        _apply_resident_form_updates(resident, name=name)
     except ValueError:
         current_app.logger.debug(
             "Invalid resident edit input for resident %s",
             resident_id,
             exc_info=True,
         )
-        flash("Invalid input: please check the fields and try again.", "error")
-        return _residents_index_redirect()
+        return flash_redirect(
+            "residents.index",
+            "Invalid input: please check the fields and try again.",
+            "error",
+        )
 
     after = _resident_snapshot(resident)
-    changes = {
-        field: {"old": before[field], "new": after[field]}
-        for field in before
-        if before[field] != after[field]
-    }
+    changes = diff_snapshots(before, after)
+    payroll_changes = filter_payroll_resident_changes(changes)
 
     if not changes:
-        flash("No changes to save.", "info")
-        return _residents_index_redirect()
+        return flash_redirect("residents.index", "No changes to save.", "info")
 
-    try:
-        log_update("Resident", resident.id, changes=changes)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception("Error saving resident")
-        flash("Error updating resident. Check logs for details.", "error")
-        return _residents_index_redirect()
-
-    flash(f"Resident {resident.name} updated successfully.", "success")
-    return _residents_index_redirect()
+    return commit_flash_redirect(
+        lambda: (
+            log_update("Resident", resident.id, changes=payroll_changes)
+            if payroll_changes
+            else None
+        ),
+        endpoint="residents.index",
+        logger=logger,
+        errors=(
+            "Error saving resident",
+            "Error updating resident. Check logs for details.",
+        ),
+        success_message=f"Resident {resident.name} updated successfully.",
+    )
 
 
 @bp.route("/<int:resident_id>/profile")
@@ -233,28 +249,7 @@ def profile(resident_id):
         else None
     )
 
-    resident_id_mid_fragment = f'"resident_id": {resident_id},'
-    resident_id_end_fragment = f'"resident_id": {resident_id}}}'
-    resident_name_fragment = f'"resident": {json.dumps(resident.name)}'
-    audit_logs = (
-        AuditLog.query.filter(
-            or_(
-                (AuditLog.entity_type == "Resident")
-                & (AuditLog.entity_id == resident_id),
-                (AuditLog.entity_type == "TimeEntry")
-                & (
-                    AuditLog.details.contains(resident_id_mid_fragment)
-                    | AuditLog.details.contains(resident_id_end_fragment)
-                    | AuditLog.details.contains(resident_name_fragment)
-                ),
-            )
-        )
-        .order_by(AuditLog.timestamp.desc())
-        .limit(50)
-        .all()
-        if show_audit
-        else None
-    )
+    audit_logs = _resident_audit_logs(resident) if show_audit else None
 
     return render_template(
         "resident_profile.html",
@@ -278,17 +273,19 @@ def import_staff():
         result = import_staff_list(schedule_code=schedule_code, user=get_current_user())
 
         if result["success"]:
-            flash(
+            return flash_redirect(
+                "residents.index",
                 f"Staff list imported successfully: "
                 f"{result['created']} created, "
                 f"{result['updated']} updated, "
                 f"{result['skipped']} skipped",
                 "success",
             )
-        else:
-            flash(_staff_import_error_message(result.get("error")), "error")
+        return flash_redirect(
+            "residents.index",
+            _staff_import_error_message(result.get("error")),
+            "error",
+        )
     except Exception:
         logger.exception("Error importing staff list")
-        flash("Error importing staff list.", "error")
-
-    return _residents_index_redirect()
+        return flash_redirect("residents.index", "Error importing staff list.", "error")

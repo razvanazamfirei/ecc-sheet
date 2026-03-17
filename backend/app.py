@@ -24,6 +24,7 @@ from .auth import (
     mock_users_enabled,
 )
 from .config import Config
+from .db_session import commit_or_rollback
 from .email_service import init_email_service
 from .errors import APIError
 from .holidays import get_federal_holidays
@@ -195,12 +196,15 @@ def _ensure_time_entry_columns() -> None:
     }
     if "anesthesia_stop_time" not in time_entry_columns:
         try:
-            db.session.execute(
-                text("ALTER TABLE time_entries ADD COLUMN anesthesia_stop_time TIME")
+            commit_or_rollback(
+                lambda: db.session.execute(
+                    text(
+                        "ALTER TABLE time_entries "
+                        "ADD COLUMN anesthesia_stop_time TIME"
+                    )
+                )
             )
-            db.session.commit()
         except SQLAlchemyError as exc:
-            db.session.rollback()
             if _is_duplicate_column_error(exc, "anesthesia_stop_time"):
                 logger.info(
                     "Column anesthesia_stop_time already exists; "

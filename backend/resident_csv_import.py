@@ -11,11 +11,24 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
-from email_validator import EmailNotValidError, validate_email
+from email_validator import EmailNotValidError
 
 from .audit import log_create, log_import, log_update
+from .db_session import commit_or_rollback
 from .errors import ConflictError, ValidationError
 from .models import Resident, db
+from .parsing import parse_iso_date
+from .payroll_audit import (
+    filter_payroll_resident_changes,
+    payroll_resident_details,
+)
+from .resident_normalization import (
+    CLASS_YEAR_ALIASES,
+    canonicalize_class_year,
+    clean_text,
+    normalize_email,
+    split_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +50,6 @@ _HEADER_ALIASES: dict[str, str] = {
 }
 _TRUE_VALUES = frozenset({"1", "true", "yes", "y", "on"})
 _FALSE_VALUES = frozenset({"0", "false", "no", "n", "off"})
-_CLASS_YEAR_ALIASES: dict[str, str] = {
-    "ca1": "CA-1",
-    "ca-1": "CA-1",
-    "ca2": "CA-2",
-    "ca-2": "CA-2",
-    "ca3": "CA-3",
-    "ca-3": "CA-3",
-    "fellow": "Fellow",
-    "omfs": "OMFS",
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,25 +138,10 @@ def _canonical_headers(fieldnames: Sequence[str | None]) -> list[str]:
     return canonical_headers
 
 
-def _clean_cell(row: dict[str, str], field_name: str) -> str:
-    """Return a trimmed cell value for a canonical field."""
-    return row.get(field_name, "").strip()
-
-
-def _split_name(name: str) -> tuple[str | None, str | None]:
-    """Split a full name into first and last components."""
-    parts = name.rsplit(" ", 1)
-    first_name = parts[0].strip() if parts else None
-    last_name = parts[1].strip() if len(parts) > 1 else None
-    return first_name or None, last_name or None
-
-
 def _normalized_email(value: str, *, row_number: int) -> str | None:
     """Validate and normalize an email value."""
-    if not value:
-        return None
     try:
-        return validate_email(value, check_deliverability=False).normalized.lower()
+        return normalize_email(value)
     except EmailNotValidError as exc:
         raise ValidationError(
             f"Row {row_number}: invalid email address {value!r}."
@@ -162,10 +150,10 @@ def _normalized_email(value: str, *, row_number: int) -> str | None:
 
 def _normalized_class_year(value: str, *, row_number: int) -> str | None:
     """Normalize a class-year value or raise when unsupported."""
-    if not value:
-        return None
-    canonical = _CLASS_YEAR_ALIASES.get(value.strip().lower())
+    canonical = canonicalize_class_year(value, CLASS_YEAR_ALIASES)
     if canonical is None:
+        return None
+    if canonical not in Resident.CLASS_YEARS:
         raise ValidationError(
             f"Row {row_number}: invalid class_year {value!r}. "
             f"Expected one of {Resident.CLASS_YEARS} or aliases "
@@ -192,7 +180,7 @@ def _optional_date(value: str, *, row_number: int, field_name: str) -> date | No
     if not value:
         return None
     try:
-        return date.fromisoformat(value)
+        return parse_iso_date(value)
     except ValueError as exc:
         raise ValidationError(
             f"Row {row_number}: invalid {field_name} value {value!r}; "
@@ -230,16 +218,16 @@ def parse_resident_csv(csv_content: str) -> list[ResidentCsvRecord]:
         if not any(value.strip() for value in row.values()):
             continue
 
-        name = _clean_cell(row, "name")
+        name = clean_text(row.get("name"))
         if not name:
             raise ValidationError(f"Row {row_number}: name is required.")
 
-        first_name = _clean_cell(row, "first_name") or None
-        last_name = _clean_cell(row, "last_name") or None
+        first_name = clean_text(row.get("first_name")) or None
+        last_name = clean_text(row.get("last_name")) or None
         if first_name is None and last_name is None:
-            first_name, last_name = _split_name(name)
+            first_name, last_name = split_name(name)
 
-        epic_id = _clean_cell(row, "epic_id") or None
+        epic_id = clean_text(row.get("epic_id")) or None
         file_identity = epic_id or name.casefold()
         if file_identity in seen_keys:
             raise ValidationError(
@@ -254,24 +242,28 @@ def parse_resident_csv(csv_content: str) -> list[ResidentCsvRecord]:
             last_name=last_name,
             epic_id=epic_id,
             class_year=_normalized_class_year(
-                _clean_cell(row, "class_year"), row_number=row_number
+                clean_text(row.get("class_year")),
+                row_number=row_number,
             ),
-            email=_normalized_email(_clean_cell(row, "email"), row_number=row_number),
-            phone=_clean_cell(row, "phone") or None,
-            abbreviation=_clean_cell(row, "abbreviation") or None,
-            backup_id=_clean_cell(row, "backup_id") or None,
+            email=_normalized_email(
+                clean_text(row.get("email")),
+                row_number=row_number,
+            ),
+            phone=clean_text(row.get("phone")) or None,
+            abbreviation=clean_text(row.get("abbreviation")) or None,
+            backup_id=clean_text(row.get("backup_id")) or None,
             lawson_id=_optional_int(
-                _clean_cell(row, "lawson_id"),
+                clean_text(row.get("lawson_id")),
                 row_number=row_number,
                 field_name="lawson_id",
             ),
             hire_date=_optional_date(
-                _clean_cell(row, "hire_date"),
+                clean_text(row.get("hire_date")),
                 row_number=row_number,
                 field_name="hire_date",
             ),
             active=_optional_bool(
-                _clean_cell(row, "active"),
+                clean_text(row.get("active")),
                 row_number=row_number,
                 field_name="active",
             ),
@@ -427,26 +419,32 @@ def import_resident_csv_records(
             dry_run=True,
         )
 
-    db.session.flush()
+    def _persist() -> ResidentCsvImportResult:
+        db.session.flush()
 
-    for resident in created_residents:
-        log_create(
-            "Resident",
-            resident.id,
-            {
-                "name": resident.name,
-                "epic_id": resident.epic_id,
-                "source": "resident_csv_import",
-            },
+        for resident in created_residents:
+            log_create(
+                "Resident",
+                resident.id,
+                payroll_resident_details(resident, source="resident_csv_import"),
+            )
+        for resident, changes in updated_residents:
+            if payroll_changes := filter_payroll_resident_changes(changes):
+                log_update("Resident", resident.id, changes=payroll_changes)
+        log_import(
+            "resident_csv",
+            f"Created: {created}, Updated: {updated}, Skipped: {skipped}",
+            user=user,
         )
-    for resident, changes in updated_residents:
-        log_update("Resident", resident.id, changes=changes)
-    log_import(
-        "resident_csv",
-        f"Created: {created}, Updated: {updated}, Skipped: {skipped}",
-        user=user,
-    )
-    db.session.commit()
+        return ResidentCsvImportResult(
+            total_records=len(records),
+            created=created,
+            updated=updated,
+            skipped=skipped,
+            dry_run=False,
+        )
+
+    result = commit_or_rollback(_persist)
 
     logger.info(
         "Resident CSV import completed. created=%s updated=%s skipped=%s",
@@ -454,13 +452,7 @@ def import_resident_csv_records(
         updated,
         skipped,
     )
-    return ResidentCsvImportResult(
-        total_records=len(records),
-        created=created,
-        updated=updated,
-        skipped=skipped,
-        dry_run=False,
-    )
+    return result
 
 
 def import_residents_csv_file(

@@ -5,14 +5,7 @@ from collections.abc import Callable
 from datetime import date
 from logging import Logger
 
-from flask import (
-    Blueprint,
-    flash,
-    redirect,
-    render_template,
-    request,
-    url_for,
-)
+from flask import Blueprint, render_template
 from werkzeug.wrappers import Response
 
 from ..audit import log_update
@@ -25,7 +18,7 @@ from ..auth import (
     payroll_admin_required,
 )
 from ..errors import ValidationError
-from ..models import PayrollSettings, TimeEntry, db
+from ..models import PayrollSettings, TimeEntry
 from ..report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
@@ -34,43 +27,32 @@ from ..report_utils import (
     generate_payroll_xlsx,
     get_resident_name,
 )
+from ._forms import form_text, optional_form_int
+from ._helpers import (
+    commit_flash_redirect,
+    diff_snapshots,
+    flash_redirect,
+    parse_iso_date,
+    rollback_flash_redirect,
+)
 
 bp: Blueprint = Blueprint("reports", __name__)
 logger: Logger = logging.getLogger(__name__)
 
 
-def _reports_index_redirect() -> Response:
-    """Return the reports index redirect."""
-    return redirect(url_for("reports.index"))
-
-
-def _reports_flash_redirect(message: str, category: str = "error") -> Response:
-    """Flash a message and redirect to the reports index."""
-    flash(message, category)
-    return _reports_index_redirect()
-
-
-def _report_form_text(key: str) -> str:
-    """Return a trimmed report form value."""
-    return request.form.get(key, "").strip()
-
-
 def _report_form_int(key: str) -> int | None:
     """Return an optional integer from the report form."""
-    value = _report_form_text(key)
-    if not value:
-        return None
     try:
-        return int(value)
+        return optional_form_int(key)
     except ValueError as exc:
         raise ValidationError(f"'{key}' must be an integer.") from exc
 
 
 def _apply_payroll_settings_form(settings: PayrollSettings) -> None:
     """Apply payroll-settings form values to the settings model."""
-    settings.program = _report_form_text("program") or None
-    settings.company = _report_form_text("company") or None
-    settings.label_suffix = _report_form_text("label_suffix") or None
+    settings.program = form_text("program") or None
+    settings.company = form_text("company") or None
+    settings.label_suffix = form_text("label_suffix") or None
     settings.batch = _report_form_int("batch")
     settings.pay_code = _report_form_int("pay_code")
     settings.dept = _report_form_int("dept")
@@ -120,7 +102,7 @@ def _require_extended_report_permission(message: str) -> Response | None:
     """Return an error redirect when extended report access is unavailable."""
     if can_view_all_reports():
         return None
-    return _reports_flash_redirect(message)
+    return flash_redirect("reports.index", message)
 
 
 def _detailed_csv_content(
@@ -181,6 +163,17 @@ def _run_file_report_action(
     )
 
 
+def _run_extended_file_report_action(
+    permission_message: str,
+    **file_action_kwargs,
+) -> Response:
+    """Run a file report action that requires extended report permissions."""
+    if resp := _require_extended_report_permission(permission_message):
+        return resp
+
+    return _run_file_report_action(**file_action_kwargs)
+
+
 def _run_report_action(
     action: Callable[[date, date, int | None], Response],
     *,
@@ -192,28 +185,34 @@ def _run_report_action(
         start_date, end_date, resident_id = _parse_report_params()
         return action(start_date, end_date, resident_id)
     except ValidationError as exc:
-        return _reports_flash_redirect(str(exc))
+        return flash_redirect("reports.index", str(exc))
     except Exception:
         logger.exception(log_message)
-        return _reports_flash_redirect(error_message)
+        return flash_redirect("reports.index", error_message)
 
 
 def _parse_report_params() -> tuple[date, date, int | None]:
     """Parse common report parameters from form data."""
-    start_date_raw = request.form.get("start_date")
-    end_date_raw = request.form.get("end_date")
+    start_date_raw = form_text("start_date")
+    end_date_raw = form_text("end_date")
     if not start_date_raw or not end_date_raw:
         raise ValidationError("Start date and end date are required")
 
     try:
-        start_date = date.fromisoformat(start_date_raw)
+        start_date = parse_iso_date(
+            start_date_raw,
+            error_message=f"Invalid start_date: {start_date_raw}",
+        )
     except ValueError as exc:
-        raise ValidationError(f"Invalid start_date: {start_date_raw}") from exc
+        raise ValidationError(str(exc)) from exc
 
     try:
-        end_date = date.fromisoformat(end_date_raw)
+        end_date = parse_iso_date(
+            end_date_raw,
+            error_message=f"Invalid end_date: {end_date_raw}",
+        )
     except ValueError as exc:
-        raise ValidationError(f"Invalid end_date: {end_date_raw}") from exc
+        raise ValidationError(str(exc)) from exc
 
     if not can_filter_reports_by_resident():
         # -1 is intentional: it is truthy (so build_entries_query applies the
@@ -221,7 +220,7 @@ def _parse_report_params() -> tuple[date, date, int | None]:
         # for a user whose name has no corresponding Resident record.
         resident_id = get_current_resident_id() or -1
     else:
-        raw = request.form.get("resident_id", "").strip()
+        raw = form_text("resident_id")
         resident_id = int(raw) if raw else None
 
     return start_date, end_date, resident_id
@@ -277,12 +276,8 @@ def export_csv():
 @bp.route("/api/report/export_billing_csv", methods=["POST"])
 def export_billing_csv():
     """Export billing/payroll summary to CSV."""
-    if resp := _require_extended_report_permission(
-        "You do not have permission to export the billing report."
-    ):
-        return resp
-
-    return _run_file_report_action(
+    return _run_extended_file_report_action(
+        "You do not have permission to export the billing report.",
         filename="overtime_billing_{start_date}_{end_date}.csv",
         mimetype="text/csv",
         content_builder=_billing_csv_content,
@@ -294,12 +289,8 @@ def export_billing_csv():
 @bp.route("/api/report/export_payroll_xlsx", methods=["POST"])
 def export_payroll_xlsx():
     """Export payroll data as Lawson/UPHS formatted .xlsx file."""
-    if resp := _require_extended_report_permission(
-        "You do not have permission to export the payroll report."
-    ):
-        return resp
-
-    return _run_file_report_action(
+    return _run_extended_file_report_action(
+        "You do not have permission to export the payroll report.",
         filename="payroll_{start_date}_{end_date}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         content_builder=_payroll_xlsx_content,
@@ -325,23 +316,28 @@ def payroll_settings_save():
     """Save payroll export settings."""
 
     settings = PayrollSettings.get_or_create()
+    before = _payroll_settings_details(settings)
 
     try:
         _apply_payroll_settings_form(settings)
+    except ValidationError as exc:
+        logger.debug("Invalid payroll settings input", exc_info=True)
+        return rollback_flash_redirect("reports.payroll_settings", str(exc), "error")
+
+    after = _payroll_settings_details(settings)
+
+    def _save() -> None:
         log_update(
             "PayrollSettings",
             settings.id,
-            details=_payroll_settings_details(settings),
+            changes=diff_snapshots(before, after),
+            details=after,
         )
-        db.session.commit()
-        flash("Payroll settings saved successfully.", "success")
-    except ValidationError as exc:
-        db.session.rollback()
-        logger.debug("Invalid payroll settings input", exc_info=True)
-        flash(str(exc), "error")
-    except Exception:
-        db.session.rollback()
-        logger.exception("Error saving payroll settings")
-        flash("Error saving settings.", "error")
 
-    return redirect(url_for("reports.payroll_settings"))
+    return commit_flash_redirect(
+        _save,
+        endpoint="reports.payroll_settings",
+        logger=logger,
+        errors=("Error saving payroll settings", "Error saving settings."),
+        success_message="Payroll settings saved successfully.",
+    )

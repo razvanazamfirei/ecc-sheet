@@ -8,7 +8,7 @@ from io import StringIO
 from logging import Logger
 
 import requests
-from flask import Blueprint, current_app, flash, redirect, url_for
+from flask import Blueprint, current_app
 from sqlalchemy.exc import IntegrityError
 
 from ..audit import log_create_strict, log_import_strict, log_update_strict
@@ -21,7 +21,17 @@ from ..instance_config import (
     WEEKDAY_BACKUP_ROLE_NAMES,
 )
 from ..models import DailySheet, Resident, Role, TimeEntry, db
+from ..payroll_audit import (
+    filter_payroll_resident_changes,
+    payroll_resident_details,
+)
 from ..type_defs import ScheduleImportResult, ScheduleResidentChanges
+from ._helpers import (
+    commit_flash_redirect,
+    flash_sheet_redirect,
+    parse_iso_date,
+    rollback_flash_redirect,
+)
 
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
@@ -47,11 +57,6 @@ class ResidentResolution:
     skipped_conflict: bool = False
 
 
-def _sheet_view_redirect(date_str: str):
-    """Return the sheet view redirect for a given date."""
-    return redirect(url_for("sheets.view", date_str=date_str))
-
-
 def _validate_schedule_import_access(sheet_date: date, date_str: str):
     """Return a redirect response when schedule import is not allowed."""
     first_call_is_known = (
@@ -64,13 +69,19 @@ def _validate_schedule_import_access(sheet_date: date, date_str: str):
         is not None
     )
     if first_call_is_known and not (is_admin() or is_first_call(sheet_date)):
-        flash("Only the first call resident or an admin can import schedules", "error")
-        return _sheet_view_redirect(date_str)
+        return flash_sheet_redirect(
+            date_str,
+            "Only the first call resident or an admin can import schedules",
+            "error",
+        )
 
     daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
     if daily_sheet and daily_sheet.locked:
-        flash("Cannot import schedule - sheet is locked", "error")
-        return _sheet_view_redirect(date_str)
+        return flash_sheet_redirect(
+            date_str,
+            "Cannot import schedule - sheet is locked",
+            "error",
+        )
 
     return None
 
@@ -87,33 +98,26 @@ def _build_schedule_import_url(sheet_date: date) -> str:
     )
 
 
-def _is_schedule_data_line(line: list[str]) -> bool:
-    """Return True when a CSV row contains imported schedule data."""
-    return len(line) >= 9 and not line[0].startswith("Field")
-
-
-def _normalize_epic_id(raw: str) -> str | None:
-    """Extract an EPIC ID from a raw schedule cell."""
-    if raw.startswith("EPICID:"):
-        return raw.removeprefix("EPICID:")
-    return None
-
-
-def _parse_schedule_row(line: list[str]) -> ScheduleRow:
-    """Return the normalized fields used from an imported schedule row."""
-    return ScheduleRow(
-        resident_name=line[0].strip('"').strip(),
-        epic_id=_normalize_epic_id(line[1].strip('"').strip()),
-        assignment_name=line[3].strip('"').strip(),
-    )
-
-
 def _parse_schedule_rows(csv_text: str) -> list[ScheduleRow]:
     """Parse the relevant schedule CSV rows from an Amion response."""
-    csv_reader = csv.reader(StringIO(csv_text))
-    return [
-        _parse_schedule_row(line) for line in csv_reader if _is_schedule_data_line(line)
-    ]
+    rows: list[ScheduleRow] = []
+    for line in csv.reader(StringIO(csv_text)):
+        if len(line) < 9 or line[0].startswith("Field"):
+            continue
+
+        raw_epic_id = line[1].strip('"').strip()
+        rows.append(
+            ScheduleRow(
+                resident_name=line[0].strip('"').strip(),
+                epic_id=(
+                    raw_epic_id.removeprefix("EPICID:")
+                    if raw_epic_id.startswith("EPICID:")
+                    else None
+                ),
+                assignment_name=line[3].strip('"').strip(),
+            )
+        )
+    return rows
 
 
 def _load_schedule_rows(sheet_date: date) -> list[ScheduleRow]:
@@ -122,15 +126,11 @@ def _load_schedule_rows(sheet_date: date) -> list[ScheduleRow]:
     logger.info("Fetching schedule from Amion for date: %s", sheet_date)
     response = requests.get(amion_url, timeout=10)
     response.raise_for_status()
-    rows = _parse_schedule_rows(response.text)
-    logger.debug("Parsed %d schedule rows from Amion", len(rows))
+    logger.debug(
+        "Parsed %d schedule rows from Amion",
+        len(rows := _parse_schedule_rows(response.text)),
+    )
     return rows
-
-
-def _schedule_import_error(message: str) -> None:
-    """Rollback and flash a schedule import error."""
-    db.session.rollback()
-    flash(message, "error")
 
 
 def _log_schedule_import(date_str: str, import_result: ScheduleImportResult) -> None:
@@ -141,24 +141,24 @@ def _log_schedule_import(date_str: str, import_result: ScheduleImportResult) -> 
         log_create_strict(
             "Resident",
             resident.id,
-            {
-                "name": resident.name,
-                "epic_id": resident.epic_id,
-                "date": date_str,
-                "source": "schedule_import",
-            },
+            payroll_resident_details(
+                resident,
+                date=date_str,
+                source="schedule_import",
+            ),
         )
     for resident, changes in import_result["updated_residents"]:
-        log_update_strict(
-            "Resident",
-            resident.id,
-            changes=changes,
-            details={
-                "name": resident.name,
-                "date": date_str,
-                "source": "schedule_import",
-            },
-        )
+        if payroll_changes := filter_payroll_resident_changes(changes):
+            log_update_strict(
+                "Resident",
+                resident.id,
+                changes=payroll_changes,
+                details=payroll_resident_details(
+                    resident,
+                    date=date_str,
+                    source="schedule_import",
+                ),
+            )
     for entry in import_result["created_entries"]:
         log_create_strict(
             "TimeEntry",
@@ -239,30 +239,55 @@ def _build_schedule_import_flash(
     return "No new entries to import (entries may already exist)", "info"
 
 
+def _import_schedule_rows(
+    rows: list[ScheduleRow],
+    *,
+    sheet_date: date,
+    date_str: str,
+) -> ScheduleImportResult:
+    """Create schedule entries and audit logs for pre-fetched rows."""
+    import_result = _process_entries(rows, sheet_date)
+    _log_schedule_import(date_str, import_result)
+    return import_result
+
+
 @bp.route("/<date_str>/import", methods=["POST"])
 def import_schedule(date_str):
     """Import schedule from Amion for a specific date."""
     try:
-        sheet_date = date.fromisoformat(date_str)
+        sheet_date = parse_iso_date(date_str)
         denial_response = _validate_schedule_import_access(sheet_date, date_str)
         if denial_response is not None:
             return denial_response
-
-        import_result = _process_entries(_load_schedule_rows(sheet_date), sheet_date)
-        _log_schedule_import(date_str, import_result)
-        db.session.commit()
-
-        message, category = _build_schedule_import_flash(import_result)
-        flash(message, category)
+        rows = _load_schedule_rows(sheet_date)
 
     except requests.RequestException:
         logger.exception("Error fetching data from Amion")
-        _schedule_import_error("Error fetching data from Amion.")
+        return rollback_flash_redirect(
+            "sheets.view",
+            "Error fetching data from Amion.",
+            date_str=date_str,
+        )
     except Exception:
         logger.exception("Error importing schedule")
-        _schedule_import_error("Error importing schedule.")
+        return rollback_flash_redirect(
+            "sheets.view",
+            "Error importing schedule.",
+            date_str=date_str,
+        )
 
-    return _sheet_view_redirect(date_str)
+    return commit_flash_redirect(
+        lambda: _import_schedule_rows(
+            rows,
+            sheet_date=sheet_date,
+            date_str=date_str,
+        ),
+        endpoint="sheets.view",
+        logger=logger,
+        errors=("Error importing schedule", "Error importing schedule."),
+        success_message=_build_schedule_import_flash,
+        date_str=date_str,
+    )
 
 
 def _resident_keys(resident_name: str, epic_id: str | None) -> set[tuple[str, str]]:
@@ -276,26 +301,13 @@ def _resident_keys(resident_name: str, epic_id: str | None) -> set[tuple[str, st
     return keys
 
 
-def _collect_late_assignment_keys(rows: list[ScheduleRow]) -> set[tuple[str, str]]:
-    """Return resident identifiers assigned to late roles in the import."""
-    late_assignment_keys: set[tuple[str, str]] = set()
-    for row in rows:
-        if row.assignment_name in LATE_ROLE_NAMES:
-            late_assignment_keys.update(_resident_keys(row.resident_name, row.epic_id))
-    return late_assignment_keys
-
-
 def _schedule_role_names() -> frozenset[str]:
     """Return importable schedule role names, including the full call team."""
-    return SCHEDULE_ROLE_NAMES.union(CALL_TEAM_ROLE_NAMES).union(
-        get_first_call_role_names()
+    return (
+        SCHEDULE_ROLE_NAMES
+        | CALL_TEAM_ROLE_NAMES
+        | frozenset(get_first_call_role_names())
     )
-
-
-def _load_schedule_roles() -> dict[str, Role]:
-    """Return the configured importable roles keyed by name."""
-    roles = Role.query.filter(Role.name.in_(_schedule_role_names())).all()
-    return {role.name: role for role in roles}
 
 
 def _create_time_entry_if_missing(
@@ -370,49 +382,17 @@ def _should_skip_weekday_backup(
     return True
 
 
-def _find_matching_resident(
-    row: ScheduleRow,
-) -> tuple[Resident | None, str | None]:
-    """Find a resident by EPIC ID first, then by name."""
-    if row.epic_id:
-        resident = Resident.query.filter_by(epic_id=row.epic_id).first()
-        if resident is not None:
-            return resident, "epic_id"
-
-    resident = Resident.query.filter_by(name=row.resident_name).first()
-    if resident is not None:
-        return resident, "name"
-
-    return None, None
-
-
-def _create_name_only_resident(row: ScheduleRow) -> Resident:
-    """Create a resident for a row that only provides a name."""
-    resident = Resident(name=row.resident_name, active=True)
-    db.session.add(resident)
-    db.session.flush()
-    logger.info(
-        "Created resident during schedule import: %s (no EPIC ID)",
-        row.resident_name,
-    )
-    return resident
-
-
-def _resident_epic_id_update(
-    resident: Resident, row: ScheduleRow
-) -> ScheduleResidentChanges | None:
-    """Return EPIC-ID changes applied while resolving a resident."""
-    if resident.epic_id or not row.epic_id:
-        return None
-
-    resident.epic_id = row.epic_id
-    logger.info("Updated resident %s with EPIC ID: %s", row.resident_name, row.epic_id)
-    return {"epic_id": {"old": None, "new": row.epic_id}}
-
-
 def _resolve_schedule_resident(row: ScheduleRow) -> ResidentResolution:
     """Resolve a schedule row to an existing or newly-created resident."""
-    resident, match_source = _find_matching_resident(row)
+    resident = (
+        Resident.query.filter_by(epic_id=row.epic_id).first() if row.epic_id else None
+    )
+    match_source = "epic_id" if resident is not None else None
+    if resident is None:
+        resident = Resident.query.filter_by(name=row.resident_name).first()
+        if resident is not None:
+            match_source = "name"
+
     if (
         resident is not None
         and match_source == "name"
@@ -434,7 +414,13 @@ def _resolve_schedule_resident(row: ScheduleRow) -> ResidentResolution:
 
     if resident is None:
         if row.resident_name and not row.epic_id:
-            resident = _create_name_only_resident(row)
+            resident = Resident(name=row.resident_name, active=True)
+            db.session.add(resident)
+            db.session.flush()
+            logger.info(
+                "Created resident during schedule import: %s (no EPIC ID)",
+                row.resident_name,
+            )
             return ResidentResolution(resident, created_resident=resident)
 
         logger.info(
@@ -444,10 +430,19 @@ def _resolve_schedule_resident(row: ScheduleRow) -> ResidentResolution:
         )
         return ResidentResolution(None, skipped_unknown=True)
 
-    return ResidentResolution(
-        resident,
-        updated_changes=_resident_epic_id_update(resident, row),
-    )
+    if not resident.epic_id and row.epic_id:
+        resident.epic_id = row.epic_id
+        logger.info(
+            "Updated resident %s with EPIC ID: %s",
+            row.resident_name,
+            row.epic_id,
+        )
+        return ResidentResolution(
+            resident,
+            updated_changes={"epic_id": {"old": None, "new": row.epic_id}},
+        )
+
+    return ResidentResolution(resident)
 
 
 def _process_entries(
@@ -464,10 +459,20 @@ def _process_entries(
     skipped_conflicts = 0
     skip_weekday_backups = not is_weekend_or_holiday(sheet_date)
     late_assignment_keys = (
-        _collect_late_assignment_keys(rows) if skip_weekday_backups else set()
+        {
+            key
+            for row in rows
+            if row.assignment_name in LATE_ROLE_NAMES
+            for key in _resident_keys(row.resident_name, row.epic_id)
+        }
+        if skip_weekday_backups
+        else set()
     )
-    roles_by_name = _load_schedule_roles()
     schedule_role_names = _schedule_role_names()
+    roles_by_name = {
+        role.name: role
+        for role in Role.query.filter(Role.name.in_(schedule_role_names)).all()
+    }
 
     for row in rows:
         if row.assignment_name not in schedule_role_names:
@@ -488,21 +493,23 @@ def _process_entries(
             continue
 
         resolution = _resolve_schedule_resident(row)
-        if resolution.skipped_unknown:
-            skipped_unknown_residents += 1
-        if resolution.skipped_conflict:
-            skipped_conflicts += 1
+        skipped_unknown_residents += resolution.skipped_unknown
+        skipped_conflicts += resolution.skipped_conflict
         resident = resolution.resident
         if resident is None:
             continue
 
-        if resolution.created_resident is not None:
-            created_residents.append(resolution.created_resident)
-        if resolution.updated_changes is not None:
-            updated_residents.append((resident, resolution.updated_changes))
+        if created_resident := resolution.created_resident:
+            created_residents.append(created_resident)
+        if updated_changes := resolution.updated_changes:
+            updated_residents.append((resident, updated_changes))
 
-        if _create_time_entry_if_missing(sheet_date, resident, role, created_entries):
-            entries_created += 1
+        entries_created += _create_time_entry_if_missing(
+            sheet_date,
+            resident,
+            role,
+            created_entries,
+        )
 
     return {
         "entries_created": entries_created,

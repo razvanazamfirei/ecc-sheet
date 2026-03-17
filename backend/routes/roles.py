@@ -3,19 +3,16 @@
 import logging
 from logging import Logger
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, render_template, request
 
 from ..audit import log_update_strict
 from ..auth import admin_required
 from ..models import Role, db
+from ._forms import form_text
+from ._helpers import commit_flash_redirect, diff_snapshots, flash_redirect
 
 bp: Blueprint = Blueprint("roles", __name__, url_prefix="/roles")
 logger: Logger = logging.getLogger(__name__)
-
-
-def _roles_index_redirect():
-    """Return a redirect to the roles index."""
-    return redirect(url_for("roles.index"))
 
 
 def _role_snapshot(role: Role) -> dict[str, int | bool | None]:
@@ -30,8 +27,12 @@ def _role_snapshot(role: Role) -> dict[str, int | bool | None]:
 def _parse_role_form() -> dict[str, int | bool]:
     """Parse and validate role form fields."""
     try:
-        cutoff_hour = int(request.form.get("cutoff_hour", 17))
-        cutoff_minute = int(request.form.get("cutoff_minute", 30))
+        cutoff_hour = int(
+            form_text("cutoff_hour") if "cutoff_hour" in request.form else "17"
+        )
+        cutoff_minute = int(
+            form_text("cutoff_minute") if "cutoff_minute" in request.form else "30"
+        )
     except ValueError as exc:
         raise ValueError("Cutoff hour and minute must be whole numbers.") from exc
     if not (0 <= cutoff_hour <= 23):
@@ -41,7 +42,7 @@ def _parse_role_form() -> dict[str, int | bool]:
     return {
         "cutoff_hour": cutoff_hour,
         "cutoff_minute": cutoff_minute,
-        "is_backup": request.form.get("is_backup") == "on",
+        "is_backup": form_text("is_backup") == "on",
     }
 
 
@@ -62,16 +63,16 @@ def update(role_id):
         abort(404)
 
     try:
-        before = _role_snapshot(role)
         parsed_form = _parse_role_form()
+    except ValueError as exc:
+        return flash_redirect("roles.index", f"Error updating role: {exc!s}", "error")
+
+    def _save() -> None:
+        before = _role_snapshot(role)
         for field, value in parsed_form.items():
             setattr(role, field, value)
 
-        changes = {
-            field: {"old": before[field], "new": getattr(role, field)}
-            for field in before
-            if before[field] != getattr(role, field)
-        }
+        changes = diff_snapshots(before, _role_snapshot(role))
         if changes:
             log_update_strict(
                 "Role",
@@ -80,16 +81,10 @@ def update(role_id):
                 details={"name": role.name},
             )
 
-        db.session.commit()
-
-        flash(f"Role {role.name} updated successfully", "success")
-
-    except ValueError as exc:
-        db.session.rollback()
-        flash(f"Error updating role: {exc!s}", "error")
-    except Exception:
-        db.session.rollback()
-        logger.exception("Error updating role")
-        flash("Error updating role. Check logs for details.", "error")
-
-    return _roles_index_redirect()
+    return commit_flash_redirect(
+        _save,
+        endpoint="roles.index",
+        logger=logger,
+        errors=("Error updating role", "Error updating role. Check logs for details."),
+        success_message=f"Role {role.name} updated successfully",
+    )

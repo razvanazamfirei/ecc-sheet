@@ -4,46 +4,36 @@ import logging
 from datetime import date
 from logging import Logger
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, render_template
 
 from ..audit import log_create_strict, log_delete_strict, log_import_strict
 from ..auth import admin_required
 from ..holidays import get_federal_holidays
 from ..models import Holiday, db
 from ..utils import get_effective_date
+from ._forms import form_text
+from ._helpers import (
+    commit_flash_redirect,
+    flash_message,
+    flash_redirect,
+    parse_iso_date_or_none,
+    redirect_to,
+)
 
 bp: Blueprint = Blueprint("holidays", __name__)
 logger: Logger = logging.getLogger(__name__)
 
 
-def _holidays_index_redirect():
-    """Return a redirect to the holidays index."""
-    return redirect(url_for("holidays.index"))
-
-
-def _form_text(key: str) -> str:
-    """Return a trimmed form value."""
-    return request.form.get(key, "").strip()
-
-
-def _holiday_error(message: str) -> None:
-    """Rollback a failed holiday mutation and flash a generic error."""
-    db.session.rollback()
-    flash(message, "error")
-
-
 def _parse_holiday_form() -> tuple[str, str, date] | None:
     """Parse the add-holiday form values or flash an error."""
-    date_str = _form_text("date")
-    name = _form_text("name")
+    date_str = form_text("date")
+    name = form_text("name")
     if not date_str or not name:
-        flash("Date and name are required", "error")
+        flash_message("Date and name are required")
         return None
-    try:
-        return date_str, name, date.fromisoformat(date_str)
-    except ValueError:
-        flash("Invalid date format", "error")
+    if (holiday_date := parse_iso_date_or_none(date_str)) is None:
         return None
+    return date_str, name, holiday_date
 
 
 def _new_federal_holidays(current_year: int) -> list[Holiday]:
@@ -79,34 +69,30 @@ def add():
     """Add a custom holiday."""
     parsed_form = _parse_holiday_form()
     if parsed_form is None:
-        return _holidays_index_redirect()
+        return redirect_to("holidays.index")
 
     date_str, name, holiday_date = parsed_form
 
     if Holiday.query.filter_by(date=holiday_date).first():
-        flash(f"Holiday already exists for {date_str}", "error")
-        return _holidays_index_redirect()
-
-    try:
-        holiday = Holiday(
-            date=holiday_date,
-            name=name,
-            is_federal=False,
+        return flash_redirect(
+            "holidays.index",
+            f"Holiday already exists for {date_str}",
+            "error",
         )
+
+    def _save() -> None:
+        holiday = Holiday(date=holiday_date, name=name, is_federal=False)
         db.session.add(holiday)
         db.session.flush()
-        log_create_strict(
-            "Holiday",
-            holiday.id,
-            {"date": date_str, "name": name},
-        )
-        db.session.commit()
-        flash(f"Holiday '{name}' added successfully", "success")
-    except Exception:
-        logger.exception("Error adding holiday")
-        _holiday_error("Error adding holiday.")
+        log_create_strict("Holiday", holiday.id, {"date": date_str, "name": name})
 
-    return _holidays_index_redirect()
+    return commit_flash_redirect(
+        _save,
+        endpoint="holidays.index",
+        logger=logger,
+        errors=("Error adding holiday", "Error adding holiday."),
+        success_message=f"Holiday '{name}' added successfully",
+    )
 
 
 @bp.route("/holidays/<int:holiday_id>/delete", methods=["POST"])
@@ -117,65 +103,63 @@ def delete(holiday_id):
     if holiday is None:
         abort(404)
 
-    try:
-        log_details = {"date": str(holiday.date), "name": holiday.name}
-        deleted_holiday_id = holiday.id
-        deleted_holiday_name = holiday.name
-        db.session.delete(holiday)
+    def _delete() -> None:
         log_delete_strict(
             "Holiday",
-            deleted_holiday_id,
-            log_details,
+            holiday.id,
+            {"date": str(holiday.date), "name": holiday.name},
         )
-        db.session.commit()
-        flash(f"Holiday '{deleted_holiday_name}' deleted successfully", "success")
+        db.session.delete(holiday)
 
-    except Exception:
-        logger.exception("Error deleting holiday")
-        _holiday_error("Error deleting holiday.")
-
-    return _holidays_index_redirect()
+    return commit_flash_redirect(
+        _delete,
+        endpoint="holidays.index",
+        logger=logger,
+        errors=("Error deleting holiday", "Error deleting holiday."),
+        success_message=f"Holiday '{holiday.name}' deleted successfully",
+    )
 
 
 @bp.route("/holidays/refresh", methods=["POST"])
 @admin_required
 def refresh_federal():
     """Refresh federal holidays for current and next year."""
-    try:
-        current_year = get_effective_date().year
-        created_holidays = _new_federal_holidays(current_year)
-        added = len(created_holidays)
-        db.session.add_all(created_holidays)
+    current_year = get_effective_date().year
 
+    def _refresh() -> int:
+        created_holidays = _new_federal_holidays(current_year)
+        db.session.add_all(created_holidays)
         db.session.flush()
 
-        if added > 0:
-            for holiday in created_holidays:
-                log_create_strict(
-                    "Holiday",
-                    holiday.id,
-                    {
-                        "date": holiday.date.isoformat(),
-                        "name": holiday.name,
-                        "is_federal": holiday.is_federal,
-                        "source": "federal_refresh",
-                    },
-                )
+        for holiday in created_holidays:
+            log_create_strict(
+                "Holiday",
+                holiday.id,
+                {
+                    "date": holiday.date.isoformat(),
+                    "name": holiday.name,
+                    "is_federal": holiday.is_federal,
+                    "source": "federal_refresh",
+                },
+            )
+        if created_holidays:
             log_import_strict(
                 "Holiday",
                 (
                     f"Refreshed federal holidays for {current_year} and "
-                    f"{current_year + 1}; added {added}"
+                    f"{current_year + 1}; added {len(created_holidays)}"
                 ),
             )
-            db.session.commit()
-            flash(f"Added {added} federal holidays", "success")
-        else:
-            db.session.commit()
-            flash("All federal holidays are already present", "info")
+        return len(created_holidays)
 
-    except Exception:
-        logger.exception("Error refreshing holidays")
-        _holiday_error("Error refreshing holidays.")
-
-    return _holidays_index_redirect()
+    return commit_flash_redirect(
+        _refresh,
+        endpoint="holidays.index",
+        logger=logger,
+        errors=("Error refreshing holidays", "Error refreshing holidays."),
+        success_message=(
+            lambda added: (f"Added {added} federal holidays", "success")
+            if added
+            else ("All federal holidays are already present", "info")
+        ),
+    )
