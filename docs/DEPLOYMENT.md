@@ -101,8 +101,15 @@ What this does:
 
 ## Alternative: App-Managed SAML SP
 
+**IMPORTANT:** When using app-managed SAML, proxy authentication MUST be
+disabled. The reverse proxy must NOT inject `AUTH_PROXY_USERNAME_HEADER` or
+`X-Auth-User` headers. The SAML assertion consumer service handles
+authentication and session management directly.
+
+Configuration requirements:
+
 - keep Gunicorn and SQLite exactly as-is
-- do not set `AUTH_PROXY_USERNAME_HEADER`
+- do not set `AUTH_PROXY_USERNAME_HEADER` (or set it to an empty string)
 - set `SAML_ENABLED=true`
 - point `SAML_SETTINGS_PATH` at a OneLogin-compatible JSON settings file
 - expose `/auth/metadata`, `/auth/acs`, and `/auth/sls` at the public app URL
@@ -212,7 +219,14 @@ on each start, so schema creation and default seeded data stay aligned.
 
 ## Reverse Proxy Notes
 
-Your reverse proxy should:
+**Note:** The following instructions apply to **proxy authentication mode only**
+(when `AUTH_PROXY_USERNAME_HEADER` is configured). When using app-managed SAML
+authentication (`SAML_ENABLED=true`), skip username header injection and follow
+the SAML-specific reverse proxy configuration in the
+[Alternative: App-Managed SAML SP](#alternative-app-managed-saml-sp) section
+above.
+
+For proxy authentication mode, your reverse proxy should:
 
 - Require authentication for the demo
 - Pass the authenticated username to Flask via `X-Auth-User`

@@ -298,6 +298,18 @@ def prepare_saml_request(flask_request) -> dict[str, Any]:
     }
 
 
+def _is_auth_endpoint(path: str) -> bool:
+    """Return True if path points to any auth.* endpoint."""
+    auth_endpoints = {
+        url_for("auth.login"),
+        url_for("auth.acs"),
+        url_for("auth.sls"),
+        url_for("auth.logout"),
+        url_for("auth.metadata"),
+    }
+    return path in auth_endpoints
+
+
 def resolve_post_auth_redirect(target: str | None) -> str:
     """Return a safe post-auth redirect target."""
     fallback = default_post_auth_redirect()
@@ -310,10 +322,11 @@ def resolve_post_auth_redirect(target: str | None) -> str:
         return fallback
 
     if not parsed.netloc:
-        is_safe_local = normalized.startswith("/") and parsed.path not in {
-            url_for("auth.acs"),
-            url_for("auth.sls"),
-        }
+        is_safe_local = (
+            normalized.startswith("/")
+            and not normalized.startswith("//")
+            and not _is_auth_endpoint(parsed.path)
+        )
         return normalized if is_safe_local else fallback
 
     allowed_hosts: set[str] = {request.host}
@@ -329,14 +342,14 @@ def resolve_post_auth_redirect(target: str | None) -> str:
             allowed_hosts.add(normalized_host)
 
     is_safe_host = parsed.netloc in allowed_hosts
-    is_safe_path = parsed.path not in {url_for("auth.acs"), url_for("auth.sls")}
+    is_safe_path = not _is_auth_endpoint(parsed.path)
     return normalized if is_safe_host and is_safe_path else fallback
 
 
 def default_post_auth_redirect() -> str:
     """Return the configured post-auth landing path."""
     configured = str(current_app.config.get("SAML_DEFAULT_NEXT_URL") or "").strip()
-    if configured.startswith("/"):
+    if configured.startswith("/") and not configured.startswith("//"):
         return configured
     return url_for("sheets.index")
 

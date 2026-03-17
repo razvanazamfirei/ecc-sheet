@@ -95,12 +95,19 @@ Create a `.env` file in the project root:
 SECRET_KEY=your-secret-key-here
 DATABASE_URL=sqlite:///ecc_sheet.db
 USER_NAME=Admin
+
+# Authentication mode: Choose ONE of the following:
+# 1. Proxy authentication (default)
 AUTH_PROXY_USERNAME_HEADER=X-Auth-User
-SAML_ENABLED=false
-SAML_SETTINGS_PATH=instance/saml/settings.json
-SAML_USERNAME_ATTRIBUTES=name,email
-SAML_USE_NAME_ID=true
-SAML_DEFAULT_NEXT_URL=/
+
+# 2. App-managed SAML authentication (see docs/DEPLOYMENT.md for full setup)
+# SAML_ENABLED=false
+# SAML_SETTINGS_PATH=instance/saml/settings.json
+# SAML_USERNAME_ATTRIBUTES=name,email
+# SAML_USE_NAME_ID=true
+# SAML_DEFAULT_NEXT_URL=/
+
+# Session security
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_HTTPONLY=true
 SESSION_COOKIE_SAMESITE=Lax
