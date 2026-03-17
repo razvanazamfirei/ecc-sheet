@@ -120,7 +120,9 @@ sudo -u eccsheet bash -lc '
 
 Template settings file:
 
-- [examples/saml.settings.json](./examples/saml.settings.json)
+- Start from your identity provider's OneLogin-compatible SAML settings
+  export and save it as `instance/saml/settings.json` (or whatever path you
+  configure in `SAML_SETTINGS_PATH`).
 
 Recommended `.env` additions:
 

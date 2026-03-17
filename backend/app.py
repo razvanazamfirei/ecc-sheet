@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TextIO
 
 import click
-from flask import Flask, jsonify, request, session
+from flask import Flask, jsonify, redirect, request, session, url_for
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import inspect as sqlalchemy_inspect

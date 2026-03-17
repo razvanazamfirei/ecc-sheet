@@ -279,10 +279,17 @@ def resolve_post_auth_redirect(target: str | None) -> str:
         }
         return normalized if is_safe_local else fallback
 
-    allowed_hosts = {request.host}
-    forwarded_host = _forwarded_value(request.headers.get("X-Forwarded-Host"))
-    if forwarded_host:
-        allowed_hosts.add(forwarded_host)
+    allowed_hosts: set[str] = {request.host}
+
+    server_name = str(current_app.config.get("SERVER_NAME") or "").strip()
+    if server_name:
+        allowed_hosts.add(server_name)
+
+    extra_hosts = current_app.config.get("SAML_ALLOWED_REDIRECT_HOSTS") or ()
+    for host in extra_hosts:
+        normalized_host = str(host or "").strip()
+        if normalized_host:
+            allowed_hosts.add(normalized_host)
 
     is_safe_host = parsed.netloc in allowed_hosts
     is_safe_path = parsed.path not in {url_for("auth.acs"), url_for("auth.sls")}

@@ -42,9 +42,10 @@ def get_current_user() -> str:
         except RuntimeError:
             pass  # No request context (e.g. CLI or tests without a request)
 
-    authenticated_user = get_session_authenticated_user()
-    if authenticated_user:
-        return authenticated_user
+    if saml_enabled():
+        authenticated_user = get_session_authenticated_user()
+        if authenticated_user:
+            return authenticated_user
 
     proxy_header = _proxy_header_name()
     if proxy_header:

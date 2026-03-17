@@ -105,12 +105,10 @@ def sls():
         return "SAML logout failed.", 400
 
     if redirect_url:
-        if "SAMLResponse" in request.args:
-            return redirect(resolve_post_auth_redirect(redirect_url))
-        return redirect(redirect_url)
+        return redirect(resolve_post_auth_redirect(redirect_url))
 
     clear_session_authenticated_user()
-    return redirect(resolve_post_auth_redirect(request.args.get("RelayState")))
+    return redirect(resolve_post_auth_redirect(request.values.get("RelayState")))
 
 
 @bp.get("/logout")
