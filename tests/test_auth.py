@@ -4,6 +4,8 @@ import os
 from datetime import time
 from unittest.mock import patch
 
+import pytest
+
 from backend.auth import (
     can_filter_reports_by_resident,
     get_current_user,
@@ -68,9 +70,8 @@ class TestGetCurrentUser:
                 os.environ.pop("USER_NAME", None)
             app.config["AUTH_PROXY_USERNAME_HEADER"] = original_header or ""
 
-    def test_uses_session_authenticated_user_when_present(
-        self, client, saml_enabled_app
-    ):
+    @pytest.mark.usefixtures("saml_enabled_app")
+    def test_uses_session_authenticated_user_when_present(self, client):
         """Test SAML/session auth overrides USER_NAME inside requests."""
         with client.session_transaction() as sess:
             sess["auth_user"] = "Session User"

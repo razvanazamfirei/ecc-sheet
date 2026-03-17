@@ -43,9 +43,11 @@ from .routes import dev as _dev_module
 from .routes import register_blueprints
 from .routes import sso as _sso_module
 from .saml import (
+    SAMLConfigError,
     get_session_authenticated_user,
     saml_enabled,
     saml_public_endpoint,
+    validate_saml_configuration,
 )
 from .utils import _wants_json_response, get_effective_date, setup_logging
 
@@ -126,6 +128,15 @@ def _active_resident_names() -> list[str]:
 
 
 csrf.exempt(_sso_module.bp)
+
+if saml_enabled(app.config):
+    try:
+        validate_saml_configuration(config=app.config)
+    except SAMLConfigError as exc:
+        raise RuntimeError(
+            f"SAML startup check failed: {exc} — "
+            "fix SAML settings or unset SAML_ENABLED."
+        ) from exc
 
 if mock_users_enabled():
     if os.getenv("FLASK_ENV", "").lower() == "production":

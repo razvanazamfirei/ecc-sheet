@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 
 class _FakeSamlAuth:
     def __init__(self, **overrides: object) -> None:
@@ -76,11 +78,11 @@ class _FakeSamlSettings:
         return []
 
 
+@pytest.mark.usefixtures("saml_enabled_app")
 class TestSamlGuard:
     def test_saml_redirects_unauthenticated_browser_requests_to_login(
         self,
         client,
-        saml_enabled_app,
     ):
         response = client.get("/")
         assert response.status_code == 302
@@ -89,7 +91,6 @@ class TestSamlGuard:
     def test_saml_returns_401_for_json_requests(
         self,
         client,
-        saml_enabled_app,
     ):
         response = client.get(
             "/api/residents/active",

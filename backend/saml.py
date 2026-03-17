@@ -22,6 +22,26 @@ _PUBLIC_ENDPOINTS = frozenset(
 )
 
 
+class SAMLConfigError(RuntimeError):
+    """Base exception for SAML configuration problems."""
+
+
+class SAMLMissingDependencyError(SAMLConfigError):
+    """Raised when the python3-saml library is not installed."""
+
+
+class SAMLSettingsNotFoundError(SAMLConfigError):
+    """Raised when no SAML settings source is provided or the file is missing."""
+
+
+class SAMLInvalidJSONError(SAMLConfigError):
+    """Raised when a SAML settings source contains malformed JSON."""
+
+
+class SAMLInvalidSettingsError(SAMLConfigError):
+    """Raised when SAML settings parse successfully but are not a JSON object."""
+
+
 def saml_enabled(config: Mapping[str, object] | None = None) -> bool:
     """Return True when first-party SAML SSO is enabled."""
     if config is not None:
@@ -184,13 +204,15 @@ def load_saml_settings(
         try:
             settings = json.loads(str(settings_json))
         except json.JSONDecodeError as exc:
-            raise RuntimeError("SAML_SETTINGS_JSON is not valid JSON.") from exc
+            raise SAMLInvalidJSONError("SAML_SETTINGS_JSON is not valid JSON.") from exc
         if not isinstance(settings, dict):
-            raise TypeError("SAML_SETTINGS_JSON must decode to a JSON object.")
+            raise SAMLInvalidSettingsError(
+                "SAML_SETTINGS_JSON must decode to a JSON object."
+            )
         return settings, None
 
     if not settings_path_value:
-        raise RuntimeError(
+        raise SAMLSettingsNotFoundError(
             "SAML is enabled but no SAML settings were configured. "
             "Set SAML_SETTINGS_PATH or SAML_SETTINGS_JSON."
         )
@@ -199,17 +221,34 @@ def load_saml_settings(
     if not path.is_absolute():
         path = (_PROJECT_ROOT / path).resolve()
     if not path.is_file():
-        raise RuntimeError(f"SAML settings file not found: {path}")
+        raise SAMLSettingsNotFoundError(f"SAML settings file not found: {path}")
 
     try:
         settings = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"SAML settings file is not valid JSON: {path}") from exc
+        raise SAMLInvalidJSONError(
+            f"SAML settings file is not valid JSON: {path}"
+        ) from exc
 
     if not isinstance(settings, dict):
-        raise TypeError(f"SAML settings file must contain a JSON object: {path}")
+        raise SAMLInvalidSettingsError(
+            f"SAML settings file must contain a JSON object: {path}"
+        )
 
     return settings, str(path.parent)
+
+
+def validate_saml_configuration(
+    config: Mapping[str, object] | None = None,
+) -> None:
+    """Validate the SAML toolkit import and settings at startup.
+
+    Raises SAMLConfigError if the dependency is missing or settings are
+    misconfigured so the failure surfaces at startup rather than on the first
+    request to /auth/login or /auth/metadata.
+    """
+    _import_saml_toolkit()
+    load_saml_settings(config=config)
 
 
 def build_saml_auth(flask_request):
@@ -337,7 +376,7 @@ def _import_saml_toolkit():
         from onelogin.saml2.auth import OneLogin_Saml2_Auth  # noqa: PLC0415
         from onelogin.saml2.settings import OneLogin_Saml2_Settings  # noqa: PLC0415
     except ImportError as exc:
-        raise RuntimeError(
+        raise SAMLMissingDependencyError(
             "SAML is enabled but the optional python3-saml dependency is not "
             "installed. Run `uv sync --extra saml` after installing xmlsec."
         ) from exc

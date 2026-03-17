@@ -120,9 +120,9 @@ sudo -u eccsheet bash -lc '
 
 Template settings file:
 
-- Start from your identity provider's OneLogin-compatible SAML settings
-  export and save it as `instance/saml/settings.json` (or whatever path you
-  configure in `SAML_SETTINGS_PATH`).
+- Start from your identity provider's OneLogin-compatible SAML settings export
+  and save it as `instance/saml/settings.json` (or whatever path you configure
+  in `SAML_SETTINGS_PATH`).
 
 Recommended `.env` additions:
 
@@ -133,14 +133,16 @@ SAML_USERNAME_ATTRIBUTES=name,email
 SAML_USE_NAME_ID=true
 SAML_DEFAULT_NEXT_URL=/
 AUTH_PROXY_USERNAME_HEADER=
+SESSION_COOKIE_SAMESITE=None
+SESSION_COOKIE_SECURE=true
 ```
 
 **Reverse proxy headers required for SAML:**
 
-The app uses `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-Port`
-to build the SP URLs embedded in SAML AuthnRequests, metadata, and ACS/SLS
-callbacks. Configure your proxy (Caddy, Nginx, Traefik) to forward these to
-the app set to the public origin, e.g. for Nginx:
+The app uses `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-Port` to
+build the SP URLs embedded in SAML AuthnRequests, metadata, and ACS/SLS
+callbacks. Configure your proxy (Caddy, Nginx, Traefik) to forward these to the
+app set to the public origin, e.g. for Nginx:
 
 ```nginx
 proxy_set_header X-Forwarded-Host  $host;
