@@ -13,11 +13,13 @@ from . import (
     roles,
     schedule,
     sheets,
+    sso,
 )
 
 
 def register_blueprints(app: Flask) -> None:
     """Register all blueprints with the app."""
+    app.register_blueprint(sso.bp)
     app.register_blueprint(sheets.bp)
     app.register_blueprint(entries.bp)
     app.register_blueprint(schedule.bp)

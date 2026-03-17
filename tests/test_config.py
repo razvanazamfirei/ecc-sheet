@@ -61,6 +61,29 @@ class TestConfig:
             reload(backend.config)
             assert backend.config.Config.AUTH_PROXY_USERNAME_HEADER == "X-Auth-User"
 
+    def test_saml_config_from_env(self):
+        """Test first-party SAML settings are read from the environment."""
+        with patch.dict(
+            os.environ,
+            {
+                "SAML_ENABLED": "true",
+                "SAML_SETTINGS_PATH": "instance/saml/settings.json",
+                "SAML_USERNAME_ATTRIBUTES": "name,email",
+                "SAML_USE_NAME_ID": "false",
+                "SAML_DEFAULT_NEXT_URL": "/reports",
+            },
+            clear=False,
+        ):
+            reload(backend.config)
+            assert backend.config.Config.SAML_ENABLED is True
+            assert (
+                backend.config.Config.SAML_SETTINGS_PATH
+                == "instance/saml/settings.json"
+            )
+            assert backend.config.Config.SAML_USERNAME_ATTRIBUTES == ["name", "email"]
+            assert backend.config.Config.SAML_USE_NAME_ID is False
+            assert backend.config.Config.SAML_DEFAULT_NEXT_URL == "/reports"
+
     def test_amion_base_url_defaults_to_https(self):
         """Test Amion integration defaults to HTTPS."""
         env = os.environ.copy()

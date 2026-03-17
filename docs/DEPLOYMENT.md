@@ -99,6 +99,69 @@ What this does:
 - The reverse proxy must enforce authentication and set `X-Auth-User`; if that
   header is absent, the app returns HTTP 401.
 
+## Alternative: App-Managed SAML SP
+
+**IMPORTANT:** When using app-managed SAML, proxy authentication MUST be
+disabled. The reverse proxy must NOT inject `AUTH_PROXY_USERNAME_HEADER` or
+`X-Auth-User` headers. The SAML assertion consumer service handles
+authentication and session management directly.
+
+Configuration requirements:
+
+- keep Gunicorn and SQLite exactly as-is
+- do not set `AUTH_PROXY_USERNAME_HEADER` (or set it to an empty string)
+- set `SAML_ENABLED=true`
+- point `SAML_SETTINGS_PATH` at a OneLogin-compatible JSON settings file
+- expose `/auth/metadata`, `/auth/acs`, and `/auth/sls` at the public app URL
+
+Install the optional package set before bootstrapping:
+
+```bash
+sudo -u eccsheet bash -lc '
+  cd /opt/ecc-sheet
+  export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+  source .venv/bin/activate
+  uv sync --extra saml
+'
+```
+
+Template settings file:
+
+- Start from your identity provider's OneLogin-compatible SAML settings export
+  and save it as `instance/saml/settings.json` (or whatever path you configure
+  in `SAML_SETTINGS_PATH`).
+
+Recommended `.env` additions:
+
+```env
+SAML_ENABLED=true
+SAML_SETTINGS_PATH=instance/saml/settings.json
+SAML_USERNAME_ATTRIBUTES=name,email
+SAML_USE_NAME_ID=true
+SAML_DEFAULT_NEXT_URL=/
+AUTH_PROXY_USERNAME_HEADER=
+SESSION_COOKIE_SAMESITE=None
+SESSION_COOKIE_SECURE=true
+```
+
+**Reverse proxy headers required for SAML:**
+
+The app uses `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-Port` to
+build the SP URLs embedded in SAML AuthnRequests, metadata, and ACS/SLS
+callbacks. Configure your proxy (Caddy, Nginx, Traefik) to forward these to the
+app set to the public origin, e.g. for Nginx:
+
+```nginx
+proxy_set_header X-Forwarded-Host  $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Port  $server_port;
+```
+
+Without these headers the SP will embed the internal Gunicorn address
+(`127.0.0.1:5000`) in metadata and requests, causing IdP validation failures.
+Also ensure the proxy strips any client-supplied copies of these headers before
+setting them, so clients cannot spoof the SP origin.
+
 ## Bootstrap the App
 
 Run the supported bootstrap command once after creating `.env`:
@@ -156,7 +219,14 @@ on each start, so schema creation and default seeded data stay aligned.
 
 ## Reverse Proxy Notes
 
-Your reverse proxy should:
+**Note:** The following instructions apply to **proxy authentication mode only**
+(when `AUTH_PROXY_USERNAME_HEADER` is configured). When using app-managed SAML
+authentication (`SAML_ENABLED=true`), skip username header injection and follow
+the SAML-specific reverse proxy configuration in the
+[Alternative: App-Managed SAML SP](#alternative-app-managed-saml-sp) section
+above.
+
+For proxy authentication mode, your reverse proxy should:
 
 - Require authentication for the demo
 - Pass the authenticated username to Flask via `X-Auth-User`

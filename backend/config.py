@@ -5,7 +5,7 @@ from typing import ClassVar
 
 from dotenv import dotenv_values
 
-from .env_utils import env_flag, env_int, env_str
+from .env_utils import env_csv, env_flag, env_int, env_str
 
 _PROJECT_DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 if _PROJECT_DOTENV_PATH.is_file():
@@ -53,6 +53,22 @@ class Config:
     AUTH_PROXY_USERNAME_HEADER: ClassVar[str] = (
         env_str("AUTH_PROXY_USERNAME_HEADER") or ""
     )
+    SAML_ENABLED: ClassVar[bool] = env_flag("SAML_ENABLED")
+    SAML_SETTINGS_PATH: ClassVar[str | None] = env_str("SAML_SETTINGS_PATH")
+    SAML_SETTINGS_JSON: ClassVar[str | None] = env_str("SAML_SETTINGS_JSON")
+    SAML_USERNAME_ATTRIBUTES: ClassVar[list[str]] = env_csv(
+        "SAML_USERNAME_ATTRIBUTES",
+        (
+            "name,"
+            "email,"
+            "uid,"
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name,"
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress,"
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
+        ),
+    )
+    SAML_USE_NAME_ID: ClassVar[bool] = env_flag("SAML_USE_NAME_ID", default=True)
+    SAML_DEFAULT_NEXT_URL: ClassVar[str] = env_str("SAML_DEFAULT_NEXT_URL") or "/"
 
     # Resend
     RESEND_API_KEY: ClassVar[str | None] = env_str("RESEND_API_KEY")

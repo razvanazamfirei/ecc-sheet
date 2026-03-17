@@ -22,6 +22,7 @@ from flask import (
 
 from .env_utils import env_csv, env_flag
 from .models import Resident, Role, TimeEntry
+from .saml import get_session_authenticated_user, saml_enabled
 from .utils import get_effective_date
 
 
@@ -33,13 +34,20 @@ def _proxy_header_name() -> str:
 
 
 def get_current_user() -> str:
-    """Get current user from mock session, proxy auth header, or env fallback."""
+    """Get current user from mock session, SAML session, proxy auth, or env."""
     if mock_users_enabled():
         try:
             if "dev_user" in session:
                 return session["dev_user"]
         except RuntimeError:
             pass  # No request context (e.g. CLI or tests without a request)
+
+    if saml_enabled():
+        authenticated_user = get_session_authenticated_user()
+        if authenticated_user:
+            return authenticated_user
+        if has_request_context():
+            return ""
 
     proxy_header = _proxy_header_name()
     if proxy_header:
@@ -51,6 +59,7 @@ def get_current_user() -> str:
             return proxy_user
         if has_request_context():
             return ""
+
     return os.getenv("USER_NAME", "Admin")
 
 

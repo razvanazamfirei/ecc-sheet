@@ -6,6 +6,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
 ## Features
 
 - **Daily Shift Management**
+
   - Inline time editing with 24-hour format
   - Automatic time rounding to 5-minute increments (always rounds up)
   - Automatic overtime calculation based on configurable cutoff times
@@ -16,17 +17,20 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Copy to clipboard and print for signing
 
 - **Staff Management**
+
   - Import staff from Amion (Report 706)
   - Track class year, email, phone, EPIC ID
   - Active/inactive status
   - Backup resident assignments
 
 - **Holiday Management**
+
   - US federal holidays (automatic)
   - Custom holidays with recurring support
   - Holiday-aware overtime calculations
 
 - **Comprehensive Reporting**
+
   - Quick reports (Last 7/30/90 days)
   - Custom date range reports
   - Resident-specific filtering
@@ -35,6 +39,7 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Payroll XLSX export for Lawson/UPHS workflows
 
 - **Audit Trail**
+
   - Complete change tracking for all operations
   - Enhanced logging with old/new value tracking
   - User and IP address logging
@@ -90,7 +95,19 @@ Create a `.env` file in the project root:
 SECRET_KEY=your-secret-key-here
 DATABASE_URL=sqlite:///ecc_sheet.db
 USER_NAME=Admin
+
+# Authentication mode: Choose ONE of the following:
+# 1. Proxy authentication (default)
 AUTH_PROXY_USERNAME_HEADER=X-Auth-User
+
+# 2. App-managed SAML authentication (see docs/DEPLOYMENT.md for full setup)
+# SAML_ENABLED=false
+# SAML_SETTINGS_PATH=instance/saml/settings.json
+# SAML_USERNAME_ATTRIBUTES=name,email
+# SAML_USE_NAME_ID=true
+# SAML_DEFAULT_NEXT_URL=/
+
+# Session security
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_HTTPONLY=true
 SESSION_COOKIE_SAMESITE=Lax
@@ -337,13 +354,15 @@ The application uses environment-based authentication:
 
 - **User Identity**: Set via `USER_NAME` environment variable
 - **Admin Access**: Controlled by `ADMIN_USERS` (comma-separated list)
-- **External Auth**: Designed to work with SSO or reverse proxy
+- **External Auth**: Works either with reverse-proxy identity headers or an
+  in-app SAML SP session
 
 When `AUTH_PROXY_USERNAME_HEADER` is configured, requests that do not include
 that header are rejected instead of silently falling back to `USER_NAME`.
 
-Authentication must be handled externally (e.g., institutional SSO, reverse
-proxy).
+When `SAML_ENABLED=true`, unauthenticated browser requests are redirected to
+`/auth/login`, the SAML assertion populates the Flask session, and the existing
+authorization logic continues to use the resolved username.
 
 ## Security
 

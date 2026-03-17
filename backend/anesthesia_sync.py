@@ -534,6 +534,7 @@ def _persist_updates(
     user: str | None,
 ) -> None:
     """Write audit logs and commit synced time-entry updates."""
+
     def _persist() -> None:
         for pending_update in pending_updates:
             entry = pending_update.entry
