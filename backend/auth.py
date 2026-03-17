@@ -4,6 +4,7 @@ Uses username from environment variable to determine admin status
 """
 
 import os
+from collections.abc import Callable
 from datetime import date
 from functools import wraps
 from typing import Any
@@ -134,29 +135,45 @@ def can_filter_reports_by_resident() -> bool:
     return "*" in allowed_users or get_current_user() in allowed_users
 
 
+def _access_denied_redirect(endpoint: str, message: str) -> Any:
+    """Flash an authorization error and redirect to a safe endpoint."""
+    flash(message, "error")
+    return redirect(url_for(endpoint))
+
+
+def _require_access(
+    check: Callable[[], bool],
+    *,
+    message: str,
+    endpoint: str,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Return a decorator enforcing an access check with a redirect fallback."""
+
+    def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
+        @wraps(f)
+        def decorated_function(*args: Any, **kwargs: Any) -> Any:
+            if not check():
+                return _access_denied_redirect(endpoint, message)
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return decorator
+
+
 def admin_required(f):
     """Decorator to require admin privileges"""
-
-    @wraps(f)
-    def decorated_function(*args: Any, **kwargs: Any) -> Any:
-        if not is_admin():
-            flash("Admin privileges required to access this page.", "error")
-            return redirect(url_for("sheets.index"))
-        return f(*args, **kwargs)
-
-    return decorated_function
+    return _require_access(
+        is_admin,
+        message="Admin privileges required to access this page.",
+        endpoint="sheets.index",
+    )(f)
 
 
 def payroll_admin_required(f):
     """Decorator to require payroll admin privileges (PAYROLL_ADMIN_USERS)."""
-
-    @wraps(f)
-    def decorated_function(*args: Any, **kwargs: Any) -> Any:
-        if not is_payroll_admin():
-            flash(
-                "Payroll admin privileges required to modify these settings.", "error"
-            )
-            return redirect(url_for("reports.payroll_settings"))
-        return f(*args, **kwargs)
-
-    return decorated_function
+    return _require_access(
+        is_payroll_admin,
+        message="Payroll admin privileges required to modify these settings.",
+        endpoint="reports.payroll_settings",
+    )(f)

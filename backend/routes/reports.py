@@ -5,12 +5,7 @@ from collections.abc import Callable
 from datetime import date
 from logging import Logger
 
-from flask import (
-    Blueprint,
-    flash,
-    render_template,
-    request,
-)
+from flask import Blueprint, render_template
 from werkzeug.wrappers import Response
 
 from ..audit import log_update
@@ -23,7 +18,7 @@ from ..auth import (
     payroll_admin_required,
 )
 from ..errors import ValidationError
-from ..models import PayrollSettings, TimeEntry, db
+from ..models import PayrollSettings, TimeEntry
 from ..report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
@@ -32,26 +27,23 @@ from ..report_utils import (
     generate_payroll_xlsx,
     get_resident_name,
 )
-from ._forms import form_text
-from ._helpers import diff_snapshots, parse_iso_date, redirect_to
+from ._forms import form_text, optional_form_int
+from ._helpers import (
+    commit_flash_redirect,
+    diff_snapshots,
+    flash_redirect,
+    parse_iso_date,
+    rollback_flash_redirect,
+)
 
 bp: Blueprint = Blueprint("reports", __name__)
 logger: Logger = logging.getLogger(__name__)
 
 
-def _reports_flash_redirect(message: str, category: str = "error") -> Response:
-    """Flash a message and redirect to the reports index."""
-    flash(message, category)
-    return redirect_to("reports.index")
-
-
 def _report_form_int(key: str) -> int | None:
     """Return an optional integer from the report form."""
-    value = form_text(key)
-    if not value:
-        return None
     try:
-        return int(value)
+        return optional_form_int(key)
     except ValueError as exc:
         raise ValidationError(f"'{key}' must be an integer.") from exc
 
@@ -110,7 +102,7 @@ def _require_extended_report_permission(message: str) -> Response | None:
     """Return an error redirect when extended report access is unavailable."""
     if can_view_all_reports():
         return None
-    return _reports_flash_redirect(message)
+    return flash_redirect("reports.index", message)
 
 
 def _detailed_csv_content(
@@ -193,16 +185,16 @@ def _run_report_action(
         start_date, end_date, resident_id = _parse_report_params()
         return action(start_date, end_date, resident_id)
     except ValidationError as exc:
-        return _reports_flash_redirect(str(exc))
+        return flash_redirect("reports.index", str(exc))
     except Exception:
         logger.exception(log_message)
-        return _reports_flash_redirect(error_message)
+        return flash_redirect("reports.index", error_message)
 
 
 def _parse_report_params() -> tuple[date, date, int | None]:
     """Parse common report parameters from form data."""
-    start_date_raw = request.form.get("start_date")
-    end_date_raw = request.form.get("end_date")
+    start_date_raw = form_text("start_date")
+    end_date_raw = form_text("end_date")
     if not start_date_raw or not end_date_raw:
         raise ValidationError("Start date and end date are required")
 
@@ -324,26 +316,28 @@ def payroll_settings_save():
     """Save payroll export settings."""
 
     settings = PayrollSettings.get_or_create()
+    before = _payroll_settings_details(settings)
 
     try:
-        before = _payroll_settings_details(settings)
         _apply_payroll_settings_form(settings)
-        after = _payroll_settings_details(settings)
+    except ValidationError as exc:
+        logger.debug("Invalid payroll settings input", exc_info=True)
+        return rollback_flash_redirect("reports.payroll_settings", str(exc), "error")
+
+    after = _payroll_settings_details(settings)
+
+    def _save() -> None:
         log_update(
             "PayrollSettings",
             settings.id,
             changes=diff_snapshots(before, after),
             details=after,
         )
-        db.session.commit()
-        flash("Payroll settings saved successfully.", "success")
-    except ValidationError as exc:
-        db.session.rollback()
-        logger.debug("Invalid payroll settings input", exc_info=True)
-        flash(str(exc), "error")
-    except Exception:
-        db.session.rollback()
-        logger.exception("Error saving payroll settings")
-        flash("Error saving settings.", "error")
 
-    return redirect_to("reports.payroll_settings")
+    return commit_flash_redirect(
+        _save,
+        endpoint="reports.payroll_settings",
+        logger=logger,
+        errors=("Error saving payroll settings", "Error saving settings."),
+        success_message="Payroll settings saved successfully.",
+    )

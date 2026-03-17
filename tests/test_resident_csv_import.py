@@ -1,5 +1,6 @@
 """Tests for resident CSV bootstrap/import."""
 
+import json
 from datetime import date
 from unittest.mock import patch
 
@@ -223,8 +224,9 @@ class TestImportResidentCsv:
             db.session.commit()
 
             records = parse_resident_csv(
-                "name,epic_id,class_year,email\n"
-                "Update Audit Resident,RCSVUPD,CA3,updated-audit@example.com\n"
+                "name,epic_id,class_year,email,lawson_id,hire_date\n"
+                "Update Audit Resident,RCSVUPD,CA3,updated-audit@example.com,"
+                "54321,2024-07-01\n"
             )
 
             result = import_resident_csv_records(records, user="update-audit-test")
@@ -244,8 +246,11 @@ class TestImportResidentCsv:
                 user="update-audit-test",
             ).first()
             assert update_log is not None
-            assert '"class_year"' in update_log.details
-            assert '"email"' in update_log.details
+            parsed = json.loads(update_log.details or "{}")
+            assert parsed["changes"]["lawson_id"]["new"] == 54321
+            assert parsed["changes"]["hire_date"]["new"] == "2024-07-01"
+            assert "class_year" not in parsed["changes"]
+            assert "email" not in parsed["changes"]
             assert import_log is not None
 
             refreshed = Resident.get_by_epic_id("RCSVUPD")

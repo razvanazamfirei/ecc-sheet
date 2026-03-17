@@ -411,6 +411,12 @@ class TestEditResident:
             db.session.add(resident)
             db.session.commit()
             resident_id = resident.id
+            AuditLog.query.filter_by(
+                entity_type="Resident",
+                entity_id=resident_id,
+                action="UPDATE",
+            ).delete()
+            db.session.commit()
 
             response = client.post(
                 f"/residents/{resident_id}/edit",
@@ -440,6 +446,94 @@ class TestEditResident:
             assert updated.lawson_id == 98765
             assert updated.hire_date is not None
             assert updated.hire_date.isoformat() == "2023-07-01"
+
+            db.session.delete(updated)
+            db.session.commit()
+
+    def test_edit_save_logs_only_payroll_relevant_changes(self, client, app):
+        """Test resident edit audit excludes non-payroll metadata changes."""
+        with app.app_context():
+            resident = Resident(name="Audit Scope Resident", active=True)
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+            AuditLog.query.filter_by(
+                entity_type="Resident",
+                entity_id=resident_id,
+                action="UPDATE",
+            ).delete()
+            db.session.commit()
+
+            response = client.post(
+                f"/residents/{resident_id}/edit",
+                data={
+                    "name": "Audit Scope Resident",
+                    "email": "scoped@example.com",
+                    "lawson_id": "12345",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            updated = db.session.get(Resident, resident_id)
+            assert updated is not None
+            assert updated.email == "scoped@example.com"
+            assert updated.lawson_id == 12345
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="Resident",
+                    entity_id=resident_id,
+                    action="UPDATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert log is not None
+            parsed = json.loads(log.details or "{}")
+            assert parsed["changes"]["lawson_id"]["new"] == 12345
+            assert "email" not in parsed["changes"]
+
+            db.session.delete(log)
+            db.session.delete(updated)
+            db.session.commit()
+
+    def test_edit_save_non_payroll_changes_skip_audit_log(self, client, app):
+        """Test resident edits still save without a resident audit row."""
+        with app.app_context():
+            resident = Resident(
+                name="Audit Skip Resident",
+                email="old@example.com",
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
+
+            response = client.post(
+                f"/residents/{resident_id}/edit",
+                data={
+                    "name": "Audit Skip Resident",
+                    "email": "new@example.com",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+
+            updated = db.session.get(Resident, resident_id)
+            assert updated is not None
+            assert updated.email == "new@example.com"
+
+            log = (
+                AuditLog.query.filter_by(
+                    entity_type="Resident",
+                    entity_id=resident_id,
+                    action="UPDATE",
+                )
+                .order_by(AuditLog.id.desc())
+                .first()
+            )
+            assert log is None
 
             db.session.delete(updated)
             db.session.commit()

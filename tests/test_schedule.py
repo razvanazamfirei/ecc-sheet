@@ -826,6 +826,12 @@ class TestScheduleImport:
             db.session.add(resident)
             db.session.commit()
             resident_id = resident.id
+            AuditLog.query.filter_by(
+                entity_type="Resident",
+                entity_id=resident_id,
+                action="UPDATE",
+            ).delete()
+            db.session.commit()
 
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -868,11 +874,10 @@ class TestScheduleImport:
                 .order_by(AuditLog.id.desc())
                 .first()
             )
-            assert resident_log is not None
+            assert resident_log is None
             assert entry_log is not None
             assert import_log is not None
 
-            db.session.delete(resident_log)
             db.session.delete(entry_log)
             db.session.delete(import_log)
             db.session.delete(entry)

@@ -13,33 +13,50 @@ from collections.abc import Sequence
 from typing import Any
 
 import requests
-from email_validator import EmailNotValidError, validate_email
+from email_validator import EmailNotValidError
 from flask import current_app, has_app_context
 
 from backend.audit import log_create, log_import, log_update
 from backend.config import Config
 from backend.errors import ValidationError
 from backend.models import Resident, db
+from backend.payroll_audit import (
+    filter_payroll_resident_changes,
+    payroll_resident_details,
+)
+from backend.resident_normalization import (
+    canonicalize_class_year,
+    clean_text,
+    normalize_email,
+    split_name,
+)
 from backend.type_defs import ImportResult, StaffList, StaffRecord
 
 logger = logging.getLogger(__name__)
 
-CLASS_YEAR_MAP: dict[str, str] = {
-    "CA1": "CA-1",
-    "CA2": "CA-2",
-    "CA3": "CA-3",
-    "Fellow": "Fellow",
-    "OMFS": "OMFS",
-}
 
-
-def _clean_cell(value: str | None) -> str:
-    return value.strip() if value else ""
+def _staff_import_result(
+    *,
+    success: bool,
+    error: str | None,
+    counts: tuple[int, int, int] = (0, 0, 0),
+    total_records: int = 0,
+) -> ImportResult:
+    """Build a normalized staff-import result payload."""
+    created, updated, skipped = counts
+    return ImportResult(
+        success=success,
+        error=error,
+        created=created,
+        updated=updated,
+        skipped=skipped,
+        total_records=total_records,
+    )
 
 
 def _epic_id_from_row(row: dict[str, str | None]) -> str | None:
     """Return the EPIC ID from a parsed row, if present."""
-    unique_id = _clean_cell(row.get("Unique ID"))
+    unique_id = clean_text(row.get("Unique ID"))
     if not unique_id.startswith("EPICID:"):
         return None
     epic_id = unique_id.removeprefix("EPICID:")
@@ -48,11 +65,8 @@ def _epic_id_from_row(row: dict[str, str | None]) -> str | None:
 
 def _normalized_email(raw_email: str, *, name: str) -> str | None:
     """Return a normalized email, or None when blank/invalid."""
-    if not raw_email:
-        return None
-
     try:
-        return validate_email(raw_email, check_deliverability=False).normalized.lower()
+        return normalize_email(raw_email)
     except EmailNotValidError:
         logger.warning(
             "Invalid email %r for %r discarded during staff import",
@@ -64,15 +78,7 @@ def _normalized_email(raw_email: str, *, name: str) -> str | None:
 
 def _phone_from_row(row: dict[str, str | None]) -> str | None:
     """Return the preferred phone number from a parsed row, or None."""
-    return _clean_cell(row.get("Pager")) or _clean_cell(row.get("Tel.")) or None
-
-
-def _split_name(name: str) -> tuple[str | None, str | None]:
-    """Split a full name into first/last components."""
-    parts = name.rsplit(" ", 1)
-    first_name = parts[0].strip() if parts else None
-    last_name = parts[1].strip() if len(parts) > 1 else None
-    return first_name, last_name
+    return clean_text(row.get("Pager")) or clean_text(row.get("Tel.")) or None
 
 
 def _get_amion_base_url() -> str:
@@ -138,7 +144,7 @@ def parse_staff_list(csv_content: str) -> StaffList:
 
     for row in csv_reader:
         # Skip empty rows or placeholders
-        name = _clean_cell(row.get("Name"))
+        name = clean_text(row.get("Name"))
         if not name:
             continue
 
@@ -153,14 +159,14 @@ def parse_staff_list(csv_content: str) -> StaffList:
                 name,
             )
             continue
-        raw_email = _clean_cell(row.get("Email"))
+        raw_email = clean_text(row.get("Email"))
         staff_list.append(
             StaffRecord(
                 name=name,
                 epic_id=epic_id,
-                class_year=_clean_cell(row.get("Staff type")),
-                backup_id=_clean_cell(row.get("Backup ID")),
-                abbreviation=_clean_cell(row.get("Abbreviation")),
+                class_year=clean_text(row.get("Staff type")),
+                backup_id=clean_text(row.get("Backup ID")),
+                abbreviation=clean_text(row.get("Abbreviation")),
                 phone=_phone_from_row(row),
                 email=_normalized_email(raw_email, name=name),
             )
@@ -204,6 +210,35 @@ def _update_resident_fields(
     return changes
 
 
+def _persist_staff_import_audit(
+    created_residents: Sequence[Resident],
+    updated_residents: Sequence[tuple[Resident, dict[str, Any]]],
+    *,
+    summary: str,
+    user: str | None,
+) -> None:
+    """Persist best-effort audit rows after resident changes are committed."""
+    try:
+        for resident in created_residents:
+            log_create(
+                "Resident",
+                resident.id,
+                payroll_resident_details(resident, source="staff_import"),
+            )
+        for resident, changes in updated_residents:
+            if payroll_changes := filter_payroll_resident_changes(changes):
+                log_update("Resident", resident.id, changes=payroll_changes)
+        log_import(
+            "staff_list",
+            summary,
+            user=user,
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception("Staff import audit persistence failed")
+
+
 def import_staff_to_database(
     staff_list: Sequence[StaffRecord], user: str | None = None
 ) -> tuple[int, int, int]:
@@ -229,11 +264,9 @@ def import_staff_to_database(
 
     for staff in staff_list:
         epic_id = staff["epic_id"]
-        normalized_class_year = CLASS_YEAR_MAP.get(
-            staff["class_year"], staff["class_year"]
-        )
+        normalized_class_year = canonicalize_class_year(staff["class_year"]) or ""
 
-        first_name, last_name = _split_name(staff["name"])
+        first_name, last_name = split_name(staff["name"])
 
         resident = Resident.get_by_epic_id(epic_id)
 
@@ -267,24 +300,11 @@ def import_staff_to_database(
     # Commit all changes
     db.session.commit()
 
-    # Log per-resident audit events after commit so IDs are assigned
-    for resident in created_residents:
-        log_create(
-            "Resident",
-            resident.id,
-            {
-                "name": resident.name,
-                "epic_id": resident.epic_id,
-                "source": "staff_import",
-            },
-        )
-    for resident, changes in updated_residents:
-        log_update("Resident", resident.id, changes=changes)
-
-    # Log the overall import
-    log_import(
-        "staff_list",
-        f"Created: {created}, Updated: {updated}, Skipped: {skipped}",
+    summary = f"Created: {created}, Updated: {updated}, Skipped: {skipped}"
+    _persist_staff_import_audit(
+        created_residents,
+        updated_residents,
+        summary=summary,
         user=user,
     )
 
@@ -320,45 +340,31 @@ def import_staff_list(schedule_code: str, user: str | None = None) -> ImportResu
         staff_list = parse_staff_list(csv_content)
 
         if not staff_list:
-            return ImportResult(
+            return _staff_import_result(
                 success=False,
                 error="No staff records found in import",
-                created=0,
-                updated=0,
-                skipped=0,
-                total_records=0,
             )
 
         # Import to database
         created, updated, skipped = import_staff_to_database(staff_list, user)
 
-        return ImportResult(
+        return _staff_import_result(
             success=True,
-            created=created,
-            updated=updated,
-            skipped=skipped,
-            total_records=len(staff_list),
             error=None,
+            counts=(created, updated, skipped),
+            total_records=len(staff_list),
         )
 
     except requests.RequestException:
         logger.exception("Failed to fetch staff list from Amion")
-        return ImportResult(
+        return _staff_import_result(
             success=False,
             error="Failed to fetch staff list from Amion.",
-            created=0,
-            updated=0,
-            skipped=0,
-            total_records=0,
         )
     except Exception:
         db.session.rollback()
         logger.exception("Staff import failed")
-        return ImportResult(
+        return _staff_import_result(
             success=False,
             error="Staff import failed.",
-            created=0,
-            updated=0,
-            skipped=0,
-            total_records=0,
         )

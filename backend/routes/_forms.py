@@ -6,6 +6,8 @@ from datetime import date
 
 from flask import request
 
+from ..parsing import parse_iso_date
+
 
 def form_text(key: str) -> str:
     """Return a trimmed form value."""
@@ -30,4 +32,4 @@ def optional_form_iso_date(key: str) -> date | None:
     value = form_text(key)
     if not value:
         return None
-    return date.fromisoformat(value)
+    return parse_iso_date(value)

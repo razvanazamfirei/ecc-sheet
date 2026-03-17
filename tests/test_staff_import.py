@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from backend.errors import ValidationError
-from backend.models import Resident, db
+from backend.models import AuditLog, Resident, db
 from backend.staff_import import (
     fetch_staff_list,
     import_staff_list,
@@ -513,6 +513,53 @@ class TestImportStaffToDatabase:
             assert resident.class_year == "CA-1"  # Unchanged (CA1 → CA-1)
 
             # Cleanup
+            db.session.delete(resident)
+            db.session.commit()
+
+    def test_import_persists_audit_logs(self, app):
+        """Test staff import persists resident and import audit rows."""
+        with app.app_context():
+            staff_list: list[StaffRecord] = [
+                {
+                    "name": "Audit Staff Resident",
+                    "epic_id": "TEST_AUDIT_001",
+                    "class_year": "CA1",
+                    "email": "audit-staff@test.com",
+                    "phone": "555-4321",
+                    "abbreviation": "ASR",
+                    "backup_id": "B900",
+                }
+            ]
+
+            created, updated, skipped = import_staff_to_database(
+                staff_list,
+                user="staff-audit-test",
+            )
+
+            assert (created, updated, skipped) == (1, 0, 0)
+            resident = Resident.get_by_epic_id("TEST_AUDIT_001")
+            assert resident is not None
+            resident_id = resident.id
+
+            db.session.remove()
+
+            create_log = AuditLog.query.filter_by(
+                action="CREATE",
+                entity_type="Resident",
+                entity_id=resident_id,
+            ).first()
+            import_log = AuditLog.query.filter_by(
+                action="IMPORT",
+                entity_type="staff_list",
+                user="staff-audit-test",
+            ).first()
+            assert create_log is not None
+            assert import_log is not None
+
+            resident = Resident.get_by_epic_id("TEST_AUDIT_001")
+            assert resident is not None
+            db.session.delete(create_log)
+            db.session.delete(import_log)
             db.session.delete(resident)
             db.session.commit()
 

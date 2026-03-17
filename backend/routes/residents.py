@@ -2,23 +2,20 @@
 
 import json
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
 from logging import Logger
 
 from flask import (
     Blueprint,
     current_app,
-    flash,
     render_template,
 )
 from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
-from werkzeug.wrappers import Response
 
 from ..audit import log_create, log_update
 from ..auth import admin_required, get_current_user, is_admin, is_first_call
 from ..models import AuditLog, Resident, TimeEntry, db
+from ..payroll_audit import filter_payroll_resident_changes
 from ..staff_import import import_staff_list
 from ._forms import (
     form_text,
@@ -26,7 +23,7 @@ from ._forms import (
     optional_form_iso_date,
     optional_form_text,
 )
-from ._helpers import diff_snapshots, redirect_to
+from ._helpers import commit_flash_redirect, diff_snapshots, flash_redirect
 
 bp: Blueprint = Blueprint("residents", __name__, url_prefix="/residents")
 logger: Logger = logging.getLogger(__name__)
@@ -37,14 +34,6 @@ SAFE_STAFF_IMPORT_ERRORS = frozenset(
         "Staff import failed.",
     }
 )
-
-
-@dataclass(frozen=True, slots=True)
-class ResidentMutationSpec:
-    """Describe how a resident mutation should report failures."""
-
-    log_message: str
-    flash_message: str
 
 
 def _resident_snapshot(resident: Resident) -> dict[str, str | int | None]:
@@ -67,34 +56,6 @@ def _staff_import_error_message(error: str | None) -> str:
     if error and error in SAFE_STAFF_IMPORT_ERRORS:
         return error
     return "Staff list import failed."
-
-
-def _residents_index_response(message: str, category: str) -> Response:
-    """Flash a message and redirect back to the residents index."""
-    flash(message, category)
-    return redirect_to("residents.index")
-
-
-def _resident_mutation_error(error_spec: ResidentMutationSpec) -> Response:
-    """Redirect with a generic resident mutation error."""
-    return _residents_index_response(error_spec.flash_message, "error")
-
-
-def _run_resident_mutation[T](
-    mutation: Callable[[], T],
-    *,
-    error_spec: ResidentMutationSpec,
-) -> T | Response:
-    """Run a resident mutation inside the shared transaction wrapper."""
-    try:
-        result = mutation()
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception(error_spec.log_message)
-        return _resident_mutation_error(error_spec)
-
-    return result
 
 
 def _create_resident(name: str) -> Resident:
@@ -178,19 +139,18 @@ def add():
     name = form_text("name")
 
     if not name:
-        return _residents_index_response("Resident name is required", "error")
+        return flash_redirect("residents.index", "Resident name is required", "error")
 
-    result = _run_resident_mutation(
+    return commit_flash_redirect(
         lambda: _create_resident(name),
-        error_spec=ResidentMutationSpec(
-            log_message="Error adding resident",
-            flash_message="Error adding resident. Check logs for details.",
+        endpoint="residents.index",
+        logger=logger,
+        errors=(
+            "Error adding resident",
+            "Error adding resident. Check logs for details.",
         ),
+        success_message=f"Resident {name} added successfully",
     )
-    if isinstance(result, Response):
-        return result
-
-    return _residents_index_response(f"Resident {name} added successfully", "success")
 
 
 @bp.route("/<int:resident_id>/toggle", methods=["POST"])
@@ -199,17 +159,16 @@ def toggle(resident_id):
     """Toggle resident active status."""
     resident = db.get_or_404(Resident, resident_id)
 
-    result = _run_resident_mutation(
+    return commit_flash_redirect(
         lambda: _toggle_resident_active(resident),
-        error_spec=ResidentMutationSpec(
-            log_message="Error toggling resident status",
-            flash_message="Error updating resident. Check logs for details.",
+        endpoint="residents.index",
+        logger=logger,
+        errors=(
+            "Error toggling resident status",
+            "Error updating resident. Check logs for details.",
         ),
+        success_message=lambda state: f"Resident {resident.name} {state}",
     )
-    if isinstance(result, Response):
-        return result
-
-    return _residents_index_response(f"Resident {resident.name} {result}", "success")
 
 
 @bp.route("/<int:resident_id>/edit", methods=["GET"])
@@ -230,7 +189,7 @@ def edit_save(resident_id):
 
     name = form_text("name")
     if not name:
-        return _residents_index_response("Resident name is required.", "error")
+        return flash_redirect("residents.index", "Resident name is required.", "error")
 
     before = _resident_snapshot(resident)
 
@@ -242,30 +201,32 @@ def edit_save(resident_id):
             resident_id,
             exc_info=True,
         )
-        return _residents_index_response(
+        return flash_redirect(
+            "residents.index",
             "Invalid input: please check the fields and try again.",
             "error",
         )
 
     after = _resident_snapshot(resident)
     changes = diff_snapshots(before, after)
+    payroll_changes = filter_payroll_resident_changes(changes)
 
     if not changes:
-        return _residents_index_response("No changes to save.", "info")
+        return flash_redirect("residents.index", "No changes to save.", "info")
 
-    result = _run_resident_mutation(
-        lambda: log_update("Resident", resident.id, changes=changes),
-        error_spec=ResidentMutationSpec(
-            log_message="Error saving resident",
-            flash_message="Error updating resident. Check logs for details.",
+    return commit_flash_redirect(
+        lambda: (
+            log_update("Resident", resident.id, changes=payroll_changes)
+            if payroll_changes
+            else None
         ),
-    )
-    if isinstance(result, Response):
-        return result
-
-    return _residents_index_response(
-        f"Resident {resident.name} updated successfully.",
-        "success",
+        endpoint="residents.index",
+        logger=logger,
+        errors=(
+            "Error saving resident",
+            "Error updating resident. Check logs for details.",
+        ),
+        success_message=f"Resident {resident.name} updated successfully.",
     )
 
 
@@ -312,17 +273,19 @@ def import_staff():
         result = import_staff_list(schedule_code=schedule_code, user=get_current_user())
 
         if result["success"]:
-            return _residents_index_response(
+            return flash_redirect(
+                "residents.index",
                 f"Staff list imported successfully: "
                 f"{result['created']} created, "
                 f"{result['updated']} updated, "
                 f"{result['skipped']} skipped",
                 "success",
             )
-        return _residents_index_response(
+        return flash_redirect(
+            "residents.index",
             _staff_import_error_message(result.get("error")),
             "error",
         )
     except Exception:
         logger.exception("Error importing staff list")
-        return _residents_index_response("Error importing staff list.", "error")
+        return flash_redirect("residents.index", "Error importing staff list.", "error")

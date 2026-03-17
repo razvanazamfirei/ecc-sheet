@@ -16,7 +16,9 @@ from sqlalchemy.orm import joinedload
 
 from .audit import log_import_strict, log_update_strict
 from .config import Config
-from .models import Resident, TimeEntry, db
+from .db_session import commit_or_rollback
+from .models import Resident, TimeEntry
+from .parsing import parse_iso_date
 
 logger = logging.getLogger(__name__)
 
@@ -231,7 +233,7 @@ def _coerce_date(value: Any, *, field_name: str) -> date:
         return value
     if isinstance(value, str):
         try:
-            return date.fromisoformat(value.split(" ", 1)[0])
+            return parse_iso_date(value.split(" ", 1)[0])
         except ValueError as exc:
             raise AnesthesiaSyncError(
                 f"Invalid {field_name} value returned by MSSQL: {value!r}"
@@ -532,7 +534,7 @@ def _persist_updates(
     user: str | None,
 ) -> None:
     """Write audit logs and commit synced time-entry updates."""
-    try:
+    def _persist() -> None:
         for pending_update in pending_updates:
             entry = pending_update.entry
             record = pending_update.record
@@ -559,10 +561,8 @@ def _persist_updates(
             )
 
         log_import_strict("anesthesia_stop_sync", result.summary(), user=user)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
+
+    commit_or_rollback(_persist)
 
 
 def sync_anesthesia_stop_times(  # noqa: PLR0913
