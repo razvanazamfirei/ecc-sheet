@@ -60,7 +60,6 @@ def set_session_authenticated_user(
     *,
     name_id: str | None = None,
     session_index: str | None = None,
-    attributes: Mapping[str, Any] | None = None,
 ) -> None:
     """Persist authenticated SAML identity data in the Flask session."""
     normalized_username = str(username).strip()
@@ -74,11 +73,6 @@ def set_session_authenticated_user(
         data["name_id"] = str(name_id).strip()
     if session_index:
         data["session_index"] = str(session_index).strip()
-    if attributes:
-        data["attributes"] = {
-            str(name): [str(value).strip() for value in values if str(value).strip()]
-            for name, values in attributes.items()
-        }
     session[_SESSION_DATA_KEY] = data
     session.permanent = True
 
@@ -118,6 +112,8 @@ def store_login_request_id(request_id: str | None) -> None:
     """Persist the last outbound AuthNRequest ID for ACS validation."""
     if request_id:
         session[_LOGIN_REQUEST_ID_KEY] = request_id
+    else:
+        session.pop(_LOGIN_REQUEST_ID_KEY, None)
 
 
 def pop_login_request_id() -> str | None:
@@ -132,6 +128,8 @@ def store_logout_request_id(request_id: str | None) -> None:
     """Persist the last outbound LogoutRequest ID for SLS validation."""
     if request_id:
         session[_LOGOUT_REQUEST_ID_KEY] = request_id
+    else:
+        session.pop(_LOGOUT_REQUEST_ID_KEY, None)
 
 
 def pop_logout_request_id() -> str | None:
@@ -188,7 +186,7 @@ def load_saml_settings(
         except json.JSONDecodeError as exc:
             raise RuntimeError("SAML_SETTINGS_JSON is not valid JSON.") from exc
         if not isinstance(settings, dict):
-            raise RuntimeError("SAML_SETTINGS_JSON must decode to a JSON object.")
+            raise TypeError("SAML_SETTINGS_JSON must decode to a JSON object.")
         return settings, None
 
     if not settings_path_value:
@@ -209,7 +207,7 @@ def load_saml_settings(
         raise RuntimeError(f"SAML settings file is not valid JSON: {path}") from exc
 
     if not isinstance(settings, dict):
-        raise RuntimeError(f"SAML settings file must contain a JSON object: {path}")
+        raise TypeError(f"SAML settings file must contain a JSON object: {path}")
 
     return settings, str(path.parent)
 

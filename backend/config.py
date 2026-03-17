@@ -5,7 +5,7 @@ from typing import ClassVar
 
 from dotenv import dotenv_values
 
-from .env_utils import env_flag, env_int, env_str
+from .env_utils import env_csv, env_flag, env_int, env_str
 
 _PROJECT_DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 if _PROJECT_DOTENV_PATH.is_file():
@@ -68,9 +68,7 @@ class Config:
         ),
     )
     SAML_USE_NAME_ID: ClassVar[bool] = env_flag("SAML_USE_NAME_ID", default=True)
-    SAML_DEFAULT_NEXT_URL: ClassVar[str] = (
-        env_str("SAML_DEFAULT_NEXT_URL") or "/"
-    )
+    SAML_DEFAULT_NEXT_URL: ClassVar[str] = env_str("SAML_DEFAULT_NEXT_URL") or "/"
 
     # Resend
     RESEND_API_KEY: ClassVar[str | None] = env_str("RESEND_API_KEY")

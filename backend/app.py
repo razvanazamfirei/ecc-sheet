@@ -41,6 +41,7 @@ from .models import Holiday, Resident, Role, db
 from .resident_csv_import import import_residents_csv_file
 from .routes import dev as _dev_module
 from .routes import register_blueprints
+from .routes import sso as _sso_module
 from .saml import (
     get_session_authenticated_user,
     saml_enabled,
@@ -123,6 +124,8 @@ def _active_resident_names() -> list[str]:
 
     return [resident.name for resident in residents]
 
+
+csrf.exempt(_sso_module.bp)
 
 if mock_users_enabled():
     if os.getenv("FLASK_ENV", "").lower() == "production":
@@ -216,8 +219,7 @@ def _ensure_time_entry_columns() -> None:
             commit_or_rollback(
                 lambda: db.session.execute(
                     text(
-                        "ALTER TABLE time_entries "
-                        "ADD COLUMN anesthesia_stop_time TIME"
+                        "ALTER TABLE time_entries ADD COLUMN anesthesia_stop_time TIME"
                     )
                 )
             )

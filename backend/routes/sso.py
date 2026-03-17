@@ -78,7 +78,6 @@ def acs():
         username,
         name_id=name_id,
         session_index=auth.get_session_index(),
-        attributes=attributes,
     )
 
     relay_state = request.form.get("RelayState")

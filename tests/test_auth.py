@@ -68,7 +68,9 @@ class TestGetCurrentUser:
                 os.environ.pop("USER_NAME", None)
             app.config["AUTH_PROXY_USERNAME_HEADER"] = original_header or ""
 
-    def test_uses_session_authenticated_user_when_present(self, client):
+    def test_uses_session_authenticated_user_when_present(
+        self, client, saml_enabled_app
+    ):
         """Test SAML/session auth overrides USER_NAME inside requests."""
         with client.session_transaction() as sess:
             sess["auth_user"] = "Session User"

@@ -68,6 +68,16 @@ def client(app: Flask) -> FlaskClient:
 
 
 @pytest.fixture
+def saml_enabled_app(app: Flask, monkeypatch):
+    """Enable SAML for the duration of a test and restore the original value."""
+    monkeypatch.delenv("MOCK_USERS_ENABLED", raising=False)
+    original = app.config["SAML_ENABLED"]
+    app.config["SAML_ENABLED"] = True
+    yield app
+    app.config["SAML_ENABLED"] = original
+
+
+@pytest.fixture
 def runner(app: Flask) -> FlaskCliRunner:
     """Create CLI test runner"""
     return app.test_cli_runner()

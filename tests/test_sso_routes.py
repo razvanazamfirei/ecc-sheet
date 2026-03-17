@@ -80,35 +80,26 @@ class TestSamlGuard:
     def test_saml_redirects_unauthenticated_browser_requests_to_login(
         self,
         client,
-        app,
-        monkeypatch,
+        saml_enabled_app,
     ):
-        original = app.config["SAML_ENABLED"]
-        try:
-            monkeypatch.delenv("MOCK_USERS_ENABLED", raising=False)
-            app.config["SAML_ENABLED"] = True
-            response = client.get("/")
-            assert response.status_code == 302
-            assert response.headers["Location"] == "/auth/login?next=/"
-        finally:
-            app.config["SAML_ENABLED"] = original
+        response = client.get("/")
+        assert response.status_code == 302
+        assert response.headers["Location"] == "/auth/login?next=/"
 
-    def test_saml_returns_401_for_json_requests(self, client, app, monkeypatch):
-        original = app.config["SAML_ENABLED"]
-        try:
-            monkeypatch.delenv("MOCK_USERS_ENABLED", raising=False)
-            app.config["SAML_ENABLED"] = True
-            response = client.get(
-                "/api/residents/active",
-                headers={"Accept": "application/json"},
-            )
-            assert response.status_code == 401
-            assert response.get_json() == {
-                "success": False,
-                "message": "Authentication required.",
-            }
-        finally:
-            app.config["SAML_ENABLED"] = original
+    def test_saml_returns_401_for_json_requests(
+        self,
+        client,
+        saml_enabled_app,
+    ):
+        response = client.get(
+            "/api/residents/active",
+            headers={"Accept": "application/json"},
+        )
+        assert response.status_code == 401
+        assert response.get_json() == {
+            "success": False,
+            "message": "Authentication required.",
+        }
 
 
 class TestSamlRoutes:

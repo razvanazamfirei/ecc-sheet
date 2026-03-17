@@ -135,6 +135,24 @@ SAML_DEFAULT_NEXT_URL=/
 AUTH_PROXY_USERNAME_HEADER=
 ```
 
+**Reverse proxy headers required for SAML:**
+
+The app uses `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-Port`
+to build the SP URLs embedded in SAML AuthnRequests, metadata, and ACS/SLS
+callbacks. Configure your proxy (Caddy, Nginx, Traefik) to forward these to
+the app set to the public origin, e.g. for Nginx:
+
+```nginx
+proxy_set_header X-Forwarded-Host  $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Port  $server_port;
+```
+
+Without these headers the SP will embed the internal Gunicorn address
+(`127.0.0.1:5000`) in metadata and requests, causing IdP validation failures.
+Also ensure the proxy strips any client-supplied copies of these headers before
+setting them, so clients cannot spoof the SP origin.
+
 ## Bootstrap the App
 
 Run the supported bootstrap command once after creating `.env`:

@@ -297,9 +297,7 @@ def _validated_bulk_entry_updates(  # noqa: PLR0911
 
 
 def _validated_add_entry_request(  # noqa: PLR0911
-) -> (
-    tuple[date, str, int, int, time | None, time | None] | Response
-):
+) -> tuple[date, str, int, int, time | None, time | None] | Response:
     """Return validated add-entry form data or an error response."""
     sheet_date_str = form_text("date")
     if not sheet_date_str:
@@ -510,8 +508,7 @@ def update_all():
                 "success": True,
                 "message": "All entries updated successfully.",
                 "entries": [
-                    _entry_json_payload(entry)
-                    for entry, _time_updates in entry_updates
+                    _entry_json_payload(entry) for entry, _time_updates in entry_updates
                 ],
             }
         ),

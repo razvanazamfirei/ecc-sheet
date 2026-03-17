@@ -158,8 +158,10 @@ def refresh_federal():
         logger=logger,
         errors=("Error refreshing holidays", "Error refreshing holidays."),
         success_message=(
-            lambda added: (f"Added {added} federal holidays", "success")
-            if added
-            else ("All federal holidays are already present", "info")
+            lambda added: (
+                (f"Added {added} federal holidays", "success")
+                if added
+                else ("All federal holidays are already present", "info")
+            )
         ),
     )

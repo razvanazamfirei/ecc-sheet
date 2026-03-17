@@ -46,6 +46,8 @@ def get_current_user() -> str:
         authenticated_user = get_session_authenticated_user()
         if authenticated_user:
             return authenticated_user
+        if has_request_context():
+            return ""
 
     proxy_header = _proxy_header_name()
     if proxy_header:
@@ -58,8 +60,6 @@ def get_current_user() -> str:
         if has_request_context():
             return ""
 
-    if saml_enabled() and has_request_context():
-        return ""
     return os.getenv("USER_NAME", "Admin")
 
 
