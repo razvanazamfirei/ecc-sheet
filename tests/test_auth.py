@@ -8,11 +8,13 @@ import pytest
 
 from backend.auth import (
     can_filter_reports_by_resident,
+    get_current_resident_id,
     get_current_user,
     is_admin,
     is_first_call,
     is_payroll_admin,
 )
+from backend.models import Resident, db
 from backend.utils import get_effective_date
 
 
@@ -229,6 +231,53 @@ class TestIsAdmin:
                 os.environ.pop("USER_NAME", None)
             if original_admins is not None:
                 os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
+
+
+class TestGetCurrentResidentId:
+    def test_matches_by_abbreviation_first(self, app):
+        with app.app_context():
+            resident = Resident(
+                name="Razvan Azamfirei",
+                abbreviation="AzamfirR",
+                email="azamfirr@pennmedicine.upenn.edu",
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+
+            try:
+                with pytest.MonkeyPatch.context() as monkeypatch:
+                    monkeypatch.setattr(
+                        "backend.auth.get_current_user", lambda: "AzamfirR"
+                    )
+                    assert get_current_resident_id() == resident.id
+            finally:
+                db.session.delete(resident)
+                db.session.commit()
+
+    def test_falls_back_to_email_when_abbreviation_missing(self, app):
+        with app.app_context():
+            resident = Resident(
+                name="Razvan Azamfirei",
+                abbreviation=None,
+                email="azamfirr@pennmedicine.upenn.edu",
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+
+            try:
+                with pytest.MonkeyPatch.context() as monkeypatch:
+                    monkeypatch.setattr(
+                        "backend.auth.get_current_user",
+                        lambda: "azamfirr@pennmedicine.upenn.edu",
+                    )
+                    assert get_current_resident_id() == resident.id
+            finally:
+                db.session.delete(resident)
+                db.session.commit()
 
     def test_admin_case_sensitive(self):
         """Test that admin matching is case-sensitive."""

@@ -124,6 +124,44 @@ describe("LuxonUtils", () => {
     });
   });
 
+  describe("getPayrollRange", () => {
+    test("returns last half of February when today is March 12, 2024", () => {
+      Settings.now = () => new Date(2024, 2, 12, 12, 0, 0).valueOf(); // March 12, 2024
+      const range = LuxonUtils.getPayrollRange("half");
+      expect(range.startDate).toBe("2024-02-16");
+      expect(range.endDate).toBe("2024-02-29"); // 2024 is a leap year
+    });
+
+    test("returns first half of March when today is March 20, 2024", () => {
+      Settings.now = () => new Date(2024, 2, 20, 12, 0, 0).valueOf(); // March 20, 2024
+      const range = LuxonUtils.getPayrollRange("half");
+      expect(range.startDate).toBe("2024-03-01");
+      expect(range.endDate).toBe("2024-03-15");
+    });
+
+    test("returns entire month of February when today is March 20, 2024", () => {
+      Settings.now = () => new Date(2024, 2, 20, 12, 0, 0).valueOf(); // March 20, 2024
+      const range = LuxonUtils.getPayrollRange("month");
+      expect(range.startDate).toBe("2024-02-01");
+      expect(range.endDate).toBe("2024-02-29");
+    });
+
+    test("handles year rollover (January 5, 2024)", () => {
+      Settings.now = () => new Date(2024, 0, 5, 12, 0, 0).valueOf(); // Jan 5, 2024
+      const halfRange = LuxonUtils.getPayrollRange("half");
+      expect(halfRange.startDate).toBe("2023-12-16");
+      expect(halfRange.endDate).toBe("2023-12-31");
+
+      const monthRange = LuxonUtils.getPayrollRange("month");
+      expect(monthRange.startDate).toBe("2023-12-01");
+      expect(monthRange.endDate).toBe("2023-12-31");
+    });
+
+    afterEach(() => {
+      Settings.now = () => Date.now();
+    });
+  });
+
   describe("getTodayPhilly", () => {
     test("returns DateTime object", () => {
       const today = LuxonUtils.getTodayPhilly();

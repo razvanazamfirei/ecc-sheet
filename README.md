@@ -35,7 +35,6 @@ shifts, calculating overtime, and generating reports with full audit logging.
   - Custom date range reports
   - Resident-specific filtering
   - Detailed CSV export (date, role, times, overtime)
-  - Billing CSV export (resident name, total overtime)
   - Payroll XLSX export for Lawson/UPHS workflows
 
 - **Audit Trail**
@@ -406,7 +405,6 @@ authorization logic continues to use the resolved username.
 - `/holidays/<id>/delete` - Delete holiday
 - `/api/report` - Generate overtime reports
 - `/api/report/export_csv` - Export detailed report as CSV
-- `/api/report/export_billing_csv` - Export billing/payroll summary as CSV
 
 All POST endpoints require CSRF token.
 

@@ -1,7 +1,6 @@
 """Shared utilities for report generation."""
 
 import csv
-import operator
 from datetime import date
 from io import BytesIO, StringIO
 
@@ -108,31 +107,6 @@ def generate_csv_content(entries: TimeEntries) -> str:
     return output.getvalue()
 
 
-def generate_billing_csv_content(resident_data: ResidentData) -> str:
-    """
-    Generate billing/payroll CSV content from aggregated resident data.
-
-    Args:
-        resident_data: Dictionary from aggregate_entries_by_resident()
-
-    Returns:
-        CSV content with just Resident Name and Total Overtime Hours
-    """
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Resident Name", "Total Overtime Hours"])
-
-    # Sort by resident name for consistent output
-    for data in sorted(resident_data.values(), key=operator.itemgetter("name")):
-        writer.writerow([data["name"], f"{data['total_overtime']:.2f}"])
-
-    # Add grand total row
-    grand_total = sum(data["total_overtime"] for data in resident_data.values())
-    writer.writerow(["Grand Total", f"{grand_total:.2f}"])
-
-    return output.getvalue()
-
-
 def generate_payroll_xlsx(
     resident_data: ResidentData,
     start_date: date,
@@ -195,6 +169,8 @@ def generate_payroll_xlsx(
         )
         row[c["hours"]] = round(data["total_overtime"], 2)
 
+        if row[c["hours"]] == 0:
+            continue  # Skip zero-hour rows
         ws.append(row)
 
         # Format the appended row

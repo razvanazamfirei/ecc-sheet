@@ -81,6 +81,18 @@
       <div class="btn-group" role="group" aria-label="Quick report buttons">
         <button
           type="button"
+          onclick="setDateRange('payroll_half')"
+          class="btn btn-outline-secondary">
+          <i class="bi bi-calendar-check me-1"></i>Last Payroll Half
+        </button>
+        <button
+          type="button"
+          onclick="setDateRange('payroll_month')"
+          class="btn btn-outline-secondary">
+          <i class="bi bi-calendar-month-fill me-1"></i>Last Full Month
+        </button>
+        <button
+          type="button"
           onclick="setDateRange('week')"
           class="btn btn-outline-secondary">
           <i class="bi bi-calendar-week me-1"></i>Last 7 Days
@@ -90,12 +102,6 @@
           onclick="setDateRange('month')"
           class="btn btn-outline-secondary">
           <i class="bi bi-calendar-month me-1"></i>Last 30 Days
-        </button>
-        <button
-          type="button"
-          onclick="setDateRange('quarter')"
-          class="btn btn-outline-secondary">
-          <i class="bi bi-calendar3 me-1"></i>Last 90 Days
         </button>
       </div>
     </div>

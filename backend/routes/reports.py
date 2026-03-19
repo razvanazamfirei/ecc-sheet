@@ -22,7 +22,6 @@ from ..models import PayrollSettings, TimeEntry
 from ..report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
-    generate_billing_csv_content,
     generate_csv_content,
     generate_payroll_xlsx,
     get_resident_name,
@@ -111,17 +110,6 @@ def _detailed_csv_content(
     """Build detailed report CSV content."""
     return generate_csv_content(
         _report_entries(start_date, end_date, resident_id, ordered=True)
-    )
-
-
-def _billing_csv_content(
-    start_date: date, end_date: date, resident_id: int | None
-) -> str:
-    """Build billing report CSV content."""
-    return generate_billing_csv_content(
-        aggregate_entries_by_resident(
-            _report_entries(start_date, end_date, resident_id)
-        )
     )
 
 
@@ -270,19 +258,6 @@ def export_csv():
         content_builder=_detailed_csv_content,
         log_message="Error exporting report",
         error_message="Error exporting report. Check logs for details.",
-    )
-
-
-@bp.route("/api/report/export_billing_csv", methods=["POST"])
-def export_billing_csv():
-    """Export billing/payroll summary to CSV."""
-    return _run_extended_file_report_action(
-        "You do not have permission to export the billing report.",
-        filename="overtime_billing_{start_date}_{end_date}.csv",
-        mimetype="text/csv",
-        content_builder=_billing_csv_content,
-        log_message="Error exporting billing report",
-        error_message="Error exporting billing report. Check logs for details.",
     )
 
 

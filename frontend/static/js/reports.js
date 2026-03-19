@@ -5,12 +5,20 @@
 
 /**
  * Sets the date range for the report form
- * @param {string} period - The period to set ('week', 'month', 'quarter')
+ * @param {string} period - The period to set ('week', 'month', 'quarter', 'payroll_half', 'payroll_month')
  * @param {boolean} autoSubmit - Whether to auto-submit the form (default: true)
  */
 function setDateRange(period, autoSubmit = true) {
-  // Use Luxon utilities for timezone-aware date calculations
-  const dateRange = window.LuxonUtils.getDateRange(period);
+  let dateRange;
+
+  if (period === "payroll_half") {
+    dateRange = window.LuxonUtils.getPayrollRange("half");
+  } else if (period === "payroll_month") {
+    dateRange = window.LuxonUtils.getPayrollRange("month");
+  } else {
+    // Use Luxon utilities for relative date calculations
+    dateRange = window.LuxonUtils.getDateRange(period);
+  }
 
   document.getElementById("start_date").value = dateRange.startDate;
   document.getElementById("end_date").value = dateRange.endDate;

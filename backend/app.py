@@ -26,7 +26,7 @@ from .auth import (
 from .config import Config
 from .db_session import commit_or_rollback
 from .email_service import init_email_service
-from .errors import APIError
+from .errors import APIError, SAMLConfigError
 from .holidays import get_federal_holidays
 from .instance_config import (
     BACKUP_ROLE_NAMES,
@@ -43,7 +43,6 @@ from .routes import dev as _dev_module
 from .routes import register_blueprints
 from .routes import sso as _sso_module
 from .saml import (
-    SAMLConfigError,
     get_session_authenticated_user,
     saml_enabled,
     saml_public_endpoint,
