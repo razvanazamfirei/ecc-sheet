@@ -111,8 +111,8 @@ jobs:
         run: bun run build
       - name: Verify build outputs
         run: |
-          test -f frontend/static/dist/vendor.css || exit 1
-          test -f frontend/static/dist/vendor.js || exit 1
+          test -f frontend/static/dist/app.css || exit 1
+          test -f frontend/static/dist/app.js || exit 1
           echo "Build outputs verified successfully"
 
   security-scan:

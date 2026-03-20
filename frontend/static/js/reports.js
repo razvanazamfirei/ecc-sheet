@@ -43,7 +43,7 @@ function setDateRange(period, autoSubmit = true) {
     if (error instanceof PayrollPeriodError) {
       console.error("Payroll period calculation failed:", error.message);
       // Fallback or alert user
-      alert(`Could not calculate payroll range: ${error.message}`);
+      window.alert(`Could not calculate payroll range: ${error.message}`);
       return;
     }
     throw error;

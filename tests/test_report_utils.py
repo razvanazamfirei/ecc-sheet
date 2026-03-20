@@ -273,6 +273,59 @@ class TestGeneratePayrollXlsx:
                 settings.label_suffix = orig_label_suffix
                 db.session.commit()
 
+    def test_skips_zero_hour_residents(self, app, sample_resident):
+        """Test that residents with 0.0 total overtime are skipped in XLSX export."""
+        import io
+
+        import openpyxl
+
+        with app.app_context():
+            # Create a second resident
+            r2 = Resident(name="Zero Hour Resident", lawson_id=999)
+            db.session.add(r2)
+            db.session.commit()
+
+            try:
+                settings = PayrollSettings.get_or_create()
+                resident_data: ResidentData = {
+                    sample_resident.id: {
+                        "name": sample_resident.name,
+                        "entries": [],
+                        "total_overtime": 2.5,
+                    },
+                    r2.id: {
+                        "name": r2.name,
+                        "entries": [],
+                        "total_overtime": 0.0,
+                    },
+                }
+
+                result = generate_payroll_xlsx(
+                    resident_data,
+                    date(2026, 1, 1),
+                    date(2026, 1, 31),
+                    settings,
+                )
+
+                # Load the result bytes into openpyxl
+                wb = openpyxl.load_workbook(io.BytesIO(result))
+                ws = wb.active
+                assert ws is not None
+
+                # Headers (1) + Non-zero resident (1) = 2 rows.
+                # Zero resident should be skipped.
+                assert ws.max_row == 2
+
+                # Verify the name in row 2 is the non-zero one
+                c = settings.layout.columns
+                assert (
+                    ws.cell(row=2, column=c["employee"] + 1).value
+                    == sample_resident.name
+                )
+            finally:
+                db.session.delete(r2)
+                db.session.commit()
+
     def test_xlsx_valid_workbook(self, app, sample_resident):
         """Test that returned bytes form a valid xlsx workbook."""
         with app.app_context():

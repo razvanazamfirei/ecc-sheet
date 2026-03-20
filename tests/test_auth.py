@@ -294,7 +294,7 @@ class TestGetCurrentResidentId:
                 with pytest.MonkeyPatch.context() as monkeypatch:
                     monkeypatch.setattr(
                         "backend.auth.get_current_user",
-                        lambda: "Razvan Azamfirei",
+                        lambda: "not-the-current-user@pennmedicine.upenn.edu",
                     )
                     assert get_current_resident_id() == resident.id
             finally:

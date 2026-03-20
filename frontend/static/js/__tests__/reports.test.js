@@ -129,6 +129,38 @@ describe("Reports Functions", () => {
       expect(endDateInput.value).toBe("2024-06-15");
     });
 
+    test("sets date range for payroll_half period", () => {
+      const startDateInput = { value: "" };
+      const endDateInput = { value: "" };
+      const reportForm = { submit: () => {} };
+
+      mockElements["start_date"] = startDateInput;
+      mockElements["end_date"] = endDateInput;
+      mockElements["report-form"] = reportForm;
+
+      exportedFunctions.setDateRange("payroll_half", false);
+
+      // June 15 -> last completed period is May 16-31
+      expect(startDateInput.value).toBe("2024-05-16");
+      expect(endDateInput.value).toBe("2024-05-31");
+    });
+
+    test("sets date range for payroll_month period", () => {
+      const startDateInput = { value: "" };
+      const endDateInput = { value: "" };
+      const reportForm = { submit: () => {} };
+
+      mockElements["start_date"] = startDateInput;
+      mockElements["end_date"] = endDateInput;
+      mockElements["report-form"] = reportForm;
+
+      exportedFunctions.setDateRange("payroll_month", false);
+
+      // June 15 -> last completed month is May 01-31
+      expect(startDateInput.value).toBe("2024-05-01");
+      expect(endDateInput.value).toBe("2024-05-31");
+    });
+
     test("auto-submits form when autoSubmit is true (default)", () => {
       const startDateInput = { value: "" };
       const endDateInput = { value: "" };
