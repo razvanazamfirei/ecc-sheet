@@ -403,19 +403,6 @@ class TestReportExportPermissions:
             "PAYROLL_ADMIN_USERS": "",
         }
 
-    def test_billing_csv_blocked_for_regular_user(self, client, monkeypatch):
-        """Non-admin/non-payroll user is redirected from billing CSV export."""
-        for k, v in self._set_non_payroll_env().items():
-            monkeypatch.setenv(k, v)
-
-        response = client.post(
-            "/api/report/export_billing_csv",
-            data={"start_date": "2026-01-01", "end_date": "2026-01-31"},
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
-        assert b"permission" in response.data.lower()
-
     def test_payroll_xlsx_blocked_for_regular_user(self, client, monkeypatch):
         """Non-admin/non-payroll user is redirected from payroll XLSX export."""
         for k, v in self._set_non_payroll_env().items():
@@ -428,15 +415,6 @@ class TestReportExportPermissions:
         )
         assert response.status_code == 200
         assert b"permission" in response.data.lower()
-
-    def test_billing_csv_allowed_for_admin(self, client):
-        """Admin user can access billing CSV export."""
-        response = client.post(
-            "/api/report/export_billing_csv",
-            data={"start_date": "2020-01-01", "end_date": "2020-01-31"},
-        )
-        assert response.status_code == 200
-        assert "text/csv" in response.content_type
 
     def test_payroll_xlsx_allowed_for_admin(self, client):
         """Admin user can access payroll XLSX export."""
@@ -492,7 +470,6 @@ class TestReportRestriction:
         )
         assert response.status_code == 200
         assert b"Export Detailed CSV" in response.data
-        assert b"Export Billing CSV" not in response.data
         assert b"Export Payroll XLSX" not in response.data
 
     def test_report_viewer_can_submit_resident_filter(
@@ -560,7 +537,6 @@ class TestReportRestriction:
             follow_redirects=True,
         )
         assert response.status_code == 200
-        assert b"Export Billing CSV" in response.data
         assert b"Export Payroll XLSX" in response.data
 
     def test_payroll_admin_sees_extended_actions_in_report_results(
@@ -581,7 +557,6 @@ class TestReportRestriction:
             follow_redirects=True,
         )
         assert response.status_code == 200
-        assert b"Export Billing CSV" in response.data
         assert b"Export Payroll XLSX" in response.data
 
     def test_report_generation_forces_resident_id_for_restricted(

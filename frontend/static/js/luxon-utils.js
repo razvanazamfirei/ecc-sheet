@@ -3,7 +3,18 @@
  * Provides timezone-aware date operations and formatting
  */
 
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
+
+/**
+ * Custom error for payroll period failures
+ */
+export class PayrollPeriodError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "PayrollPeriodError";
+  }
+}
+
 const TIMEZONE = "America/New_York"; // Philadelphia timezone
 
 /**
@@ -166,6 +177,44 @@ function toRelative(date) {
   return toDateTime(date).toRelative();
 }
 
+/**
+ * Calculates payroll date ranges (half-month or full-month)
+ * anchored to the current month's position.
+ * @param {string} period - 'half' or 'month'
+ * @returns {Object} Object with startDate and endDate as ISO strings
+ */
+function getPayrollRange(period) {
+  const today = getTodayPhilly();
+  let start, end;
+
+  if (period === "half") {
+    if (today.day <= 15) {
+      // If we are in the first half of the month, the last completed period
+      // was the second half of the previous month (16th to end)
+      const lastMonth = today.minus({ months: 1 });
+      start = lastMonth.set({ day: 16 });
+      end = lastMonth.endOf("month");
+    } else {
+      // If we are in the second half of the month, the last completed period
+      // was the first half of the current month (1st to 15th)
+      start = today.set({ day: 1 });
+      end = today.set({ day: 15 });
+    }
+  } else if (period === "month") {
+    // Full month always refers to the last completed full month
+    const lastMonth = today.minus({ months: 1 });
+    start = lastMonth.startOf("month");
+    end = lastMonth.endOf("month");
+  } else {
+    throw new PayrollPeriodError(`Unsupported payroll period: ${period}`);
+  }
+
+  return {
+    startDate: toISODate(start),
+    endDate: toISODate(end),
+  };
+}
+
 // Export functions for use in other modules
 window.LuxonUtils = {
   DateTime,
@@ -177,6 +226,7 @@ window.LuxonUtils = {
   getDaysFromNow,
   toISODate,
   getDateRange,
+  getPayrollRange,
   roundToFiveMinutes,
   isValidDateRange,
   toRelative,

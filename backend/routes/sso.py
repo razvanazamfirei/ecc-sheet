@@ -10,15 +10,13 @@ from ..saml import (
     clear_session_authenticated_user,
     get_saml_name_id,
     get_saml_session_index,
-    pop_login_request_id,
-    pop_logout_request_id,
+    pop_auth_request_id,
     resolve_post_auth_redirect,
     resolve_username,
     saml_enabled,
     saml_logout_enabled,
     set_session_authenticated_user,
-    store_login_request_id,
-    store_logout_request_id,
+    store_auth_request_id,
 )
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -37,7 +35,7 @@ def login():
     auth = build_saml_auth(request)
     target = resolve_post_auth_redirect(request.args.get("next"))
     redirect_url = auth.login(return_to=target)
-    store_login_request_id(auth.get_last_request_id())
+    store_auth_request_id(auth.get_last_request_id(), "login")
     return redirect(redirect_url)
 
 
@@ -47,7 +45,7 @@ def acs():
     _require_saml_enabled()
 
     auth = build_saml_auth(request)
-    auth.process_response(request_id=pop_login_request_id())
+    auth.process_response(request_id=pop_auth_request_id("login"))
     errors = auth.get_errors()
     if errors:
         current_app.logger.error(
@@ -64,7 +62,20 @@ def acs():
 
     attributes = auth.get_attributes()
     name_id = auth.get_nameid()
+    attribute_keys = sorted(attributes)
+    current_app.logger.debug(
+        "SAML ACS: attribute_keys=%s attribute_count=%d name_id_present=%s "
+        "session_index_present=%s",
+        attribute_keys,
+        len(attribute_keys),
+        bool(name_id),
+        bool(auth.get_session_index()),
+    )
     username = resolve_username(attributes=attributes, name_id=name_id)
+    current_app.logger.debug(
+        "SAML ACS: resolved_username_present=%s",
+        bool(username),
+    )
     if not username:
         current_app.logger.error(
             "SAML ACS succeeded but no usable username was found. "
@@ -91,7 +102,7 @@ def sls():
 
     auth = build_saml_auth(request)
     redirect_url = auth.process_slo(
-        request_id=pop_logout_request_id(),
+        request_id=pop_auth_request_id("logout"),
         delete_session_cb=clear_session_authenticated_user,
     )
     errors = auth.get_errors()
@@ -126,7 +137,7 @@ def logout():
         name_id=get_saml_name_id(),
         session_index=get_saml_session_index(),
     )
-    store_logout_request_id(auth.get_last_request_id())
+    store_auth_request_id(auth.get_last_request_id(), "logout")
     return redirect(redirect_url)
 
 

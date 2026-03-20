@@ -59,6 +59,7 @@ class Config:
     SAML_USERNAME_ATTRIBUTES: ClassVar[list[str]] = env_csv(
         "SAML_USERNAME_ATTRIBUTES",
         (
+            "Identity,"
             "name,"
             "email,"
             "uid,"

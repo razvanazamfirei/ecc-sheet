@@ -416,13 +416,12 @@ ecc-sheet/
 
 - Click resident name to expand/collapse details
 - Clean two-column layout
-- Export-only workflow: detailed CSV, billing CSV, or payroll XLSX
+- Export-only workflow: detailed CSV, or payroll XLSX
 - Print-friendly formatting
 
 **Export Types:**
 
 - Detailed CSV: Date, Resident, Role, Exit Time, Overtime Hours
-- Billing CSV: aggregated billing/payroll-friendly resident totals
 - Payroll XLSX: Lawson/UPHS-formatted workbook for payroll upload
 - Export filenames include the selected date range
 - Export requests reuse the same form filters and resident selection
@@ -625,7 +624,6 @@ bun run test:coverage
 - `/reports` - Report generation form (GET)
 - `/api/report` - Generate the on-page report view (POST)
 - `/api/report/export_csv` - Export the detailed CSV report (POST)
-- `/api/report/export_billing_csv` - Export the billing CSV report (POST)
 - `/api/report/export_payroll_xlsx` - Export the payroll XLSX report (POST)
 - Report/export form fields: `start_date`, `end_date`, optional `resident_id`
 

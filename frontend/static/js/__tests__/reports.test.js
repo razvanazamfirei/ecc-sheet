@@ -2,6 +2,8 @@
  * Tests for Reports Page JavaScript
  */
 
+import { DateTime, Settings } from "luxon";
+
 // Mock DOM elements storage
 const mockElements = {};
 
@@ -9,6 +11,9 @@ const mockElements = {};
 let exportedFunctions = {};
 
 beforeAll(async () => {
+  // Set a fixed time for consistent testing
+  Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf(); // June 15, 2024
+
   // Pre-populate mock elements needed during module initialization
   mockElements["start_date"] = { value: "" };
   mockElements["end_date"] = { value: "" };
@@ -22,8 +27,19 @@ beforeAll(async () => {
     addEventListener: () => {},
   };
 
+  // Mock luxon global if needed by other legacy scripts
+  global.luxon = { DateTime };
+
   global.window = {
     LuxonUtils: {
+      getPayrollRange: (period) => {
+        if (period === "half") {
+          // June 15 -> last completed half is May 16-31
+          return { startDate: "2024-05-16", endDate: "2024-05-31" };
+        }
+        // "month" -> last completed month is May 1-31
+        return { startDate: "2024-05-01", endDate: "2024-05-31" };
+      },
       getDateRange: (period) => {
         const ranges = {
           week: { startDate: "2024-06-08", endDate: "2024-06-15" },
@@ -34,6 +50,7 @@ beforeAll(async () => {
       },
     },
     loadResidentsIntoSelect: () => Promise.resolve(true),
+    alert: (msg) => console.log("Alert:", msg),
   };
 
   global.fetch = () =>
@@ -55,6 +72,10 @@ beforeAll(async () => {
   exportedFunctions = {
     setDateRange: global.window.setDateRange,
   };
+});
+
+afterAll(() => {
+  Settings.now = () => Date.now();
 });
 
 beforeEach(() => {
@@ -108,6 +129,38 @@ describe("Reports Functions", () => {
 
       expect(startDateInput.value).toBe("2024-03-17");
       expect(endDateInput.value).toBe("2024-06-15");
+    });
+
+    test("sets date range for payroll_half period", () => {
+      const startDateInput = { value: "" };
+      const endDateInput = { value: "" };
+      const reportForm = { submit: () => {} };
+
+      mockElements["start_date"] = startDateInput;
+      mockElements["end_date"] = endDateInput;
+      mockElements["report-form"] = reportForm;
+
+      exportedFunctions.setDateRange("payroll_half", false);
+
+      // June 15 -> last completed period is May 16-31
+      expect(startDateInput.value).toBe("2024-05-16");
+      expect(endDateInput.value).toBe("2024-05-31");
+    });
+
+    test("sets date range for payroll_month period", () => {
+      const startDateInput = { value: "" };
+      const endDateInput = { value: "" };
+      const reportForm = { submit: () => {} };
+
+      mockElements["start_date"] = startDateInput;
+      mockElements["end_date"] = endDateInput;
+      mockElements["report-form"] = reportForm;
+
+      exportedFunctions.setDateRange("payroll_month", false);
+
+      // June 15 -> last completed month is May 01-31
+      expect(startDateInput.value).toBe("2024-05-01");
+      expect(endDateInput.value).toBe("2024-05-31");
     });
 
     test("auto-submits form when autoSubmit is true (default)", () => {

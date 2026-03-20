@@ -141,6 +141,27 @@ class TestSamlRoutes:
         finally:
             app.config["SAML_ENABLED"] = original
 
+    def test_acs_prefers_identity_attribute_for_session_user(self, client, app):
+        original = app.config["SAML_ENABLED"]
+        fake_auth = _FakeSamlAuth(
+            request_id="req-456",
+            attributes={"Identity": ["AzamfirR"], "name": ["SAML User"]},
+        )
+        try:
+            app.config["SAML_ENABLED"] = True
+            with client.session_transaction() as sess:
+                sess["saml_request_id"] = "req-123"
+
+            with patch("backend.routes.sso.build_saml_auth", return_value=fake_auth):
+                response = client.post("/auth/acs", data={"RelayState": "/reports"})
+
+            assert response.status_code == 302
+            assert response.headers["Location"].endswith("/reports")
+            with client.session_transaction() as sess:
+                assert sess["auth_user"] == "AzamfirR"
+        finally:
+            app.config["SAML_ENABLED"] = original
+
     def test_metadata_returns_xml(self, client, app):
         original = app.config["SAML_ENABLED"]
         try:

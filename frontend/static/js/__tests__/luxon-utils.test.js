@@ -9,7 +9,7 @@ global.window = {};
 global.luxon = { DateTime };
 
 // Now load the module (side effect: populates window.LuxonUtils)
-await import("../luxon-utils.js");
+const { PayrollPeriodError } = await import("../luxon-utils.js");
 
 const LuxonUtils = global.window.LuxonUtils;
 
@@ -121,6 +121,53 @@ describe("LuxonUtils", () => {
       const range = LuxonUtils.getDateRange("invalid");
       expect(range.endDate).toBe("2024-06-15");
       expect(range.startDate).toBe("2024-06-08");
+    });
+  });
+
+  describe("getPayrollRange", () => {
+    test("returns last half of February when today is March 12, 2024", () => {
+      Settings.now = () => new Date(2024, 2, 12, 12, 0, 0).valueOf(); // March 12, 2024
+      const range = LuxonUtils.getPayrollRange("half");
+      expect(range.startDate).toBe("2024-02-16");
+      expect(range.endDate).toBe("2024-02-29"); // 2024 is a leap year
+    });
+
+    test("returns first half of March when today is March 20, 2024", () => {
+      Settings.now = () => new Date(2024, 2, 20, 12, 0, 0).valueOf(); // March 20, 2024
+      const range = LuxonUtils.getPayrollRange("half");
+      expect(range.startDate).toBe("2024-03-01");
+      expect(range.endDate).toBe("2024-03-15");
+    });
+
+    test("returns entire month of February when today is March 20, 2024", () => {
+      Settings.now = () => new Date(2024, 2, 20, 12, 0, 0).valueOf(); // March 20, 2024
+      const range = LuxonUtils.getPayrollRange("month");
+      expect(range.startDate).toBe("2024-02-01");
+      expect(range.endDate).toBe("2024-02-29");
+    });
+
+    test("handles year rollover (January 5, 2024)", () => {
+      Settings.now = () => new Date(2024, 0, 5, 12, 0, 0).valueOf(); // Jan 5, 2024
+      const halfRange = LuxonUtils.getPayrollRange("half");
+      expect(halfRange.startDate).toBe("2023-12-16");
+      expect(halfRange.endDate).toBe("2023-12-31");
+
+      const monthRange = LuxonUtils.getPayrollRange("month");
+      expect(monthRange.startDate).toBe("2023-12-01");
+      expect(monthRange.endDate).toBe("2023-12-31");
+    });
+
+    test("throws for unsupported payroll periods", () => {
+      expect(() => LuxonUtils.getPayrollRange("weekly")).toThrow(
+        PayrollPeriodError,
+      );
+      expect(() => LuxonUtils.getPayrollRange("weekly")).toThrow(
+        "Unsupported payroll period: weekly",
+      );
+    });
+
+    afterEach(() => {
+      Settings.now = () => Date.now();
     });
   });
 

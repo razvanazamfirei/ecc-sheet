@@ -6,10 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}ECC Overtime Sheet{% endblock %}</title>
 
-    <!-- Vendor CSS (Bootstrap + Bootstrap Icons) -->
+    <!-- Application CSS (Bootstrap, icons, and bundled frontend assets) -->
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='dist/vendor.css') }}" />
+      href="{{ url_for('static', filename='dist/app.css') }}" />
 
     <!-- Custom CSS (for overrides) -->
     <link
@@ -282,14 +282,8 @@
       </div>
     </footer>
 
-    <!-- Vendor JS (Bootstrap + Luxon) -->
-    <script src="{{ url_for('static', filename='dist/vendor.js') }}"></script>
-
-    <!-- Luxon Utilities -->
-    <script src="{{ url_for('static', filename='js/luxon-utils.js') }}"></script>
-
-    <!-- Application Scripts -->
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <!-- Application bundle -->
+    <script src="{{ url_for('static', filename='dist/app.js') }}"></script>
 
     {% block scripts %}{% endblock %}
   </body>

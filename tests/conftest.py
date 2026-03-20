@@ -16,6 +16,9 @@ os.close(_TEST_DB_FD)
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
 os.environ["USER_NAME"] = "Admin"
 os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
+# Ensure app import does not require optional SAML dependencies.
+# Individual tests opt-in via the saml_enabled_app fixture.
+os.environ["SAML_ENABLED"] = "false"
 
 import pytest
 from flask import Flask
@@ -38,6 +41,7 @@ def app() -> Iterator[Flask]:
             "WTF_CSRF_ENABLED": False,  # Disable CSRF for testing
             "SECRET_KEY": "test-secret-key",
             "AUTH_PROXY_USERNAME_HEADER": "",
+            "SAML_ENABLED": False,  # Tests opt in via saml_enabled_app fixture
         }
     )
 

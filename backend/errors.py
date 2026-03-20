@@ -63,6 +63,30 @@ class DatabaseError(APIError):
         super().__init__(message, status_code=503, payload=payload)
 
 
+class SAMLConfigError(RuntimeError):
+    """Base exception for SAML configuration problems."""
+
+
+class SAMLMissingDependencyError(SAMLConfigError):
+    """Raised when the python3-saml library is not installed."""
+
+
+class SAMLSettingsNotFoundError(SAMLConfigError):
+    """Raised when no SAML settings source is provided or the file is missing."""
+
+
+class SAMLInvalidJSONError(SAMLConfigError):
+    """Raised when a SAML settings source contains malformed JSON."""
+
+
+class SAMLInvalidSettingsError(SAMLConfigError):
+    """Raised when SAML settings parse successfully but are not a JSON object."""
+
+
+class SAMLRequestTypeError(SAMLConfigError):
+    """Raised when SAML request bookkeeping receives an unsupported type."""
+
+
 def register_error_handlers(app):
     """Register error handlers with Flask app"""
 

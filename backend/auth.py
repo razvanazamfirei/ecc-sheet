@@ -74,11 +74,20 @@ def get_admin_users() -> list[str]:
 
 
 def get_current_resident_id() -> int | None:
-    """Return the resident ID for the current user by name match, or None."""
+    """Return the resident ID for the current user.
 
-    resident: Resident | None = Resident.query.filter_by(
-        name=get_current_user()
-    ).first()
+    Matching is abbreviation-first for SSO identities (e.g. Azure `Identity`),
+    with fallbacks for legacy/dev configurations.
+    """
+    user = get_current_user().strip()
+    if not user:
+        return None
+
+    resident: Resident | None = Resident.query.filter_by(abbreviation=user).first()
+    if resident is None and "@" in user:
+        resident = Resident.query.filter_by(email=user).first()
+    if resident is None:
+        resident = Resident.query.filter_by(name=user).first()
     return resident.id if resident else None
 
 

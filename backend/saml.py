@@ -11,35 +11,26 @@ from urllib.parse import urlsplit
 from flask import current_app, has_app_context, request, session, url_for
 
 from .env_utils import env_flag, env_str
+from .errors import (
+    SAMLInvalidJSONError,
+    SAMLInvalidSettingsError,
+    SAMLMissingDependencyError,
+    SAMLRequestTypeError,
+    SAMLSettingsNotFoundError,
+)
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _SESSION_USER_KEY = "auth_user"
 _SESSION_DATA_KEY = "saml_authn"
 _LOGIN_REQUEST_ID_KEY = "saml_request_id"
 _LOGOUT_REQUEST_ID_KEY = "saml_logout_request_id"
+_REQUEST_TYPE_TO_KEY = {
+    "login": _LOGIN_REQUEST_ID_KEY,
+    "logout": _LOGOUT_REQUEST_ID_KEY,
+}
 _PUBLIC_ENDPOINTS = frozenset(
     {"auth.login", "auth.acs", "auth.sls", "auth.logout", "auth.metadata"}
 )
-
-
-class SAMLConfigError(RuntimeError):
-    """Base exception for SAML configuration problems."""
-
-
-class SAMLMissingDependencyError(SAMLConfigError):
-    """Raised when the python3-saml library is not installed."""
-
-
-class SAMLSettingsNotFoundError(SAMLConfigError):
-    """Raised when no SAML settings source is provided or the file is missing."""
-
-
-class SAMLInvalidJSONError(SAMLConfigError):
-    """Raised when a SAML settings source contains malformed JSON."""
-
-
-class SAMLInvalidSettingsError(SAMLConfigError):
-    """Raised when SAML settings parse successfully but are not a JSON object."""
 
 
 def saml_enabled(config: Mapping[str, object] | None = None) -> bool:
@@ -128,33 +119,28 @@ def get_saml_session_index() -> str | None:
     return value or None
 
 
-def store_login_request_id(request_id: str | None) -> None:
-    """Persist the last outbound AuthNRequest ID for ACS validation."""
+def _get_request_session_key(request_type: str) -> str:
+    """Return the session key used for the given SAML request type."""
+    try:
+        return _REQUEST_TYPE_TO_KEY[request_type]
+    except KeyError as exc:
+        raise SAMLRequestTypeError(
+            f"Unsupported SAML request type: {request_type}"
+        ) from exc
+
+
+def store_auth_request_id(request_id: str | None, request_type: str) -> None:
+    """Persist the last outbound SAML request ID for login/logout validation."""
+    session_key = _get_request_session_key(request_type)
     if request_id:
-        session[_LOGIN_REQUEST_ID_KEY] = request_id
+        session[session_key] = request_id
     else:
-        session.pop(_LOGIN_REQUEST_ID_KEY, None)
+        session.pop(session_key, None)
 
 
-def pop_login_request_id() -> str | None:
-    """Return and remove the last outbound AuthNRequest ID."""
-    value = session.pop(_LOGIN_REQUEST_ID_KEY, None)
-    if value is None:
-        return None
-    return str(value).strip() or None
-
-
-def store_logout_request_id(request_id: str | None) -> None:
-    """Persist the last outbound LogoutRequest ID for SLS validation."""
-    if request_id:
-        session[_LOGOUT_REQUEST_ID_KEY] = request_id
-    else:
-        session.pop(_LOGOUT_REQUEST_ID_KEY, None)
-
-
-def pop_logout_request_id() -> str | None:
-    """Return and remove the last outbound LogoutRequest ID."""
-    value = session.pop(_LOGOUT_REQUEST_ID_KEY, None)
+def pop_auth_request_id(request_type: str) -> str | None:
+    """Return and remove the last outbound SAML request ID for the given type."""
+    value = session.pop(_get_request_session_key(request_type), None)
     if value is None:
         return None
     return str(value).strip() or None
