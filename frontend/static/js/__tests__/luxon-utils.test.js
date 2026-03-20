@@ -9,7 +9,7 @@ global.window = {};
 global.luxon = { DateTime };
 
 // Now load the module (side effect: populates window.LuxonUtils)
-await import("../luxon-utils.js");
+const { PayrollPeriodError } = await import("../luxon-utils.js");
 
 const LuxonUtils = global.window.LuxonUtils;
 
@@ -158,6 +158,9 @@ describe("LuxonUtils", () => {
     });
 
     test("throws for unsupported payroll periods", () => {
+      expect(() => LuxonUtils.getPayrollRange("weekly")).toThrow(
+        PayrollPeriodError,
+      );
       expect(() => LuxonUtils.getPayrollRange("weekly")).toThrow(
         "Unsupported payroll period: weekly",
       );

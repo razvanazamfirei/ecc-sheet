@@ -3,6 +3,8 @@
  * Handles date range selection and resident filtering
  */
 
+import { PayrollPeriodError } from "./luxon-utils.js";
+
 /**
  * Returns the report form elements when present
  * @returns {object}
@@ -28,13 +30,23 @@ function setDateRange(period, autoSubmit = true) {
 
   let dateRange;
 
-  if (period === "payroll_half") {
-    dateRange = window.LuxonUtils.getPayrollRange("half");
-  } else if (period === "payroll_month") {
-    dateRange = window.LuxonUtils.getPayrollRange("month");
-  } else {
-    // Use Luxon utilities for relative date calculations
-    dateRange = window.LuxonUtils.getDateRange(period);
+  try {
+    if (period === "payroll_half") {
+      dateRange = window.LuxonUtils.getPayrollRange("half");
+    } else if (period === "payroll_month") {
+      dateRange = window.LuxonUtils.getPayrollRange("month");
+    } else {
+      // Use Luxon utilities for relative date calculations
+      dateRange = window.LuxonUtils.getDateRange(period);
+    }
+  } catch (error) {
+    if (error instanceof PayrollPeriodError) {
+      console.error("Payroll period calculation failed:", error.message);
+      // Fallback or alert user
+      alert(`Could not calculate payroll range: ${error.message}`);
+      return;
+    }
+    throw error;
   }
 
   startDateInput.value = dateRange.startDate;

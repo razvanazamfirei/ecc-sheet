@@ -2,6 +2,8 @@
  * Tests for Reports Page JavaScript
  */
 
+import { DateTime, Settings } from "luxon";
+
 // Mock DOM elements storage
 const mockElements = {};
 
@@ -9,6 +11,9 @@ const mockElements = {};
 let exportedFunctions = {};
 
 beforeAll(async () => {
+  // Set a fixed time for consistent testing
+  Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf(); // June 15, 2024
+
   // Pre-populate mock elements needed during module initialization
   mockElements["start_date"] = { value: "" };
   mockElements["end_date"] = { value: "" };
@@ -22,8 +27,17 @@ beforeAll(async () => {
     addEventListener: () => {},
   };
 
+  // Mock luxon global if needed by other legacy scripts
+  global.luxon = { DateTime };
+
   global.window = {
     LuxonUtils: {
+      getPayrollRange: (period) => {
+        if (period === "half") {
+          return { startDate: "2024-06-01", endDate: "2024-06-15" };
+        }
+        return { startDate: "2024-06-01", endDate: "2024-06-30" };
+      },
       getDateRange: (period) => {
         const ranges = {
           week: { startDate: "2024-06-08", endDate: "2024-06-15" },
@@ -34,6 +48,7 @@ beforeAll(async () => {
       },
     },
     loadResidentsIntoSelect: () => Promise.resolve(true),
+    alert: (msg) => console.log("Alert:", msg),
   };
 
   global.fetch = () =>
@@ -55,6 +70,10 @@ beforeAll(async () => {
   exportedFunctions = {
     setDateRange: global.window.setDateRange,
   };
+});
+
+afterAll(() => {
+  Settings.now = () => Date.now();
 });
 
 beforeEach(() => {

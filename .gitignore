@@ -23,7 +23,6 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-.cursor/
 
 # Flask
 instance/
@@ -42,6 +41,7 @@ instance/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~

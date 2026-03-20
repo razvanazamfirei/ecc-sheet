@@ -301,6 +301,31 @@ class TestGetCurrentResidentId:
                 db.session.delete(resident)
                 db.session.commit()
 
+    def test_returns_none_when_no_match(self, app):
+        """Test get_current_resident_id returns None when no resident matches user."""
+        with app.app_context():
+            # Create a resident that does NOT match the current user
+            resident = Resident(
+                name="Non Match User",
+                abbreviation="NoMatch",
+                email="nomatch@pennmedicine.upenn.edu",
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+
+            try:
+                with pytest.MonkeyPatch.context() as monkeypatch:
+                    # Monkeypatch get_current_user to a value that matches NOTHING
+                    monkeypatch.setattr(
+                        "backend.auth.get_current_user",
+                        lambda: "Different Person entirely",
+                    )
+                    assert get_current_resident_id() is None
+            finally:
+                db.session.delete(resident)
+                db.session.commit()
+
     def test_admin_case_sensitive(self):
         """Test that admin matching is case-sensitive."""
         original_user = os.environ.get("USER_NAME")

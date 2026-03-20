@@ -11,5 +11,5 @@ window.bootstrap = bootstrap.default ?? bootstrap;
 // Import Luxon
 import * as luxon from "luxon";
 
-// Make Luxon globally available
-window.luxon = luxon;
+// Note: luxon is no longer made globally available as window.luxon
+// Modules should import it directly from "luxon" if needed.

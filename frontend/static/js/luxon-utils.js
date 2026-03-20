@@ -3,7 +3,18 @@
  * Provides timezone-aware date operations and formatting
  */
 
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
+
+/**
+ * Custom error for payroll period failures
+ */
+export class PayrollPeriodError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "PayrollPeriodError";
+  }
+}
+
 const TIMEZONE = "America/New_York"; // Philadelphia timezone
 
 /**
@@ -195,7 +206,7 @@ function getPayrollRange(period) {
     start = lastMonth.startOf("month");
     end = lastMonth.endOf("month");
   } else {
-    throw new Error(`Unsupported payroll period: ${period}`);
+    throw new PayrollPeriodError(`Unsupported payroll period: ${period}`);
   }
 
   return {
