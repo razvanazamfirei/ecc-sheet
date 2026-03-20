@@ -34,9 +34,11 @@ beforeAll(async () => {
     LuxonUtils: {
       getPayrollRange: (period) => {
         if (period === "half") {
-          return { startDate: "2024-06-01", endDate: "2024-06-15" };
+          // June 15 -> last completed half is May 16-31
+          return { startDate: "2024-05-16", endDate: "2024-05-31" };
         }
-        return { startDate: "2024-06-01", endDate: "2024-06-30" };
+        // "month" -> last completed month is May 1-31
+        return { startDate: "2024-05-01", endDate: "2024-05-31" };
       },
       getDateRange: (period) => {
         const ranges = {

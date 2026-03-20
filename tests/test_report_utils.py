@@ -275,9 +275,9 @@ class TestGeneratePayrollXlsx:
 
     def test_skips_zero_hour_residents(self, app, sample_resident):
         """Test that residents with 0.0 total overtime are skipped in XLSX export."""
-        import io
-
-        import openpyxl
+        def test_skips_zero_hour_residents(self, app, sample_resident):
+            """Test that residents with 0.0 total overtime are skipped in XLSX export."""
+            with app.app_context():
 
         with app.app_context():
             # Create a second resident

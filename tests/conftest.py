@@ -18,7 +18,7 @@ os.environ["USER_NAME"] = "Admin"
 os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
 # Ensure app import does not require optional SAML dependencies.
 # Individual tests opt-in via the saml_enabled_app fixture.
-os.environ.setdefault("SAML_ENABLED", "false")
+os.environ["SAML_ENABLED"] = "false"
 
 import pytest
 from flask import Flask
