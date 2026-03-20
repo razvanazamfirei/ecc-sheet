@@ -9,8 +9,7 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        // Main vendor bundle
-        vendor: resolve(__dirname, "frontend/static/js/vendor.js"),
+        app: resolve(__dirname, "frontend/static/js/app.js"),
       },
       output: {
         entryFileNames: "[name].js",

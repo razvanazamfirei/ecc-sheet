@@ -13,6 +13,7 @@ export default defineConfig({
       exclude: [
         "frontend/static/js/**/*.test.js",
         "frontend/static/js/__tests__/**",
+        "frontend/static/js/app.js",
         "frontend/static/js/vendor.js",
       ],
     },

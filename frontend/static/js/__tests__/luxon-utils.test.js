@@ -157,6 +157,12 @@ describe("LuxonUtils", () => {
       expect(monthRange.endDate).toBe("2023-12-31");
     });
 
+    test("throws for unsupported payroll periods", () => {
+      expect(() => LuxonUtils.getPayrollRange("weekly")).toThrow(
+        "Unsupported payroll period: weekly",
+      );
+    });
+
     afterEach(() => {
       Settings.now = () => Date.now();
     });

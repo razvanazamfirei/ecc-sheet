@@ -15,6 +15,7 @@ from .errors import (
     SAMLInvalidJSONError,
     SAMLInvalidSettingsError,
     SAMLMissingDependencyError,
+    SAMLRequestTypeError,
     SAMLSettingsNotFoundError,
 )
 
@@ -23,6 +24,10 @@ _SESSION_USER_KEY = "auth_user"
 _SESSION_DATA_KEY = "saml_authn"
 _LOGIN_REQUEST_ID_KEY = "saml_request_id"
 _LOGOUT_REQUEST_ID_KEY = "saml_logout_request_id"
+_REQUEST_TYPE_TO_KEY = {
+    "login": _LOGIN_REQUEST_ID_KEY,
+    "logout": _LOGOUT_REQUEST_ID_KEY,
+}
 _PUBLIC_ENDPOINTS = frozenset(
     {"auth.login", "auth.acs", "auth.sls", "auth.logout", "auth.metadata"}
 )
@@ -114,35 +119,31 @@ def get_saml_session_index() -> str | None:
     return value or None
 
 
+def _get_request_session_key(request_type: str) -> str:
+    """Return the session key used for the given SAML request type."""
+    try:
+        return _REQUEST_TYPE_TO_KEY[request_type]
+    except KeyError as exc:
+        raise SAMLRequestTypeError(
+            f"Unsupported SAML request type: {request_type}"
+        ) from exc
+
+
 def store_auth_request_id(request_id: str | None, request_type: str) -> None:
-    """Persist the last outbound AuthNRequest ID for ACS validation."""
-    if request_type == "login":
-        if request_id:
-            session[_LOGIN_REQUEST_ID_KEY] = request_id
-        else:
-            session.pop(_LOGIN_REQUEST_ID_KEY, None)
-    elif request_type == "logout":
-        if request_id:
-            session[_LOGOUT_REQUEST_ID_KEY] = request_id
-        else:
-            session.pop(_LOGOUT_REQUEST_ID_KEY, None)
+    """Persist the last outbound SAML request ID for login/logout validation."""
+    session_key = _get_request_session_key(request_type)
+    if request_id:
+        session[session_key] = request_id
     else:
-        raise ValueError(f"Invalid request_type: {request_type}")
+        session.pop(session_key, None)
 
 
 def pop_auth_request_id(request_type: str) -> str | None:
-    """Return and remove the last outbound AuthNRequest ID."""
-    if request_type == "login":
-        value = session.pop(_LOGIN_REQUEST_ID_KEY, None)
-        if value is None:
-            return None
-        return str(value).strip() or None
-    if request_type == "logout":
-        value = session.pop(_LOGOUT_REQUEST_ID_KEY, None)
-        if value is None:
-            return None
-        return str(value).strip() or None
-    raise ValueError(f"Invalid request_type: {request_type}")
+    """Return and remove the last outbound SAML request ID for the given type."""
+    value = session.pop(_get_request_session_key(request_type), None)
+    if value is None:
+        return None
+    return str(value).strip() or None
 
 
 def get_saml_username_attributes(

@@ -279,6 +279,28 @@ class TestGetCurrentResidentId:
                 db.session.delete(resident)
                 db.session.commit()
 
+    def test_falls_back_to_name_when_abbreviation_and_email_do_not_match(self, app):
+        with app.app_context():
+            resident = Resident(
+                name="Razvan Azamfirei",
+                abbreviation=None,
+                email="not-the-current-user@pennmedicine.upenn.edu",
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+
+            try:
+                with pytest.MonkeyPatch.context() as monkeypatch:
+                    monkeypatch.setattr(
+                        "backend.auth.get_current_user",
+                        lambda: "Razvan Azamfirei",
+                    )
+                    assert get_current_resident_id() == resident.id
+            finally:
+                db.session.delete(resident)
+                db.session.commit()
+
     def test_admin_case_sensitive(self):
         """Test that admin matching is case-sensitive."""
         original_user = os.environ.get("USER_NAME")

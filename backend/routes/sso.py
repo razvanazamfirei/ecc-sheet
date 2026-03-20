@@ -62,14 +62,20 @@ def acs():
 
     attributes = auth.get_attributes()
     name_id = auth.get_nameid()
+    attribute_keys = sorted(attributes)
     current_app.logger.debug(
-        "SAML ACS: name_id=%r  session_index=%r  attributes=%r",
-        name_id,
-        auth.get_session_index(),
-        attributes,
+        "SAML ACS: attribute_keys=%s attribute_count=%d name_id_present=%s "
+        "session_index_present=%s",
+        attribute_keys,
+        len(attribute_keys),
+        bool(name_id),
+        bool(auth.get_session_index()),
     )
     username = resolve_username(attributes=attributes, name_id=name_id)
-    current_app.logger.debug("SAML ACS: resolved username=%r", username)
+    current_app.logger.debug(
+        "SAML ACS: resolved_username_present=%s",
+        bool(username),
+    )
     if not username:
         current_app.logger.error(
             "SAML ACS succeeded but no usable username was found. "

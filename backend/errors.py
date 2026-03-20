@@ -83,6 +83,10 @@ class SAMLInvalidSettingsError(SAMLConfigError):
     """Raised when SAML settings parse successfully but are not a JSON object."""
 
 
+class SAMLRequestTypeError(SAMLConfigError):
+    """Raised when SAML request bookkeeping receives an unsupported type."""
+
+
 def register_error_handlers(app):
     """Register error handlers with Flask app"""
 

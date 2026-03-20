@@ -4,11 +4,28 @@
  */
 
 /**
+ * Returns the report form elements when present
+ * @returns {object}
+ */
+function getReportElements() {
+  return {
+    startDateInput: document.getElementById("start_date"),
+    endDateInput: document.getElementById("end_date"),
+    reportForm: document.getElementById("report-form"),
+  };
+}
+
+/**
  * Sets the date range for the report form
  * @param {string} period - The period to set ('week', 'month', 'quarter', 'payroll_half', 'payroll_month')
  * @param {boolean} autoSubmit - Whether to auto-submit the form (default: true)
  */
 function setDateRange(period, autoSubmit = true) {
+  const { startDateInput, endDateInput, reportForm } = getReportElements();
+  if (!startDateInput || !endDateInput || !reportForm) {
+    return;
+  }
+
   let dateRange;
 
   if (period === "payroll_half") {
@@ -20,12 +37,12 @@ function setDateRange(period, autoSubmit = true) {
     dateRange = window.LuxonUtils.getDateRange(period);
   }
 
-  document.getElementById("start_date").value = dateRange.startDate;
-  document.getElementById("end_date").value = dateRange.endDate;
+  startDateInput.value = dateRange.startDate;
+  endDateInput.value = dateRange.endDate;
 
   // Auto-submit the form if requested (for quick report buttons)
   if (autoSubmit) {
-    document.getElementById("report-form").submit();
+    reportForm.submit();
   }
 }
 
@@ -48,6 +65,11 @@ async function loadResidentsForReport() {
  * Initializes the reports page
  */
 function initializeReports() {
+  const { startDateInput, endDateInput, reportForm } = getReportElements();
+  if (!startDateInput || !endDateInput || !reportForm) {
+    return;
+  }
+
   // Set default to last 7 days (without auto-submit)
   setDateRange("week", false);
   // Load residents into dropdown

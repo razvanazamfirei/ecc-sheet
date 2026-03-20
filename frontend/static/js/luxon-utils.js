@@ -194,6 +194,8 @@ function getPayrollRange(period) {
     const lastMonth = today.minus({ months: 1 });
     start = lastMonth.startOf("month");
     end = lastMonth.endOf("month");
+  } else {
+    throw new Error(`Unsupported payroll period: ${period}`);
   }
 
   return {
