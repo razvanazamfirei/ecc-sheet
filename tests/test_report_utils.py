@@ -274,10 +274,8 @@ class TestGeneratePayrollXlsx:
                 db.session.commit()
 
     def test_skips_zero_hour_residents(self, app, sample_resident):
-        """Test that residents with 0.0 total overtime are skipped in XLSX export."""
-        def test_skips_zero_hour_residents(self, app, sample_resident):
-            """Test that residents with 0.0 total overtime are skipped in XLSX export."""
-            with app.app_context():
+        """Test that residents with 0.0 total overtime are skipped in XLSX
+        export."""
 
         with app.app_context():
             # Create a second resident

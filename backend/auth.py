@@ -79,7 +79,10 @@ def get_current_resident_id() -> int | None:
     Matching is abbreviation-first for SSO identities (e.g. Azure `Identity`),
     with fallbacks for legacy/dev configurations.
     """
-    user = get_current_user()
+    user = get_current_user().strip()
+    if not user:
+        return None
+
     resident: Resident | None = Resident.query.filter_by(abbreviation=user).first()
     if resident is None and "@" in user:
         resident = Resident.query.filter_by(email=user).first()

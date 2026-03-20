@@ -301,6 +301,17 @@ class TestGetCurrentResidentId:
                 db.session.delete(resident)
                 db.session.commit()
 
+    def test_returns_none_when_user_is_empty(self, app):
+        """Test get_current_resident_id returns None when user is empty/whitespace."""
+        with app.app_context(), pytest.MonkeyPatch.context() as monkeypatch:
+            # Monkeypatch get_current_user to an empty string
+            monkeypatch.setattr("backend.auth.get_current_user", lambda: "")
+            assert get_current_resident_id() is None
+
+            # Monkeypatch get_current_user to whitespace
+            monkeypatch.setattr("backend.auth.get_current_user", lambda: "   ")
+            assert get_current_resident_id() is None
+
     def test_returns_none_when_no_match(self, app):
         """Test get_current_resident_id returns None when no resident matches user."""
         with app.app_context():
