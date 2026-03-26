@@ -1,29 +1,29 @@
 const config = {
-  trailingComma: "all",
-  plugins: ["prettier-plugin-jinja-template"],
-  quoteProps: "consistent",
+  trailingComma: 'all',
+  plugins: ['prettier-plugin-jinja-template'],
+  quoteProps: 'consistent',
   bracketSameLine: true,
   useTabs: false,
   singleAttributePerLine: false,
   printWidth: 80,
-  proseWrap: "preserve",
+  proseWrap: 'preserve',
   overrides: [
     {
-      files: ["*.html"],
+      files: ['*.html'],
       options: {
-        parser: "jinja-template",
+        parser: 'jinja-template',
       },
     },
     {
-      files: "*.md",
+      files: '*.md',
       options: {
-        proseWrap: "always",
+        proseWrap: 'always',
         printWidth: 80,
         tabWidth: 2,
       },
     },
     {
-      files: "*.toml",
+      files: '*.toml',
       options: {
         tabWidth: 2,
       },

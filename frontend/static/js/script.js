@@ -10,7 +10,7 @@ function initializeTimeInputs() {
   const timeInputs = document.querySelectorAll('input[type="time"]');
 
   timeInputs.forEach((input) => {
-    input.addEventListener("change", function () {
+    input.addEventListener('change', function () {
       if (this.value) {
         this.value = window.LuxonUtils.roundToFiveMinutes(this.value);
       }
@@ -24,9 +24,9 @@ function initializeTimeInputs() {
  */
 function getNotificationContainer() {
   return (
-    document.getElementById("notification-container") ||
-    document.querySelector(".flash-messages") ||
-    document.querySelector(".container")
+    document.getElementById('notification-container') ||
+    document.querySelector('.flash-messages') ||
+    document.querySelector('.container')
   );
 }
 
@@ -36,8 +36,8 @@ function getNotificationContainer() {
  */
 function scheduleAlertRemoval(alert) {
   setTimeout(() => {
-    alert.style.transition = "opacity 0.5s";
-    alert.style.opacity = "0";
+    alert.style.transition = 'opacity 0.5s';
+    alert.style.opacity = '0';
     setTimeout(() => alert.remove(), 500);
   }, 5000);
 }
@@ -48,7 +48,7 @@ function scheduleAlertRemoval(alert) {
  * @param {string} [type='success'] - success, error, warning, info
  * @returns {HTMLElement|null}
  */
-function showNotification(message, type = "success") {
+function showNotification(message, type = 'success') {
   const container = getNotificationContainer();
   if (!container) {
     return null;
@@ -56,36 +56,36 @@ function showNotification(message, type = "success") {
 
   let alertType;
   let icon;
-  if (["success", "warning", "info", "danger"].includes(type)) {
-    alertType = type === "error" ? "danger" : type;
+  if (['success', 'warning', 'info', 'danger'].includes(type)) {
+    alertType = type === 'error' ? 'danger' : type;
   } else {
-    alertType = type === "error" ? "danger" : "success";
+    alertType = type === 'error' ? 'danger' : 'success';
   }
-  if (alertType === "warning") {
-    icon = alertType === "success" ? "check-circle" : "exclamation-circle";
-  } else if (alertType === "info") {
-    icon = alertType === "success" ? "check-circle" : "info-circle";
+  if (alertType === 'warning') {
+    icon = alertType === 'success' ? 'check-circle' : 'exclamation-circle';
+  } else if (alertType === 'info') {
+    icon = alertType === 'success' ? 'check-circle' : 'info-circle';
   } else {
-    icon = alertType === "success" ? "check-circle" : "exclamation-triangle";
+    icon = alertType === 'success' ? 'check-circle' : 'exclamation-triangle';
   }
 
-  const notification = document.createElement("div");
+  const notification = document.createElement('div');
   notification.className = `alert alert-${alertType} alert-dismissible fade show`;
-  notification.role = "alert";
+  notification.role = 'alert';
 
-  const iconElement = document.createElement("i");
+  const iconElement = document.createElement('i');
   iconElement.className = `bi bi-${icon} me-2`;
   notification.appendChild(iconElement);
 
-  const messageElement = document.createElement("span");
+  const messageElement = document.createElement('span');
   messageElement.textContent = message;
   notification.appendChild(messageElement);
 
-  const closeButton = document.createElement("button");
-  closeButton.type = "button";
-  closeButton.className = "btn-close";
-  closeButton.setAttribute("aria-label", "Close");
-  closeButton.addEventListener("click", () => notification.remove());
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'btn-close';
+  closeButton.setAttribute('aria-label', 'Close');
+  closeButton.addEventListener('click', () => notification.remove());
   notification.appendChild(closeButton);
 
   container.insertBefore(notification, container.firstChild || null);
@@ -97,9 +97,9 @@ function showNotification(message, type = "success") {
  * Initializes server-rendered alerts
  */
 function initializeAlerts() {
-  const alerts = document.querySelectorAll(".alert");
+  const alerts = document.querySelectorAll('.alert');
   alerts.forEach((alert) => {
-    if (alert.dataset.autoDismiss === "false") {
+    if (alert.dataset.autoDismiss === 'false') {
       return;
     }
     scheduleAlertRemoval(alert);
@@ -111,11 +111,11 @@ function initializeAlerts() {
  * @returns {object|null}
  */
 function getDialogElements() {
-  const modalEl = document.getElementById("confirm-modal");
-  const title = document.getElementById("confirm-modal-title");
-  const message = document.getElementById("confirm-modal-message");
-  const confirmButton = document.getElementById("confirm-modal-confirm");
-  const cancelButton = document.getElementById("confirm-modal-cancel");
+  const modalEl = document.getElementById('confirm-modal');
+  const title = document.getElementById('confirm-modal-title');
+  const message = document.getElementById('confirm-modal-message');
+  const confirmButton = document.getElementById('confirm-modal-confirm');
+  const cancelButton = document.getElementById('confirm-modal-cancel');
 
   if (!modalEl || !title || !message || !confirmButton || !cancelButton) {
     return null;
@@ -150,14 +150,14 @@ function closeDialog(result) {
  */
 function initializeDialog() {
   const elements = getDialogElements();
-  if (!elements || elements.modalEl.dataset.initialized === "true") {
+  if (!elements || elements.modalEl.dataset.initialized === 'true') {
     return;
   }
 
-  elements.modalEl.dataset.initialized = "true";
+  elements.modalEl.dataset.initialized = 'true';
 
   // Confirm button: resolve true, then let Bootstrap hide the modal
-  elements.confirmButton.addEventListener("click", () => {
+  elements.confirmButton.addEventListener('click', () => {
     const resolver = activeDialogResolver;
     activeDialogResolver = null;
     window.bootstrap?.Modal.getInstance(elements.modalEl)?.hide();
@@ -167,7 +167,7 @@ function initializeDialog() {
   });
 
   // All other dismiss paths (cancel, header X, Escape, backdrop) fire hide.bs.modal
-  elements.modalEl.addEventListener("hide.bs.modal", () => {
+  elements.modalEl.addEventListener('hide.bs.modal', () => {
     const resolver = activeDialogResolver;
     if (resolver) {
       activeDialogResolver = null;
@@ -182,7 +182,7 @@ function initializeDialog() {
  * @returns {Promise<boolean>}
  */
 function showConfirmationDialog(options = {}) {
-  const message = options.message || "Are you sure?";
+  const message = options.message || 'Are you sure?';
   const elements = getDialogElements();
   if (!elements) {
     const nativeConfirm = globalThis.confirm || window.confirm;
@@ -196,13 +196,13 @@ function showConfirmationDialog(options = {}) {
 
   return new Promise((resolve) => {
     activeDialogResolver = resolve;
-    elements.title.textContent = options.title || "Please Confirm";
+    elements.title.textContent = options.title || 'Please Confirm';
     elements.message.textContent = message;
-    elements.confirmButton.textContent = options.confirmLabel || "Continue";
-    elements.cancelButton.textContent = options.cancelLabel || "Cancel";
-    elements.confirmButton.className = `btn btn-${options.confirmVariant || "primary"}`;
+    elements.confirmButton.textContent = options.confirmLabel || 'Continue';
+    elements.cancelButton.textContent = options.cancelLabel || 'Cancel';
+    elements.confirmButton.className = `btn btn-${options.confirmVariant || 'primary'}`;
     elements.cancelButton.className =
-      options.showCancel === false ? "btn d-none" : "btn btn-outline-secondary";
+      options.showCancel === false ? 'btn d-none' : 'btn btn-outline-secondary';
     window.bootstrap.Modal.getOrCreateInstance(elements.modalEl).show();
   });
 }
@@ -214,10 +214,10 @@ function showConfirmationDialog(options = {}) {
  */
 function confirmDelete(message) {
   return showConfirmationDialog({
-    title: "Delete Item?",
-    message: message || "Are you sure you want to delete this?",
-    confirmLabel: "Delete",
-    confirmVariant: "danger",
+    title: 'Delete Item?',
+    message: message || 'Are you sure you want to delete this?',
+    confirmLabel: 'Delete',
+    confirmVariant: 'danger',
   });
 }
 
@@ -227,11 +227,11 @@ function confirmDelete(message) {
  */
 async function handleConfirmSubmit(event) {
   const form = event.target;
-  if (!form || typeof form.matches !== "function" || !form.matches("form")) {
+  if (!form || typeof form.matches !== 'function' || !form.matches('form')) {
     return;
   }
 
-  if (event.defaultPrevented || form.dataset.confirmBypass === "true") {
+  if (event.defaultPrevented || form.dataset.confirmBypass === 'true') {
     return;
   }
 
@@ -242,17 +242,17 @@ async function handleConfirmSubmit(event) {
 
   event.preventDefault();
   const confirmed = await showConfirmationDialog({
-    title: form.dataset.confirmTitle || "Please Confirm",
+    title: form.dataset.confirmTitle || 'Please Confirm',
     message,
-    confirmLabel: form.dataset.confirmLabel || "Continue",
-    cancelLabel: form.dataset.confirmCancelLabel || "Cancel",
-    confirmVariant: form.dataset.confirmVariant || "primary",
+    confirmLabel: form.dataset.confirmLabel || 'Continue',
+    cancelLabel: form.dataset.confirmCancelLabel || 'Cancel',
+    confirmVariant: form.dataset.confirmVariant || 'primary',
   });
 
   if (confirmed) {
-    form.dataset.confirmBypass = "true";
+    form.dataset.confirmBypass = 'true';
     try {
-      if (typeof form.requestSubmit === "function") {
+      if (typeof form.requestSubmit === 'function') {
         form.requestSubmit();
       } else {
         form.submit();
@@ -267,10 +267,10 @@ async function handleConfirmSubmit(event) {
  * Registers document-level confirmation handling
  */
 function initializeConfirmations() {
-  document.addEventListener("submit", (event) => {
+  document.addEventListener('submit', (event) => {
     handleConfirmSubmit(event).catch((error) => {
-      console.error("Confirmation dialog error:", error);
-      showNotification("Unable to confirm this action.", "error");
+      console.error('Confirmation dialog error:', error);
+      showNotification('Unable to confirm this action.', 'error');
     });
   });
 }
@@ -288,7 +288,7 @@ function printReport() {
  * @param {string} format - Format string (default: 'MMMM dd, yyyy')
  * @returns {string} Formatted date string
  */
-function formatDate(date, format = "MMMM dd, yyyy") {
+function formatDate(date, format = 'MMMM dd, yyyy') {
   return window.LuxonUtils.formatDate(date, format);
 }
 
@@ -315,7 +315,7 @@ function getDateDaysAgo(days) {
  * Navigates to today's sheet
  */
 function goToToday() {
-  window.location.href = "/";
+  window.location.href = '/';
 }
 
 /**
@@ -323,7 +323,7 @@ function goToToday() {
  * @param {string} dateString - ISO date string
  */
 function updateDisplayedDate(dateString) {
-  const dateElement = document.getElementById("sheet-date");
+  const dateElement = document.getElementById('sheet-date');
   if (dateElement) {
     dateElement.textContent = window.LuxonUtils.formatDate(dateString);
   }
@@ -339,7 +339,7 @@ function populateResidentSelect(select, residents, placeholder) {
   const previousValue = select.value;
   select.innerHTML = `<option value="">${placeholder}</option>`;
   residents.forEach((resident) => {
-    const option = document.createElement("option");
+    const option = document.createElement('option');
     option.value = resident.id.toString();
     option.textContent = resident.name;
     select.appendChild(option);
@@ -354,9 +354,9 @@ function populateResidentSelect(select, residents, placeholder) {
  * @returns {Promise<Array<{id: string|number, name: string}>>}
  */
 async function fetchActiveResidents() {
-  const response = await fetch("/api/residents/active");
+  const response = await fetch('/api/residents/active');
   if (!response.ok) {
-    throw new Error("Failed to fetch residents");
+    throw new Error('Failed to fetch residents');
   }
   return response.json();
 }
@@ -383,10 +383,10 @@ async function loadResidentsIntoSelect(selectId, placeholder) {
  */
 async function loadActiveResidents() {
   try {
-    await loadResidentsIntoSelect("resident_id", "Select Resident");
+    await loadResidentsIntoSelect('resident_id', 'Select Resident');
   } catch (error) {
-    console.error("Error loading residents:", error);
-    showNotification("Failed to load residents", "error");
+    console.error('Error loading residents:', error);
+    showNotification('Failed to load residents', 'error');
   }
 }
 
@@ -398,14 +398,14 @@ window.loadResidentsIntoSelect = loadResidentsIntoSelect;
  * @returns {boolean} Whether form is valid
  */
 function validateForm(form) {
-  const requiredFields = form.querySelectorAll("[required]");
+  const requiredFields = form.querySelectorAll('[required]');
   let isValid = true;
 
   requiredFields.forEach((field) => {
     if (field.value.trim()) {
-      field.classList.remove("error");
+      field.classList.remove('error');
     } else {
-      field.classList.add("error");
+      field.classList.add('error');
       isValid = false;
     }
   });
@@ -422,16 +422,16 @@ function initialize() {
   initializeDialog();
   initializeConfirmations();
 
-  if (document.getElementById("resident_id")) {
+  if (document.getElementById('resident_id')) {
     loadActiveResidents().catch(console.error);
   }
 
-  const forms = document.querySelectorAll("form");
+  const forms = document.querySelectorAll('form');
   forms.forEach((form) => {
-    form.addEventListener("submit", function (event) {
+    form.addEventListener('submit', function (event) {
       if (!validateForm(this)) {
         event.preventDefault();
-        showNotification("Please fill in all required fields", "error");
+        showNotification('Please fill in all required fields', 'error');
       }
     });
   });
@@ -448,8 +448,8 @@ function initialize() {
   window.validateForm = validateForm;
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initialize);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initialize);
 } else {
   initialize();
 }

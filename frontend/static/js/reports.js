@@ -3,7 +3,7 @@
  * Handles date range selection and resident filtering
  */
 
-import { PayrollPeriodError } from "./luxon-utils.js";
+import { PayrollPeriodError } from './luxon-utils.js';
 
 /**
  * Returns the report form elements when present
@@ -11,9 +11,9 @@ import { PayrollPeriodError } from "./luxon-utils.js";
  */
 function getReportElements() {
   return {
-    startDateInput: document.getElementById("start_date"),
-    endDateInput: document.getElementById("end_date"),
-    reportForm: document.getElementById("report-form"),
+    startDateInput: document.getElementById('start_date'),
+    endDateInput: document.getElementById('end_date'),
+    reportForm: document.getElementById('report-form'),
   };
 }
 
@@ -31,17 +31,17 @@ function setDateRange(period, autoSubmit = true) {
   let dateRange;
 
   try {
-    if (period === "payroll_half") {
-      dateRange = window.LuxonUtils.getPayrollRange("half");
-    } else if (period === "payroll_month") {
-      dateRange = window.LuxonUtils.getPayrollRange("month");
+    if (period === 'payroll_half') {
+      dateRange = window.LuxonUtils.getPayrollRange('half');
+    } else if (period === 'payroll_month') {
+      dateRange = window.LuxonUtils.getPayrollRange('month');
     } else {
       // Use Luxon utilities for relative date calculations
       dateRange = window.LuxonUtils.getDateRange(period);
     }
   } catch (error) {
     if (error instanceof PayrollPeriodError) {
-      console.error("Payroll period calculation failed:", error.message);
+      console.error('Payroll period calculation failed:', error.message);
       // Fallback or alert user
       window.alert(`Could not calculate payroll range: ${error.message}`);
       return;
@@ -62,14 +62,14 @@ function setDateRange(period, autoSubmit = true) {
  * Loads active residents into the filter dropdown
  */
 async function loadResidentsForReport() {
-  if (!document.getElementById("resident_filter")) {
+  if (!document.getElementById('resident_filter')) {
     return;
   }
 
   try {
-    await window.loadResidentsIntoSelect("resident_filter", "All Residents");
+    await window.loadResidentsIntoSelect('resident_filter', 'All Residents');
   } catch (error) {
-    console.error("Error loading residents:", error);
+    console.error('Error loading residents:', error);
   }
 }
 
@@ -83,7 +83,7 @@ function initializeReports() {
   }
 
   // Set default to last 7 days (without auto-submit)
-  setDateRange("week", false);
+  setDateRange('week', false);
   // Load residents into dropdown
   loadResidentsForReport();
 }
@@ -92,8 +92,8 @@ function initializeReports() {
 window.setDateRange = setDateRange;
 
 // Initialize when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeReports);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeReports);
 } else {
   initializeReports();
 }

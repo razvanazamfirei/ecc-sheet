@@ -12,16 +12,16 @@ const originalValues = {};
  */
 function getEntryElements(entryId) {
   return {
-    display: document.getElementById("display-" + entryId),
-    form: document.getElementById("form-" + entryId),
-    exitInput: document.getElementById("input-" + entryId),
-    startInput: document.getElementById("start-input-" + entryId),
-    startDisplay: document.getElementById("start-display-" + entryId),
-    editControls: document.getElementById("edit-controls-" + entryId),
-    actionButtons: document.getElementById("action-buttons-" + entryId),
-    exitCell: document.getElementById("cell-" + entryId),
-    row: document.getElementById("entry-row-" + entryId),
-    overtimeDisplay: document.getElementById("overtime-" + entryId),
+    display: document.getElementById(`display-${entryId}`),
+    form: document.getElementById(`form-${entryId}`),
+    exitInput: document.getElementById(`input-${entryId}`),
+    startInput: document.getElementById(`start-input-${entryId}`),
+    startDisplay: document.getElementById(`start-display-${entryId}`),
+    editControls: document.getElementById(`edit-controls-${entryId}`),
+    actionButtons: document.getElementById(`action-buttons-${entryId}`),
+    exitCell: document.getElementById(`cell-${entryId}`),
+    row: document.getElementById(`entry-row-${entryId}`),
+    overtimeDisplay: document.getElementById(`overtime-${entryId}`),
   };
 }
 
@@ -33,7 +33,7 @@ function getEntryElements(entryId) {
 function getEntryEditControls(entryId) {
   const elements = getEntryElements(entryId);
   const formInputs = elements.form
-    ? Array.from(elements.form.querySelectorAll("input"))
+    ? Array.from(elements.form.querySelectorAll('input'))
     : [];
   return {
     ...elements,
@@ -50,7 +50,7 @@ function getEntryEditControls(entryId) {
  * @returns {NodeListOf<Element>} Entry row elements
  */
 function getEntryRows() {
-  return document.querySelectorAll("tr[data-entry-id]");
+  return document.querySelectorAll('tr[data-entry-id]');
 }
 
 /**
@@ -72,16 +72,16 @@ function setElementDisplay(element, display) {
  */
 function setEntryEditingState(entryId, editing) {
   const elements = getEntryElements(entryId);
-  setElementDisplay(elements.display, editing ? "none" : "inline");
-  setElementDisplay(elements.form, editing ? "inline" : "none");
-  setElementDisplay(elements.actionButtons, editing ? "none" : "inline-flex");
-  setElementDisplay(elements.editControls, editing ? "inline-flex" : "none");
+  setElementDisplay(elements.display, editing ? 'none' : 'inline');
+  setElementDisplay(elements.form, editing ? 'inline' : 'none');
+  setElementDisplay(elements.actionButtons, editing ? 'none' : 'inline-flex');
+  setElementDisplay(elements.editControls, editing ? 'inline-flex' : 'none');
 
   if (elements.startInput) {
-    setElementDisplay(elements.startInput, editing ? "inline" : "none");
+    setElementDisplay(elements.startInput, editing ? 'inline' : 'none');
   }
   if (elements.startDisplay) {
-    setElementDisplay(elements.startDisplay, editing ? "none" : "inline");
+    setElementDisplay(elements.startDisplay, editing ? 'none' : 'inline');
   }
 
   return elements;
@@ -93,28 +93,28 @@ function setEntryEditingState(entryId, editing) {
  * @returns {object} Control references
  */
 function setEditAllControls(editing) {
-  const buttonContainer = document.getElementById("edit-all-controls");
-  const editAllBtn = document.getElementById("edit-all-btn");
-  const saveAllBtn = document.getElementById("save-all-btn");
+  const buttonContainer = document.getElementById('edit-all-controls');
+  const editAllBtn = document.getElementById('edit-all-btn');
+  const saveAllBtn = document.getElementById('save-all-btn');
 
   if (!editAllBtn || !saveAllBtn) {
     return { buttonContainer, editAllBtn, saveAllBtn };
   }
 
   if (editing) {
-    buttonContainer?.classList.add("btn-group");
+    buttonContainer?.classList.add('btn-group');
     editAllBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel All';
-    editAllBtn.classList.remove("btn-outline-secondary");
-    editAllBtn.classList.add("btn-warning");
-    saveAllBtn.style.display = "inline-block";
+    editAllBtn.classList.remove('btn-outline-secondary');
+    editAllBtn.classList.add('btn-warning');
+    saveAllBtn.style.display = 'inline-block';
     return { buttonContainer, editAllBtn, saveAllBtn };
   }
 
   editAllBtn.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Edit All';
-  buttonContainer?.classList.remove("btn-group");
-  editAllBtn.classList.remove("btn-warning");
-  editAllBtn.classList.add("btn-outline-secondary");
-  saveAllBtn.style.display = "none";
+  buttonContainer?.classList.remove('btn-group');
+  editAllBtn.classList.remove('btn-warning');
+  editAllBtn.classList.add('btn-outline-secondary');
+  saveAllBtn.style.display = 'none';
   return { buttonContainer, editAllBtn, saveAllBtn };
 }
 
@@ -141,8 +141,8 @@ function setEntryControlsDisabled(controls, disabled) {
  * @returns {string} CSRF token value or an empty string
  */
 function getCsrfTokenFromInputs(inputs) {
-  const csrfInput = inputs.find((input) => input.name === "csrf_token");
-  return csrfInput?.value || "";
+  const csrfInput = inputs.find((input) => input.name === 'csrf_token');
+  return csrfInput?.value || '';
 }
 
 /**
@@ -157,7 +157,7 @@ function notify(message, type) {
   }
 
   const nativeAlert = globalThis.alert || window.alert;
-  if (typeof nativeAlert === "function") {
+  if (typeof nativeAlert === 'function') {
     nativeAlert(message);
   }
 }
@@ -168,7 +168,7 @@ function notify(message, type) {
  * @returns {string} Escaped text
  */
 function escapeHtml(text) {
-  const div = document.createElement("div");
+  const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
 }
@@ -179,67 +179,67 @@ function escapeHtml(text) {
  */
 async function copyToClipboard(event) {
   const rows = getEntryRows();
-  const dateElement = document.getElementById("sheet-date");
+  const dateElement = document.getElementById('sheet-date');
   const isWeekendOrHoliday =
-    document.querySelector(".start-time-cell") !== null;
+    document.querySelector('.start-time-cell') !== null;
 
   if (!rows.length) {
-    notify("No entries to copy", "warning");
+    notify('No entries to copy', 'warning');
     return;
   }
 
   const dateText = dateElement
-    ? dateElement.textContent.trim().split("\n")[0].trim()
-    : "";
+    ? dateElement.textContent.trim().split('\n')[0].trim()
+    : '';
 
   let html = `<p>Attached is the resident ECC sheet for ${escapeHtml(dateText)}.</p>`;
-  html += "<table>";
-  html += "<thead><tr>";
-  html += "<th>Role</th>";
-  html += "<th>Name</th>";
+  html += '<table>';
+  html += '<thead><tr>';
+  html += '<th>Role</th>';
+  html += '<th>Name</th>';
   if (isWeekendOrHoliday) {
-    html += "<th>Start Time</th>";
+    html += '<th>Start Time</th>';
   }
-  html += "<th>Overtime</th>";
-  html += "</tr></thead>";
-  html += "<tbody>";
+  html += '<th>Overtime</th>';
+  html += '</tr></thead>';
+  html += '<tbody>';
 
   let plainText = `Attached is the resident ECC sheet for ${dateText}.\n\n`;
-  plainText += `Role\tName${isWeekendOrHoliday ? "\tStart Time" : ""}\tOvertime\n`;
+  plainText += `Role\tName${isWeekendOrHoliday ? '\tStart Time' : ''}\tOvertime\n`;
 
   let totalOvertime = 0;
 
   rows.forEach((row) => {
-    const exitCell = row.querySelector(".exit-time-cell");
-    const hasMissingData = exitCell && exitCell.classList.contains("missing");
+    const exitCell = row.querySelector('.exit-time-cell');
+    const hasMissingData = exitCell?.classList.contains('missing');
 
     if (hasMissingData) {
       return;
     }
 
-    const roleElement = row.querySelector("td:nth-child(1) .badge");
-    const nameElement = row.querySelector("td:nth-child(2)");
-    const overtimeElement = row.querySelector(".overtime-cell span");
+    const roleElement = row.querySelector('td:nth-child(1) .badge');
+    const nameElement = row.querySelector('td:nth-child(2)');
+    const overtimeElement = row.querySelector('.overtime-cell span');
 
-    const role = roleElement ? roleElement.textContent.trim() : "";
-    const name = nameElement ? nameElement.textContent.trim() : "";
-    const overtime = overtimeElement ? overtimeElement.textContent.trim() : "";
+    const role = roleElement ? roleElement.textContent.trim() : '';
+    const name = nameElement ? nameElement.textContent.trim() : '';
+    const overtime = overtimeElement ? overtimeElement.textContent.trim() : '';
 
-    html += "<tr>";
+    html += '<tr>';
     html += `<td>${escapeHtml(role)}</td>`;
     html += `<td>${escapeHtml(name)}</td>`;
 
     plainText += `${role}\t${name}`;
 
     if (isWeekendOrHoliday) {
-      const startElement = row.querySelector(".start-time-cell span");
-      const start = startElement ? startElement.textContent.trim() : "-";
+      const startElement = row.querySelector('.start-time-cell span');
+      const start = startElement ? startElement.textContent.trim() : '-';
       html += `<td>${escapeHtml(start)}</td>`;
       plainText += `\t${start}`;
     }
 
     html += `<td>${escapeHtml(overtime)}</td>`;
-    html += "</tr>";
+    html += '</tr>';
     plainText += `\t${overtime}\n`;
 
     const overtimeMatch = overtime.match(/[\d.]+/);
@@ -248,41 +248,41 @@ async function copyToClipboard(event) {
     }
   });
 
-  html += "</tbody>";
-  html += "<tfoot><tr>";
-  html += `<td colspan='${isWeekendOrHoliday ? "3" : "2"}'><strong>Total Overtime:</strong></td>`;
+  html += '</tbody>';
+  html += '<tfoot><tr>';
+  html += `<td colspan='${isWeekendOrHoliday ? '3' : '2'}'><strong>Total Overtime:</strong></td>`;
   html += `<td><strong>${totalOvertime.toFixed(2)} hrs</strong></td>`;
-  html += "</tr></tfoot>";
-  html += "</table>";
+  html += '</tr></tfoot>';
+  html += '</table>';
 
   plainText += `\nTotal Overtime: ${totalOvertime.toFixed(2)} hrs`;
 
   try {
-    const htmlBlob = new Blob([html], { type: "text/html" });
-    const textBlob = new Blob([plainText], { type: "text/plain" });
+    const htmlBlob = new Blob([html], { type: 'text/html' });
+    const textBlob = new Blob([plainText], { type: 'text/plain' });
     const clipboardItem = new ClipboardItem({
-      "text/html": htmlBlob,
-      "text/plain": textBlob,
+      'text/html': htmlBlob,
+      'text/plain': textBlob,
     });
 
     await navigator.clipboard.write([clipboardItem]);
 
     // Update button UI if event came from a button click
-    const btn = event?.target?.closest("button");
+    const btn = event?.target?.closest('button');
     if (btn) {
       const originalHTML = btn.innerHTML;
       btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
-      btn.classList.remove("btn-outline-primary");
-      btn.classList.add("btn-success");
+      btn.classList.remove('btn-outline-primary');
+      btn.classList.add('btn-success');
       setTimeout(() => {
         btn.innerHTML = originalHTML;
-        btn.classList.remove("btn-success");
-        btn.classList.add("btn-outline-primary");
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-primary');
       }, 2000);
     }
   } catch (err) {
-    notify("Failed to copy to clipboard. Please try again.", "error");
-    console.error("Clipboard error:", err);
+    notify('Failed to copy to clipboard. Please try again.', 'error');
+    console.error('Clipboard error:', err);
   }
 }
 
@@ -293,18 +293,18 @@ async function copyToClipboard(event) {
  */
 function getLockConfirmationOptions(form) {
   const missingCount = form.dataset.missingCount;
-  const missingResidents = JSON.parse(form.dataset.missingResidents || "[]");
+  const missingResidents = JSON.parse(form.dataset.missingResidents || '[]');
   return {
-    title: "Lock Sheet?",
+    title: 'Lock Sheet?',
     message:
-      "Warning: " +
+      'Warning: ' +
       missingCount +
-      " entries are missing exit times.\n\n" +
-      "These residents will not receive overtime credit:\n" +
-      missingResidents.join(", ") +
-      "\n\nLock anyway?",
-    confirmLabel: "Lock Sheet",
-    confirmVariant: "warning",
+      ' entries are missing exit times.\n\n' +
+      'These residents will not receive overtime credit:\n' +
+      missingResidents.join(', ') +
+      '\n\nLock anyway?',
+    confirmLabel: 'Lock Sheet',
+    confirmVariant: 'warning',
   };
 }
 
@@ -327,7 +327,7 @@ function confirmLockWithMissing(form) {
  * Applies confirmation metadata to the lock form when needed
  */
 function initializeLockConfirmation() {
-  const form = document.getElementById("lock-sheet-form");
+  const form = document.getElementById('lock-sheet-form');
   if (!form || !form.dataset.missingCount) {
     return;
   }
@@ -354,7 +354,7 @@ function editEntry(entryId) {
     originalValues[entryId].start = elements.startInput.value;
   }
 
-  if (typeof elements.exitInput.focus === "function") {
+  if (typeof elements.exitInput.focus === 'function') {
     elements.exitInput.focus();
   }
 }
@@ -371,12 +371,12 @@ function applyEntryUpdate(entryId, entry) {
       elements.display.innerHTML =
         '<span class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Exit time?</span>';
     } else {
-      elements.display.innerHTML = escapeHtml(entry.exit_time_display || "");
+      elements.display.innerHTML = escapeHtml(entry.exit_time_display || '');
     }
   }
 
   if (elements.exitCell) {
-    elements.exitCell.classList.toggle("missing", entry.missing_exit_time);
+    elements.exitCell.classList.toggle('missing', entry.missing_exit_time);
   }
 
   if (elements.startDisplay) {
@@ -391,22 +391,22 @@ function applyEntryUpdate(entryId, entry) {
 
   if (elements.row) {
     elements.row.classList.toggle(
-      "entry-missing-data",
+      'entry-missing-data',
       entry.missing_exit_time,
     );
   }
 
   if (elements.exitInput) {
-    elements.exitInput.value = entry.exit_time || "";
+    elements.exitInput.value = entry.exit_time || '';
   }
 
   if (elements.startInput) {
-    elements.startInput.value = entry.start_time || "";
+    elements.startInput.value = entry.start_time || '';
   }
 
   originalValues[entryId] = {
-    exit: entry.exit_time || "",
-    start: entry.start_time || "",
+    exit: entry.exit_time || '',
+    start: entry.start_time || '',
   };
 }
 
@@ -419,14 +419,14 @@ function updateTotalOvertime() {
 
   rows.forEach((row) => {
     const overtimeText =
-      row.querySelector(".overtime-cell span")?.textContent || "";
+      row.querySelector('.overtime-cell span')?.textContent || '';
     const overtimeMatch = overtimeText.match(/[\d.]+/);
     if (overtimeMatch) {
       total += parseFloat(overtimeMatch[0]);
     }
   });
 
-  const totalElement = document.querySelector("tfoot .overtime-cell strong");
+  const totalElement = document.querySelector('tfoot .overtime-cell strong');
   if (totalElement) {
     totalElement.textContent = `${total.toFixed(2)} hrs`;
   }
@@ -438,16 +438,16 @@ function updateTotalOvertime() {
  * @returns {Promise<object>} Parsed JSON payload
  */
 async function parseJsonResponse(response) {
-  const contentType = response.headers?.get?.("content-type") || "";
-  if (contentType.includes("application/json") || !response.text) {
+  const contentType = response.headers?.get?.('content-type') || '';
+  if (contentType.includes('application/json') || !response.text) {
     return response.json();
   }
 
   const responseText = await response.text();
   throw new Error(
-    responseText.trim().toLowerCase().startsWith("<!doctype")
-      ? "The server returned an HTML page instead of JSON. The save may have been redirected or failed before the async response was generated."
-      : responseText || "The server returned an unexpected response.",
+    responseText.trim().toLowerCase().startsWith('<!doctype')
+      ? 'The server returned an HTML page instead of JSON. The save may have been redirected or failed before the async response was generated.'
+      : responseText || 'The server returned an unexpected response.',
   );
 }
 
@@ -476,21 +476,21 @@ async function saveEntry(entryId, options = {}) {
 
   try {
     const response = await fetch(form.action, {
-      method: "POST",
+      method: 'POST',
       body: formData,
-      credentials: "same-origin",
+      credentials: 'same-origin',
       headers: {
-        "Accept": "application/json",
-        "X-CSRFToken": csrfToken,
-        "X-Expect-JSON": "1",
-        "X-Requested-With": "XMLHttpRequest",
+        Accept: 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-Expect-JSON': '1',
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
     const payload = await parseJsonResponse(response);
 
     if (!response.ok || !payload.success) {
       throw new Error(
-        payload.message || "Error saving entry. Please try again.",
+        payload.message || 'Error saving entry. Please try again.',
       );
     }
 
@@ -499,12 +499,12 @@ async function saveEntry(entryId, options = {}) {
     cancelEdit(entryId);
 
     if (options.showSuccess !== false) {
-      notify(payload.message || "Entry updated successfully", "success");
+      notify(payload.message || 'Entry updated successfully', 'success');
     }
     return true;
   } catch (error) {
-    notify(error.message || "Error saving entry. Please try again.", "error");
-    console.error("Save entry error:", error);
+    notify(error.message || 'Error saving entry. Please try again.', 'error');
+    console.error('Save entry error:', error);
     return false;
   } finally {
     setEntryControlsDisabled(controls, false);
@@ -522,7 +522,7 @@ function cancelEdit(entryId) {
   const elements = getEntryElements(entryId);
   if (originalValues[entryId] !== undefined) {
     if (elements.exitInput) {
-      elements.exitInput.value = originalValues[entryId].exit || "";
+      elements.exitInput.value = originalValues[entryId].exit || '';
     }
     if (elements.startInput && originalValues[entryId].start !== undefined) {
       elements.startInput.value = originalValues[entryId].start;
@@ -557,7 +557,7 @@ function toggleEditAll() {
 function buildBulkSaveRequest(rows) {
   const entries = [];
   const controls = [];
-  let csrfToken = "";
+  let csrfToken = '';
 
   rows.forEach((row) => {
     const entryId = row.dataset.entryId;
@@ -573,8 +573,8 @@ function buildBulkSaveRequest(rows) {
 
     entries.push({
       id: entryId,
-      exit_time: exitInput?.value || "",
-      ...(startInput ? { start_time: startInput.value || "" } : {}),
+      exit_time: exitInput?.value || '',
+      ...(startInput ? { start_time: startInput.value || '' } : {}),
     });
     controls.push(controlsForEntry);
   });
@@ -598,18 +598,18 @@ function setBulkSaveDisabled(controls, disabled) {
  */
 async function saveAll() {
   const rows = getEntryRows();
-  const saveAllBtn = document.getElementById("save-all-btn");
-  const editAllBtn = document.getElementById("edit-all-btn");
+  const saveAllBtn = document.getElementById('save-all-btn');
+  const editAllBtn = document.getElementById('edit-all-btn');
   const { csrfToken, entries, controls } = buildBulkSaveRequest(rows);
 
   if (!entries.length) {
-    notify("No entries are available to save.", "warning");
+    notify('No entries are available to save.', 'warning');
     return;
   }
   if (!csrfToken) {
     notify(
-      "Your form session expired. Reload the page and try again.",
-      "error",
+      'Your form session expired. Reload the page and try again.',
+      'error',
     );
     return;
   }
@@ -626,23 +626,23 @@ async function saveAll() {
   setBulkSaveDisabled(controls, true);
 
   try {
-    const response = await fetch("/entries/update-all", {
-      method: "POST",
+    const response = await fetch('/entries/update-all', {
+      method: 'POST',
       body: JSON.stringify({ entries }),
-      credentials: "same-origin",
+      credentials: 'same-origin',
       headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "X-CSRFToken": csrfToken,
-        "X-Expect-JSON": "1",
-        "X-Requested-With": "XMLHttpRequest",
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-Expect-JSON': '1',
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
     const payload = await parseJsonResponse(response);
 
     if (!response.ok || !payload.success) {
       throw new Error(
-        payload.message || "Error saving entries. Please try again.",
+        payload.message || 'Error saving entries. Please try again.',
       );
     }
 
@@ -654,10 +654,10 @@ async function saveAll() {
 
     editAllMode = false;
     setEditAllControls(false);
-    notify(payload.message || "All entries updated successfully.", "success");
+    notify(payload.message || 'All entries updated successfully.', 'success');
   } catch (error) {
-    notify(error.message || "Error saving entries. Please try again.", "error");
-    console.error("Save all error:", error);
+    notify(error.message || 'Error saving entries. Please try again.', 'error');
+    console.error('Save all error:', error);
   } finally {
     setBulkSaveDisabled(controls, false);
     if (saveAllBtn) {
@@ -674,19 +674,19 @@ async function saveAll() {
  * Updates the auto-lock countdown timer
  */
 function updateCountdown() {
-  const timer = document.getElementById("countdown-timer");
+  const timer = document.getElementById('countdown-timer');
   if (!timer) {
     return;
   }
 
-  let minutes = parseInt(timer.dataset.minutes);
+  let minutes = parseInt(timer.dataset.minutes, 10);
   if (minutes > 0) {
     minutes--;
     timer.dataset.minutes = minutes;
     timer.textContent = `(${minutes} minutes remaining)`;
 
     if (minutes === 0) {
-      timer.textContent = "(Locking now...)";
+      timer.textContent = '(Locking now...)';
       // Reload page after a few seconds to show locked state
       setTimeout(() => window.location.reload(), 3000);
     }
@@ -697,7 +697,7 @@ function updateCountdown() {
  * Initializes the countdown timer interval
  */
 function initializeCountdown() {
-  if (document.getElementById("countdown-timer")) {
+  if (document.getElementById('countdown-timer')) {
     setInterval(updateCountdown, 60000); // 60 seconds
   }
 }
@@ -716,17 +716,17 @@ window.initializeInlineEditors = initializeInlineEditors;
  * Toggles start time field visibility based on selected role
  */
 function toggleStartTimeField() {
-  const roleSelect = document.getElementById("role_id");
-  const startTimeContainer = document.getElementById("start_time_container");
+  const roleSelect = document.getElementById('role_id');
+  const startTimeContainer = document.getElementById('start_time_container');
 
   if (!roleSelect || !startTimeContainer) {
     return;
   }
 
   const selectedOption = roleSelect.options[roleSelect.selectedIndex];
-  const isBackup = selectedOption?.dataset?.isBackup === "true";
+  const isBackup = selectedOption?.dataset?.isBackup === 'true';
 
-  startTimeContainer.style.display = isBackup ? "block" : "none";
+  startTimeContainer.style.display = isBackup ? 'block' : 'none';
 }
 
 // Expose for testing
@@ -736,9 +736,9 @@ window.toggleStartTimeField = toggleStartTimeField;
  * Initialize role select change handler
  */
 function initializeRoleSelect() {
-  const roleSelect = document.getElementById("role_id");
+  const roleSelect = document.getElementById('role_id');
   if (roleSelect) {
-    roleSelect.addEventListener("change", toggleStartTimeField);
+    roleSelect.addEventListener('change', toggleStartTimeField);
     // Check initial state
     toggleStartTimeField();
   }
@@ -754,22 +754,22 @@ function submitInlineEditorForm(form) {
     return;
   }
 
-  if (typeof form.requestSubmit === "function") {
+  if (typeof form.requestSubmit === 'function') {
     form.requestSubmit();
     return;
   }
 
-  form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 }
 
 /**
  * Binds async submit and Enter-to-save behavior for inline row editors
  */
 function initializeInlineEditors() {
-  const forms = document.querySelectorAll(".time-edit-form");
+  const forms = document.querySelectorAll('.time-edit-form');
   forms.forEach((form) => {
-    const entryId = form.dataset.entryId || form.id.replace("form-", "");
-    form.addEventListener("submit", async (event) => {
+    const entryId = form.dataset.entryId || form.id.replace('form-', '');
+    form.addEventListener('submit', async (event) => {
       event.preventDefault();
       await saveEntry(entryId);
     });
@@ -779,12 +779,12 @@ function initializeInlineEditors() {
     '[id^="input-"], [id^="start-input-"]',
   );
   timeInputs.forEach((input) => {
-    input.addEventListener("keydown", async (event) => {
+    input.addEventListener('keydown', async (event) => {
       const isEnterKey =
-        event.key === "Enter" ||
-        event.key === "NumpadEnter" ||
-        event.code === "Enter" ||
-        event.code === "NumpadEnter";
+        event.key === 'Enter' ||
+        event.key === 'NumpadEnter' ||
+        event.code === 'Enter' ||
+        event.code === 'NumpadEnter';
       if (!isEnterKey) {
         return;
       }
@@ -793,8 +793,8 @@ function initializeInlineEditors() {
       submitInlineEditorForm(
         input.form ||
           document.getElementById(
-            "form-" +
-              input.id.replace("start-input-", "").replace("input-", ""),
+            'form-' +
+              input.id.replace('start-input-', '').replace('input-', ''),
           ),
       );
     });
@@ -809,8 +809,8 @@ function initializePage() {
   initializeInlineEditors();
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializePage);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializePage);
 } else {
   initializePage();
 }

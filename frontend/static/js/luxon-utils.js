@@ -3,7 +3,7 @@
  * Provides timezone-aware date operations and formatting
  */
 
-import { DateTime } from "luxon";
+import { DateTime } from 'luxon';
 
 /**
  * Custom error for payroll period failures
@@ -11,11 +11,11 @@ import { DateTime } from "luxon";
 export class PayrollPeriodError extends Error {
   constructor(message) {
     super(message);
-    this.name = "PayrollPeriodError";
+    this.name = 'PayrollPeriodError';
   }
 }
 
-const TIMEZONE = "America/New_York"; // Philadelphia timezone
+const TIMEZONE = 'America/New_York'; // Philadelphia timezone
 
 /**
  * Gets current date in Philadelphia timezone
@@ -31,7 +31,7 @@ function getTodayPhilly() {
  * @returns {DateTime} Luxon DateTime in the configured timezone
  */
 function toDateTime(date) {
-  if (typeof date === "string") {
+  if (typeof date === 'string') {
     return DateTime.fromISO(date, { zone: TIMEZONE });
   }
   if (date instanceof DateTime) {
@@ -46,7 +46,7 @@ function toDateTime(date) {
  * @param {string} format - Luxon format string (default: 'MMMM dd, yyyy')
  * @returns {string} Formatted date string
  */
-function formatDate(date, format = "MMMM dd, yyyy") {
+function formatDate(date, format = 'MMMM dd, yyyy') {
   return toDateTime(date).toFormat(format);
 }
 
@@ -56,11 +56,11 @@ function formatDate(date, format = "MMMM dd, yyyy") {
  * @param {string} format - Luxon format string (default: 'HH:mm')
  * @returns {string} Formatted time string
  */
-function formatTime(time, format = "HH:mm") {
+function formatTime(time, format = 'HH:mm') {
   if (!time) {
-    return "-";
+    return '-';
   }
-  const dt = DateTime.fromFormat(time, "HH:mm", { zone: TIMEZONE });
+  const dt = DateTime.fromFormat(time, 'HH:mm', { zone: TIMEZONE });
   return dt.toFormat(format);
 }
 
@@ -101,16 +101,16 @@ function getDateRange(period) {
   let start;
 
   switch (period) {
-    case "week":
+    case 'week':
       start = end.minus({ days: 7 });
       break;
-    case "month":
+    case 'month':
       start = end.minus({ days: 30 });
       break;
-    case "quarter":
+    case 'quarter':
       start = end.minus({ days: 90 });
       break;
-    case "year":
+    case 'year':
       start = end.minus({ years: 1 });
       break;
     default:
@@ -133,7 +133,7 @@ function roundToFiveMinutes(time) {
     return time;
   }
 
-  const [hours, minutes] = time.split(":").map(Number);
+  const [hours, minutes] = time.split(':').map(Number);
   const dt = DateTime.fromObject(
     { hour: hours, minute: minutes },
     { zone: TIMEZONE },
@@ -149,7 +149,7 @@ function roundToFiveMinutes(time) {
     finalDt = dt.set({ minute: roundedMinutes });
   }
 
-  return finalDt.toFormat("HH:mm");
+  return finalDt.toFormat('HH:mm');
 }
 
 /**
@@ -187,24 +187,24 @@ function getPayrollRange(period) {
   const today = getTodayPhilly();
   let start, end;
 
-  if (period === "half") {
+  if (period === 'half') {
     if (today.day <= 15) {
       // If we are in the first half of the month, the last completed period
       // was the second half of the previous month (16th to end)
       const lastMonth = today.minus({ months: 1 });
       start = lastMonth.set({ day: 16 });
-      end = lastMonth.endOf("month");
+      end = lastMonth.endOf('month');
     } else {
       // If we are in the second half of the month, the last completed period
       // was the first half of the current month (1st to 15th)
       start = today.set({ day: 1 });
       end = today.set({ day: 15 });
     }
-  } else if (period === "month") {
+  } else if (period === 'month') {
     // Full month always refers to the last completed full month
     const lastMonth = today.minus({ months: 1 });
-    start = lastMonth.startOf("month");
-    end = lastMonth.endOf("month");
+    start = lastMonth.startOf('month');
+    end = lastMonth.endOf('month');
   } else {
     throw new PayrollPeriodError(`Unsupported payroll period: ${period}`);
   }
