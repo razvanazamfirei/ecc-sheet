@@ -15,10 +15,10 @@ beforeAll(async () => {
   Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf(); // June 15, 2024
 
   // Pre-populate mock elements needed during module initialization
-  mockElements["start_date"] = { value: "" };
-  mockElements["end_date"] = { value: "" };
+  mockElements.start_date = { value: "" };
+  mockElements.end_date = { value: "" };
   mockElements["report-form"] = { submit: () => {} };
-  mockElements["resident_filter"] = { innerHTML: "", appendChild: () => {} };
+  mockElements.resident_filter = { innerHTML: "", appendChild: () => {} };
 
   // Set up mock elements storage
   global.document = {
@@ -79,7 +79,9 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  Object.keys(mockElements).forEach((key) => delete mockElements[key]);
+  Object.keys(mockElements).forEach((key) => {
+    delete mockElements[key];
+  });
 });
 
 describe("Reports Functions", () => {
@@ -90,8 +92,8 @@ describe("Reports Functions", () => {
       let formSubmitted = false;
       const reportForm = { submit: () => (formSubmitted = true) };
 
-      mockElements["start_date"] = startDateInput;
-      mockElements["end_date"] = endDateInput;
+      mockElements.start_date = startDateInput;
+      mockElements.end_date = endDateInput;
       mockElements["report-form"] = reportForm;
 
       exportedFunctions.setDateRange("week", false);
@@ -106,8 +108,8 @@ describe("Reports Functions", () => {
       const endDateInput = { value: "" };
       const reportForm = { submit: () => {} };
 
-      mockElements["start_date"] = startDateInput;
-      mockElements["end_date"] = endDateInput;
+      mockElements.start_date = startDateInput;
+      mockElements.end_date = endDateInput;
       mockElements["report-form"] = reportForm;
 
       exportedFunctions.setDateRange("month", false);
@@ -121,8 +123,8 @@ describe("Reports Functions", () => {
       const endDateInput = { value: "" };
       const reportForm = { submit: () => {} };
 
-      mockElements["start_date"] = startDateInput;
-      mockElements["end_date"] = endDateInput;
+      mockElements.start_date = startDateInput;
+      mockElements.end_date = endDateInput;
       mockElements["report-form"] = reportForm;
 
       exportedFunctions.setDateRange("quarter", false);
@@ -136,8 +138,8 @@ describe("Reports Functions", () => {
       const endDateInput = { value: "" };
       const reportForm = { submit: () => {} };
 
-      mockElements["start_date"] = startDateInput;
-      mockElements["end_date"] = endDateInput;
+      mockElements.start_date = startDateInput;
+      mockElements.end_date = endDateInput;
       mockElements["report-form"] = reportForm;
 
       exportedFunctions.setDateRange("payroll_half", false);
@@ -152,8 +154,8 @@ describe("Reports Functions", () => {
       const endDateInput = { value: "" };
       const reportForm = { submit: () => {} };
 
-      mockElements["start_date"] = startDateInput;
-      mockElements["end_date"] = endDateInput;
+      mockElements.start_date = startDateInput;
+      mockElements.end_date = endDateInput;
       mockElements["report-form"] = reportForm;
 
       exportedFunctions.setDateRange("payroll_month", false);
@@ -169,8 +171,8 @@ describe("Reports Functions", () => {
       let formSubmitted = false;
       const reportForm = { submit: () => (formSubmitted = true) };
 
-      mockElements["start_date"] = startDateInput;
-      mockElements["end_date"] = endDateInput;
+      mockElements.start_date = startDateInput;
+      mockElements.end_date = endDateInput;
       mockElements["report-form"] = reportForm;
 
       exportedFunctions.setDateRange("week");
@@ -184,8 +186,8 @@ describe("Reports Functions", () => {
       let formSubmitted = false;
       const reportForm = { submit: () => (formSubmitted = true) };
 
-      mockElements["start_date"] = startDateInput;
-      mockElements["end_date"] = endDateInput;
+      mockElements.start_date = startDateInput;
+      mockElements.end_date = endDateInput;
       mockElements["report-form"] = reportForm;
 
       exportedFunctions.setDateRange("week", false);
@@ -210,12 +212,12 @@ describe("Load Residents for Report", () => {
         optionsAdded++;
       },
     };
-    mockElements["resident_filter"] = residentFilter;
+    mockElements.resident_filter = residentFilter;
 
     // Simulate the fetch and populate logic
     const response = await global.fetch("/api/residents/active");
     const residents = await response.json();
-    const select = mockElements["resident_filter"];
+    const select = mockElements.resident_filter;
 
     select.innerHTML = '<option value="">All Residents</option>';
     residents.forEach(() => {
@@ -262,10 +264,10 @@ describe("Initialize Reports", () => {
     let formSubmitted = false;
     const reportForm = { submit: () => (formSubmitted = true) };
 
-    mockElements["start_date"] = startDateInput;
-    mockElements["end_date"] = endDateInput;
+    mockElements.start_date = startDateInput;
+    mockElements.end_date = endDateInput;
     mockElements["report-form"] = reportForm;
-    mockElements["resident_filter"] = { innerHTML: "", appendChild: () => {} };
+    mockElements.resident_filter = { innerHTML: "", appendChild: () => {} };
 
     // Simulate initializeReports calling setDateRange("week", false)
     exportedFunctions.setDateRange("week", false);
@@ -282,8 +284,8 @@ describe("Date Range Edge Cases", () => {
     const endDateInput = { value: "" };
     const reportForm = { submit: () => {} };
 
-    mockElements["start_date"] = startDateInput;
-    mockElements["end_date"] = endDateInput;
+    mockElements.start_date = startDateInput;
+    mockElements.end_date = endDateInput;
     mockElements["report-form"] = reportForm;
 
     // Unknown period should default to week

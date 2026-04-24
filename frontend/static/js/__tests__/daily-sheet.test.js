@@ -12,7 +12,7 @@ const mockQuerySelector = () => null;
 
 // Set up window mocks
 let confirmReturnValue = true;
-const mockConfirm = (msg) => confirmReturnValue;
+const mockConfirm = (_msg) => confirmReturnValue;
 const mockReload = () => {};
 const mockAlert = () => {};
 
@@ -27,7 +27,7 @@ beforeAll(async () => {
     querySelector: mockQuerySelector,
     readyState: "complete",
     addEventListener: () => {},
-    createElement: (tag) => {
+    createElement: (_tag) => {
       let text = "";
       return {
         set textContent(value) {
@@ -55,7 +55,7 @@ beforeAll(async () => {
   global.console = { error: () => {}, log: () => {} };
   global.setInterval = () => {};
   global.setTimeout = () => {};
-  global.FormData = function () {};
+  global.FormData = function MockFormData() {};
   global.fetch = () => Promise.resolve({ ok: true });
 
   // Load the module
@@ -77,9 +77,11 @@ beforeAll(async () => {
 
 beforeEach(() => {
   // Reset mock elements
-  Object.keys(mockElements).forEach((key) => delete mockElements[key]);
+  Object.keys(mockElements).forEach((key) => {
+    delete mockElements[key];
+  });
   confirmReturnValue = true;
-  global.FormData = function () {};
+  global.FormData = function MockFormData() {};
 });
 
 describe("Daily Sheet Functions", () => {
@@ -163,7 +165,7 @@ describe("Daily Sheet Functions", () => {
     test("saves the form asynchronously and updates the row", async () => {
       let capturedFormData;
       let fetchArgs;
-      global.FormData = function (form) {
+      global.FormData = function MockFormData(form) {
         capturedFormData = form.querySelectorAll("input").map((input) => ({
           name: input.name,
           value: input.value,
@@ -832,7 +834,7 @@ describe("Daily Sheet Functions", () => {
       };
 
       let setTimeoutCalled = false;
-      global.setTimeout = (fn) => {
+      global.setTimeout = (_fn) => {
         setTimeoutCalled = true;
       };
 
@@ -901,8 +903,8 @@ describe("Daily Sheet Functions", () => {
 
       const mockStartTimeContainer = { style: { display: "none" } };
 
-      mockElements["role_id"] = mockRoleSelect;
-      mockElements["start_time_container"] = mockStartTimeContainer;
+      mockElements.role_id = mockRoleSelect;
+      mockElements.start_time_container = mockStartTimeContainer;
 
       exportedFunctions.toggleStartTimeField();
 
@@ -920,8 +922,8 @@ describe("Daily Sheet Functions", () => {
 
       const mockStartTimeContainer = { style: { display: "block" } };
 
-      mockElements["role_id"] = mockRoleSelect;
-      mockElements["start_time_container"] = mockStartTimeContainer;
+      mockElements.role_id = mockRoleSelect;
+      mockElements.start_time_container = mockStartTimeContainer;
 
       exportedFunctions.toggleStartTimeField();
 
@@ -929,9 +931,9 @@ describe("Daily Sheet Functions", () => {
     });
 
     test("handles missing role select element gracefully", () => {
-      mockElements["role_id"] = null;
+      mockElements.role_id = null;
       const mockStartTimeContainer = { style: { display: "block" } };
-      mockElements["start_time_container"] = mockStartTimeContainer;
+      mockElements.start_time_container = mockStartTimeContainer;
 
       exportedFunctions.toggleStartTimeField();
 
@@ -945,8 +947,8 @@ describe("Daily Sheet Functions", () => {
         selectedIndex: 0,
       };
 
-      mockElements["role_id"] = mockRoleSelect;
-      mockElements["start_time_container"] = null;
+      mockElements.role_id = mockRoleSelect;
+      mockElements.start_time_container = null;
 
       // Should not throw an error
       expect(() => exportedFunctions.toggleStartTimeField()).not.toThrow();
@@ -960,8 +962,8 @@ describe("Daily Sheet Functions", () => {
 
       const mockStartTimeContainer = { style: { display: "block" } };
 
-      mockElements["role_id"] = mockRoleSelect;
-      mockElements["start_time_container"] = mockStartTimeContainer;
+      mockElements.role_id = mockRoleSelect;
+      mockElements.start_time_container = mockStartTimeContainer;
 
       exportedFunctions.toggleStartTimeField();
 
@@ -1116,7 +1118,7 @@ describe("Countdown Timer Functions", () => {
       global.setTimeout = () => {};
 
       // Manually call updateCountdown-like behavior
-      let minutes = parseInt(timer.dataset.minutes);
+      let minutes = parseInt(timer.dataset.minutes, 10);
       if (minutes > 0) {
         minutes--;
         timer.dataset.minutes = String(minutes);
@@ -1135,7 +1137,7 @@ describe("Countdown Timer Functions", () => {
       mockElements["countdown-timer"] = timer;
 
       // Simulate countdown to zero
-      let minutes = parseInt(timer.dataset.minutes);
+      let minutes = parseInt(timer.dataset.minutes, 10);
       if (minutes > 0) {
         minutes--;
         timer.dataset.minutes = String(minutes);
@@ -1150,7 +1152,7 @@ describe("Countdown Timer Functions", () => {
 
     test("does nothing when timer element not found", () => {
       // Clear the timer element
-      delete mockElements["countdown-timer"];
+      mockElements["countdown-timer"] = undefined;
 
       // This should not throw an error
       // The function checks for null and returns early
@@ -1170,8 +1172,8 @@ describe("Role Select Functions", () => {
       };
       const startTimeContainer = { style: { display: "none" } };
 
-      mockElements["role_id"] = roleSelect;
-      mockElements["start_time_container"] = startTimeContainer;
+      mockElements.role_id = roleSelect;
+      mockElements.start_time_container = startTimeContainer;
 
       // Simulate toggleStartTimeField logic
       const selectedOption = roleSelect.options[roleSelect.selectedIndex];
@@ -1191,8 +1193,8 @@ describe("Role Select Functions", () => {
       };
       const startTimeContainer = { style: { display: "block" } };
 
-      mockElements["role_id"] = roleSelect;
-      mockElements["start_time_container"] = startTimeContainer;
+      mockElements.role_id = roleSelect;
+      mockElements.start_time_container = startTimeContainer;
 
       // Simulate toggleStartTimeField logic
       const selectedOption = roleSelect.options[roleSelect.selectedIndex];
@@ -1203,22 +1205,22 @@ describe("Role Select Functions", () => {
     });
 
     test("handles missing role select gracefully", () => {
-      delete mockElements["role_id"];
-      mockElements["start_time_container"] = { style: { display: "none" } };
+      mockElements.role_id = undefined;
+      mockElements.start_time_container = { style: { display: "none" } };
 
       // Should not throw when role select is missing
-      const roleSelect = mockElements["role_id"];
+      const roleSelect = mockElements.role_id;
       if (!roleSelect) return;
       // This line should not be reached
       expect(true).toBe(true);
     });
 
     test("handles missing start time container gracefully", () => {
-      mockElements["role_id"] = { options: [], selectedIndex: 0 };
-      delete mockElements["start_time_container"];
+      mockElements.role_id = { options: [], selectedIndex: 0 };
+      mockElements.start_time_container = undefined;
 
       // Should not throw when container is missing
-      const container = mockElements["start_time_container"];
+      const container = mockElements.start_time_container;
       if (!container) return;
       // This line should not be reached
       expect(true).toBe(true);

@@ -1,6 +1,6 @@
-import { defineConfig } from "vite";
-import { resolve } from "path";
+import { resolve } from "node:path";
 import { codecovVitePlugin } from "@codecov/vite-plugin";
+import { defineConfig } from "vite";
 
 export default defineConfig({
   base: "./",

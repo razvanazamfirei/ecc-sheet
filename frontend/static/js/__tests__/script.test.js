@@ -96,7 +96,9 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  Object.keys(mockElements).forEach((key) => delete mockElements[key]);
+  Object.keys(mockElements).forEach((key) => {
+    delete mockElements[key];
+  });
   Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf();
 });
 
@@ -167,6 +169,7 @@ describe("Script Functions", () => {
     });
   });
 
+  // biome-ignore lint/security/noSecrets: false positive on a deterministic test name
   describe("getDateDaysAgo", () => {
     test("returns date N days ago", () => {
       const result = exportedFunctions.getDateDaysAgo(7);
@@ -401,8 +404,8 @@ describe("Notification System", () => {
         textContent: "",
         style: {},
         remove: () => {},
-        appendChild: function (child) {
-          if (child && child.textContent) {
+        appendChild: (child) => {
+          if (child?.textContent) {
             el.textContent += child.textContent;
           }
         },
@@ -442,8 +445,8 @@ describe("Notification System", () => {
         textContent: "",
         style: {},
         remove: () => {},
-        appendChild: function (child) {
-          if (child && child.textContent) {
+        appendChild: (child) => {
+          if (child?.textContent) {
             el.textContent += child.textContent;
           }
         },
@@ -495,7 +498,7 @@ describe("Form Validation", () => {
       ],
     };
 
-    let isValid = global.window.validateForm(form);
+    const isValid = global.window.validateForm(form);
 
     expect(isValid).toBe(true);
   });
@@ -510,7 +513,7 @@ describe("Form Validation", () => {
       ],
     };
 
-    let isValid = global.window.validateForm(form);
+    const isValid = global.window.validateForm(form);
     expect(isValid).toBe(false);
   });
 
@@ -558,7 +561,7 @@ describe("Form Validation", () => {
 describe("Load Active Residents", () => {
   test("loadActiveResidents populates dropdown on success", async () => {
     let selectPopulated = false;
-    mockElements["resident_id"] = {
+    mockElements.resident_id = {
       innerHTML: "",
       appendChild: () => {
         selectPopulated = true;
@@ -568,7 +571,7 @@ describe("Load Active Residents", () => {
     // Simulate fetch and populate logic
     const response = await global.fetch("/api/residents/active");
     const residents = await response.json();
-    const select = mockElements["resident_id"];
+    const select = mockElements.resident_id;
 
     if (select) {
       select.innerHTML = '<option value="">Select Resident</option>';
@@ -581,11 +584,11 @@ describe("Load Active Residents", () => {
   });
 
   test("loadActiveResidents handles missing select element", async () => {
-    mockElements["resident_id"] = null;
+    mockElements.resident_id = null;
 
     // This line should not be reached by the rest of the mock execution string, verify it's skipped
     let selectPopulated = false;
-    const select = mockElements["resident_id"];
+    const select = mockElements.resident_id;
     if (select) {
       selectPopulated = true;
     }

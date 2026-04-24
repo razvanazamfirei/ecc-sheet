@@ -224,6 +224,7 @@ describe("LuxonUtils", () => {
     });
   });
 
+  // biome-ignore lint/security/noSecrets: false positive on a deterministic test name
   describe("getDaysFromNow", () => {
     beforeEach(() => {
       Settings.now = () => new Date(2024, 5, 15, 12, 0, 0).valueOf();
