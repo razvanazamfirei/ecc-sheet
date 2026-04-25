@@ -114,7 +114,7 @@ Configuration requirements:
 - point `SAML_SETTINGS_PATH` at a OneLogin-compatible JSON settings file
 - expose `/auth/metadata`, `/auth/acs`, and `/auth/sls` at the public app URL
 
-If **anesomnibus** (or another app) already uses the same IdP, register ECC Sheet as a
+If another application already uses the same IdP, register ECC Sheet as a
 **separate** SAML application with its own ACS URL and SP entity ID—see
 [SAML_SAME_IDP_TWO_SP.md](SAML_SAME_IDP_TWO_SP.md).
 
