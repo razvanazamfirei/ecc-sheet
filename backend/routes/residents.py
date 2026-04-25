@@ -27,13 +27,11 @@ from ._helpers import commit_flash_redirect, diff_snapshots, flash_redirect
 
 bp: Blueprint = Blueprint("residents", __name__, url_prefix="/residents")
 logger: Logger = logging.getLogger(__name__)
-SAFE_STAFF_IMPORT_ERRORS = frozenset(
-    {
-        "No staff records found in import",
-        "Failed to fetch staff list from Amion.",
-        "Staff import failed.",
-    }
-)
+SAFE_STAFF_IMPORT_ERRORS = frozenset({
+    "No staff records found in import",
+    "Failed to fetch staff list from Amion.",
+    "Staff import failed.",
+})
 
 
 def _resident_snapshot(resident: Resident) -> dict[str, str | int | None]:
@@ -111,7 +109,8 @@ def _resident_time_entry_audit_filter(resident: Resident):
 def _resident_audit_logs(resident: Resident) -> list[AuditLog]:
     """Return recent audit activity for a resident profile."""
     return (
-        AuditLog.query.filter(
+        AuditLog.query
+        .filter(
             or_(
                 (AuditLog.entity_type == "Resident")
                 & (AuditLog.entity_id == resident.id),
@@ -240,7 +239,8 @@ def profile(resident_id):
     show_audit = is_admin()
 
     recent_entries = (
-        TimeEntry.query.filter_by(resident_id=resident_id)
+        TimeEntry.query
+        .filter_by(resident_id=resident_id)
         .options(selectinload(TimeEntry.role))
         .order_by(TimeEntry.date.desc())
         .limit(50)

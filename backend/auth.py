@@ -108,7 +108,8 @@ def is_first_call(check_date: date | None = None) -> bool:
         return False
 
     return (
-        TimeEntry.query.join(Role)
+        TimeEntry.query
+        .join(Role)
         .filter(
             TimeEntry.resident_id == resident_id,
             TimeEntry.date == check_date,

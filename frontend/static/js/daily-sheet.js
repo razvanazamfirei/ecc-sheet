@@ -4,6 +4,7 @@
  */
 let editAllMode = false;
 const originalValues = {};
+const OVERTIME_VALUE_REGEX = /[\d.]+/;
 
 /**
  * Returns the DOM elements associated with a single entry row
@@ -12,16 +13,16 @@ const originalValues = {};
  */
 function getEntryElements(entryId) {
   return {
-    display: document.getElementById("display-" + entryId),
-    form: document.getElementById("form-" + entryId),
-    exitInput: document.getElementById("input-" + entryId),
-    startInput: document.getElementById("start-input-" + entryId),
-    startDisplay: document.getElementById("start-display-" + entryId),
-    editControls: document.getElementById("edit-controls-" + entryId),
-    actionButtons: document.getElementById("action-buttons-" + entryId),
-    exitCell: document.getElementById("cell-" + entryId),
-    row: document.getElementById("entry-row-" + entryId),
-    overtimeDisplay: document.getElementById("overtime-" + entryId),
+    display: document.getElementById(`display-${entryId}`),
+    form: document.getElementById(`form-${entryId}`),
+    exitInput: document.getElementById(`input-${entryId}`),
+    startInput: document.getElementById(`start-input-${entryId}`),
+    startDisplay: document.getElementById(`start-display-${entryId}`),
+    editControls: document.getElementById(`edit-controls-${entryId}`),
+    actionButtons: document.getElementById(`action-buttons-${entryId}`),
+    exitCell: document.getElementById(`cell-${entryId}`),
+    row: document.getElementById(`entry-row-${entryId}`),
+    overtimeDisplay: document.getElementById(`overtime-${entryId}`),
   };
 }
 
@@ -211,7 +212,7 @@ async function copyToClipboard(event) {
 
   rows.forEach((row) => {
     const exitCell = row.querySelector(".exit-time-cell");
-    const hasMissingData = exitCell && exitCell.classList.contains("missing");
+    const hasMissingData = exitCell?.classList.contains("missing");
 
     if (hasMissingData) {
       return;
@@ -242,7 +243,7 @@ async function copyToClipboard(event) {
     html += "</tr>";
     plainText += `\t${overtime}\n`;
 
-    const overtimeMatch = overtime.match(/[\d.]+/);
+    const overtimeMatch = overtime.match(OVERTIME_VALUE_REGEX);
     if (overtimeMatch) {
       totalOvertime += parseFloat(overtimeMatch[0]);
     }
@@ -328,7 +329,7 @@ function confirmLockWithMissing(form) {
  */
 function initializeLockConfirmation() {
   const form = document.getElementById("lock-sheet-form");
-  if (!form || !form.dataset.missingCount) {
+  if (!form?.dataset.missingCount) {
     return;
   }
 
@@ -420,7 +421,7 @@ function updateTotalOvertime() {
   rows.forEach((row) => {
     const overtimeText =
       row.querySelector(".overtime-cell span")?.textContent || "";
-    const overtimeMatch = overtimeText.match(/[\d.]+/);
+    const overtimeMatch = overtimeText.match(OVERTIME_VALUE_REGEX);
     if (overtimeMatch) {
       total += parseFloat(overtimeMatch[0]);
     }
@@ -480,7 +481,7 @@ async function saveEntry(entryId, options = {}) {
       body: formData,
       credentials: "same-origin",
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
         "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
         "X-Requested-With": "XMLHttpRequest",
@@ -631,7 +632,7 @@ async function saveAll() {
       body: JSON.stringify({ entries }),
       credentials: "same-origin",
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
         "Content-Type": "application/json",
         "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
@@ -679,7 +680,7 @@ function updateCountdown() {
     return;
   }
 
-  let minutes = parseInt(timer.dataset.minutes);
+  let minutes = parseInt(timer.dataset.minutes, 10);
   if (minutes > 0) {
     minutes--;
     timer.dataset.minutes = minutes;

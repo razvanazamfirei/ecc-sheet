@@ -5,11 +5,6 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
 // Import Bootstrap JS and expose globally
-import * as bootstrap from "bootstrap/dist/js/bootstrap.bundle.min.js";
-window.bootstrap = bootstrap.default ?? bootstrap;
+import { Modal } from "bootstrap/dist/js/bootstrap.bundle.min.js";
 
-// Import Luxon
-import * as luxon from "luxon";
-
-// Note: luxon is no longer made globally available as window.luxon
-// Modules should import it directly from "luxon" if needed.
+window.bootstrap = { Modal };

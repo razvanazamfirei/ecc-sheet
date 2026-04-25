@@ -7,6 +7,7 @@
  * Applies 5-minute rounding to all time inputs
  */
 function initializeTimeInputs() {
+  // biome-ignore lint/security/noSecrets: False positive - this is just a time input handler, not a secret
   const timeInputs = document.querySelectorAll('input[type="time"]');
 
   timeInputs.forEach((input) => {

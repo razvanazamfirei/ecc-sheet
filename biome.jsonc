@@ -1,0 +1,88 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.13/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": ["**/*", "!venv", "!frontend/templates/**/*.html"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "formatWithErrors": true
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noNodejsModules": "off",
+        "noUnresolvedImports": "off",
+        "useQwikValidLexicalScope": "off"
+      },
+      "complexity": {
+        "noImportantStyles": "off"
+      },
+      "performance": "warn",
+      "security": "error",
+      "style": {
+        "noDescendingSpecificity": "off"
+      },
+      "nursery": {
+        "useSortedClasses": "warn"
+      }
+    },
+    "domains": {
+      "types": "all",
+      "project": "all"
+    }
+  },
+  "javascript": {
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    },
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "enabled": true
+    },
+    "globals": [
+      "Bun",
+      "Request",
+      "console",
+      "window",
+      "document",
+      "fetch",
+      "alert",
+      "confirm"
+    ],
+    "experimentalEmbeddedSnippetsEnabled": true
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "recommended": true
+    }
+  },
+  "html": {
+    "experimentalFullSupportEnabled": true,
+    "formatter": {
+      "enabled": true,
+      "indentStyle": "space",
+      "indentWidth": 2,
+      "indentScriptAndStyle": true,
+      "bracketSameLine": true,
+      "selfCloseVoidElements": "always",
+      "whitespaceSensitivity": "ignore"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
+}

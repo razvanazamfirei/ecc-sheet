@@ -60,7 +60,8 @@ class ResidentResolution:
 def _validate_schedule_import_access(sheet_date: date, date_str: str):
     """Return a redirect response when schedule import is not allowed."""
     first_call_is_known = (
-        TimeEntry.query.join(Role)
+        TimeEntry.query
+        .join(Role)
         .filter(
             TimeEntry.date == sheet_date,
             Role.name.in_(get_first_call_role_names()),
