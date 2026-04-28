@@ -22,7 +22,7 @@
     "@vitest/coverage-v8": "^4.1.5",
     "prettier": "^3.8.3",
     "prettier-plugin-jinja-template": "^2.1.0",
-    "stylelint": "^17.8.0",
+    "stylelint": "^17.9.1",
     "stylelint-config-standard": "^40.0.0",
     "vite": "^8.0.9",
     "vitest": "^4.1.5"
