@@ -448,7 +448,7 @@ function initializeLockForm() {
         body: new FormData(form),
         credentials: "same-origin",
         headers: {
-          Accept: "application/json",
+          "Accept": "application/json",
           "X-CSRFToken": csrfToken,
           "X-Expect-JSON": "1",
           "X-Requested-With": "XMLHttpRequest",
@@ -628,7 +628,7 @@ async function saveEntry(entryId, options = {}) {
       body: formData,
       credentials: "same-origin",
       headers: {
-        Accept: "application/json",
+        "Accept": "application/json",
         "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
         "X-Requested-With": "XMLHttpRequest",
@@ -779,7 +779,7 @@ async function saveAll() {
       body: JSON.stringify({ entries }),
       credentials: "same-origin",
       headers: {
-        Accept: "application/json",
+        "Accept": "application/json",
         "Content-Type": "application/json",
         "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
@@ -1204,7 +1204,7 @@ function insertEntryRow(entry, canEdit) {
           method: "POST",
           body: new FormData(deleteForm),
           headers: {
-            Accept: "application/json",
+            "Accept": "application/json",
             "X-CSRFToken": csrfToken,
             "X-Expect-JSON": "1",
             "X-Requested-With": "XMLHttpRequest",
@@ -1320,7 +1320,7 @@ function initializeAddEntryForm() {
         method: "POST",
         body: new FormData(form),
         headers: {
-          Accept: "application/json",
+          "Accept": "application/json",
           "X-CSRFToken": csrfToken,
           "X-Expect-JSON": "1",
           "X-Requested-With": "XMLHttpRequest",
@@ -1453,7 +1453,7 @@ function initializeAsyncDelete() {
           method: "POST",
           body: new FormData(form),
           headers: {
-            Accept: "application/json",
+            "Accept": "application/json",
             "X-CSRFToken": csrfToken,
             "X-Expect-JSON": "1",
             "X-Requested-With": "XMLHttpRequest",

@@ -234,43 +234,31 @@ class TestIsAdmin:
             else:
                 os.environ.pop("ADMIN_USERS", None)
 
-    def test_super_user_is_always_admin(self):
-        """SUPER_USER grants admin access regardless of ADMIN_USERS."""
+    def test_owner_id_is_always_admin_regardless_of_admin_users(self):
+        """The built-in owner identity is admin even when absent from ADMIN_USERS."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
-        original_owner = os.environ.get("SUPER_USER")
         try:
-            os.environ["USER_NAME"] = "razvan@azamfirei.com"
-            os.environ["ADMIN_USERS"] = "Admin"
-            os.environ["SUPER_USER"] = "razvan@azamfirei.com"
+            os.environ["USER_NAME"] = "azamfirr"
+            os.environ["ADMIN_USERS"] = "SomeOtherAdmin"
             assert is_admin() is True
         finally:
-            for key, val in [
-                ("USER_NAME", original_user),
-                ("ADMIN_USERS", original_admins),
-                ("SUPER_USER", original_owner),
-            ]:
+            for key, val in [("USER_NAME", original_user), ("ADMIN_USERS", original_admins)]:
                 if val is not None:
                     os.environ[key] = val
                 else:
                     os.environ.pop(key, None)
 
-    def test_super_user_not_set_does_not_grant_extra_access(self):
-        """Without SUPER_USER, a user not in ADMIN_USERS is not an admin."""
+    def test_arbitrary_user_not_granted_owner_access(self):
+        """A user not in ADMIN_USERS and not the owner is not an admin."""
         original_user = os.environ.get("USER_NAME")
         original_admins = os.environ.get("ADMIN_USERS")
-        original_owner = os.environ.get("SUPER_USER")
         try:
-            os.environ["USER_NAME"] = "razvan@azamfirei.com"
+            os.environ["USER_NAME"] = "regular.user@example.com"
             os.environ["ADMIN_USERS"] = "Admin"
-            os.environ.pop("SUPER_USER", None)
             assert is_admin() is False
         finally:
-            for key, val in [
-                ("USER_NAME", original_user),
-                ("ADMIN_USERS", original_admins),
-                ("SUPER_USER", original_owner),
-            ]:
+            for key, val in [("USER_NAME", original_user), ("ADMIN_USERS", original_admins)]:
                 if val is not None:
                     os.environ[key] = val
                 else:
@@ -831,16 +819,18 @@ class TestDevRoutes:
                 os.environ["MOCK_USERS_ENABLED"] = original_mock
 
     def test_become_admin_sets_dev_user_to_first_admin(self, client):
-        """GET /dev/become-admin sets dev_user to the first admin."""
+        """GET /dev/become-admin sets dev_user to the first admin (owner is always first)."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         original_admins = os.environ.get("ADMIN_USERS")
         try:
             os.environ["MOCK_USERS_ENABLED"] = "true"
-            os.environ["ADMIN_USERS"] = "First Admin,Second Admin"
+            os.environ["ADMIN_USERS"] = "Other Admin"
+            with client.session_transaction() as sess:
+                sess["dev_user"] = "azamfirr"
             response = client.get("/dev/become-admin")
             assert response.status_code == 302
             with client.session_transaction() as sess:
-                assert sess.get("dev_user") == "First Admin"
+                assert sess.get("dev_user") == "azamfirr"
         finally:
             if original_mock is not None:
                 os.environ["MOCK_USERS_ENABLED"] = original_mock
@@ -853,17 +843,36 @@ class TestDevRoutes:
             with client.session_transaction() as sess:
                 sess.pop("dev_user", None)
 
-    def test_become_admin_falls_back_to_admin_when_no_admins_configured(self, client):
-        """GET /dev/become-admin falls back to 'Admin' when ADMIN_USERS is empty."""
+    def test_become_admin_returns_403_for_non_owner(self, client):
+        """GET /dev/become-admin returns 403 for any user who is not the owner."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            with client.session_transaction() as sess:
+                sess["dev_user"] = "regular.user"
+            response = client.get("/dev/become-admin")
+            assert response.status_code == 403
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+            with client.session_transaction() as sess:
+                sess.pop("dev_user", None)
+
+    def test_become_admin_falls_back_to_owner_when_admin_users_empty(self, client):
+        """GET /dev/become-admin resolves to the owner when ADMIN_USERS is empty."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         original_admins = os.environ.get("ADMIN_USERS")
         try:
             os.environ["MOCK_USERS_ENABLED"] = "true"
             os.environ["ADMIN_USERS"] = ""
+            with client.session_transaction() as sess:
+                sess["dev_user"] = "azamfirr"
             response = client.get("/dev/become-admin")
             assert response.status_code == 302
             with client.session_transaction() as sess:
-                assert sess.get("dev_user") == "Admin"
+                assert sess.get("dev_user") == "azamfirr"
         finally:
             if original_mock is not None:
                 os.environ["MOCK_USERS_ENABLED"] = original_mock
