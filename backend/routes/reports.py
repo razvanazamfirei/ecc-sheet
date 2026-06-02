@@ -5,7 +5,7 @@ from collections.abc import Callable
 from datetime import date
 from logging import Logger
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request
 from werkzeug.wrappers import Response
 
 from ..audit import log_update
@@ -19,6 +19,7 @@ from ..auth import (
 )
 from ..errors import ValidationError
 from ..models import PayrollSettings, TimeEntry
+from ..type_defs import ResidentData
 from ..report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
@@ -104,23 +105,39 @@ def _require_extended_report_permission(message: str) -> Response | None:
     return flash_redirect("reports.index", message)
 
 
+def _exclude_zero_overtime_flag() -> bool:
+    """Return True when the form requests zero-overtime residents be excluded."""
+    return request.form.get("exclude_zero_overtime", "0") == "1"
+
+
+def _filter_zero_overtime(resident_data: ResidentData) -> ResidentData:
+    """Remove residents with zero total overtime from the aggregated data."""
+    return {k: v for k, v in resident_data.items() if v["total_overtime"] > 0}
+
+
 def _detailed_csv_content(
     start_date: date, end_date: date, resident_id: int | None
 ) -> str:
     """Build detailed report CSV content."""
-    return generate_csv_content(
-        _report_entries(start_date, end_date, resident_id, ordered=True)
-    )
+    entries = _report_entries(start_date, end_date, resident_id, ordered=True)
+    if _exclude_zero_overtime_flag():
+        aggregated = aggregate_entries_by_resident(entries)
+        zero_res_ids = {k for k, v in aggregated.items() if v["total_overtime"] == 0}
+        entries = [e for e in entries if e.resident_id not in zero_res_ids]
+    return generate_csv_content(entries)
 
 
 def _payroll_xlsx_content(
     start_date: date, end_date: date, resident_id: int | None
 ) -> bytes:
     """Build payroll XLSX content."""
+    aggregated = aggregate_entries_by_resident(
+        _report_entries(start_date, end_date, resident_id)
+    )
+    if _exclude_zero_overtime_flag():
+        aggregated = _filter_zero_overtime(aggregated)
     return generate_payroll_xlsx(
-        aggregate_entries_by_resident(
-            _report_entries(start_date, end_date, resident_id)
-        ),
+        aggregated,
         start_date,
         end_date,
         PayrollSettings.get_or_create(),
@@ -252,8 +269,9 @@ def generate():
 @bp.route("/api/report/export_csv", methods=["POST"])
 def export_csv():
     """Export detailed report to CSV."""
+    suffix = "_excl_zero" if _exclude_zero_overtime_flag() else ""
     return _run_file_report_action(
-        filename="overtime_report_detailed_{start_date}_{end_date}.csv",
+        filename=f"overtime_report_detailed_{{start_date}}_{{end_date}}{suffix}.csv",
         mimetype="text/csv",
         content_builder=_detailed_csv_content,
         log_message="Error exporting report",
@@ -264,9 +282,10 @@ def export_csv():
 @bp.route("/api/report/export_payroll_xlsx", methods=["POST"])
 def export_payroll_xlsx():
     """Export payroll data as Lawson/UPHS formatted .xlsx file."""
+    suffix = "_excl_zero" if _exclude_zero_overtime_flag() else ""
     return _run_extended_file_report_action(
         "You do not have permission to export the payroll report.",
-        filename="payroll_{start_date}_{end_date}.xlsx",
+        filename=f"payroll_{{start_date}}_{{end_date}}{suffix}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         content_builder=_payroll_xlsx_content,
         log_message="Error exporting payroll report",

@@ -18,12 +18,15 @@ def active_residents():
 def roles():
     """API endpoint to get all roles."""
     all_roles = Role.query.order_by(Role.display_order).all()
-    return jsonify([
-        {
-            "id": r.id,
-            "name": r.name,
-            "cutoff_hour": r.cutoff_hour,
-            "is_backup": r.is_backup,
-        }
-        for r in all_roles
-    ])
+    return jsonify(
+        [
+            {
+                "id": r.id,
+                "name": r.name,
+                "cutoff_hour": r.cutoff_hour,
+                "cutoff_minute": r.cutoff_minute,
+                "is_backup": r.is_backup,
+            }
+            for r in all_roles
+        ]
+    )

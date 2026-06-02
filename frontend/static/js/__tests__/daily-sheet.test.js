@@ -72,6 +72,16 @@ beforeAll(async () => {
     copyToClipboard: global.window.copyToClipboard,
     toggleStartTimeField: global.window.toggleStartTimeField,
     initializeInlineEditors: global.window.initializeInlineEditors,
+    initializeAsyncDelete: global.window.initializeAsyncDelete,
+    initializeDuplicateEntryWarning:
+      global.window.initializeDuplicateEntryWarning,
+    removeEntryRow: global.window.removeEntryRow,
+    getExistingEntryKeys: global.window.getExistingEntryKeys,
+    insertEntryRow: global.window.insertEntryRow,
+    updateMissingExitWarning: global.window.updateMissingExitWarning,
+    updateEntrySummaryCount: global.window.updateEntrySummaryCount,
+    initializeAddEntryShortcut: global.window.initializeAddEntryShortcut,
+    isSheetLocked: global.window.isSheetLocked,
   };
 });
 
@@ -80,6 +90,9 @@ beforeEach(() => {
   Object.keys(mockElements).forEach((key) => {
     delete mockElements[key];
   });
+  global.document.getElementById = mockGetElementById;
+  global.document.querySelectorAll = mockQuerySelectorAll;
+  global.document.querySelector = mockQuerySelector;
   confirmReturnValue = true;
   global.FormData = function MockFormData() {};
 });
@@ -1225,5 +1238,1770 @@ describe("Role Select Functions", () => {
       // This line should not be reached
       expect(true).toBe(true);
     });
+  });
+
+  describe("initializeAddEntryForm", () => {
+    let capturedNotification = null;
+
+    beforeEach(() => {
+      capturedNotification = null;
+      global.window.showNotification = (msg, type) => {
+        capturedNotification = { msg, type };
+      };
+      // Reset querySelector to default no-op
+      global.document.querySelector = mockQuerySelector;
+    });
+
+    test("handles missing add-entry card gracefully", () => {
+      global.document.querySelector = () => null;
+      expect(() => global.window.initializeAddEntryForm()).not.toThrow();
+    });
+
+    test("handles missing form inside card gracefully", () => {
+      const mockCard = { querySelector: () => null };
+      global.document.querySelector = (sel) =>
+        sel === ".add-entry-form" ? mockCard : null;
+      expect(() => global.window.initializeAddEntryForm()).not.toThrow();
+    });
+
+    test("attaches submit listener to the add-entry form", () => {
+      let capturedListener = null;
+      const mockForm = {
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: () => null,
+        action: "/entries/add",
+      };
+      const mockCard = { querySelector: () => mockForm };
+      global.document.querySelector = (sel) =>
+        sel === ".add-entry-form" ? mockCard : null;
+
+      global.window.initializeAddEntryForm();
+
+      expect(capturedListener).toBeTypeOf("function");
+    });
+
+    test("shows success notification and resets variable fields on success", async () => {
+      let capturedListener = null;
+      let residentReset = false;
+      let exitReset = false;
+      let residentFocused = false;
+
+      const mockResidentSelect = {
+        get value() {
+          return "42";
+        },
+        set value(v) {
+          if (v === "") residentReset = true;
+        },
+        focus: () => {
+          residentFocused = true;
+        },
+      };
+      const mockExitInput = {
+        get value() {
+          return "20:00";
+        },
+        set value(v) {
+          if (v === "") exitReset = true;
+        },
+      };
+      const mockSubmitBtn = {
+        innerHTML: '<i class="bi bi-check-circle me-2"></i>Add Entry',
+        disabled: false,
+      };
+
+      const mockForm = {
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        action: "/entries/add",
+        querySelector: (sel) => {
+          if (sel === '[name="csrf_token"]') return { value: "test-token" };
+          if (sel === '[name="resident_id"]') return mockResidentSelect;
+          if (sel === '[name="exit_time"]') return mockExitInput;
+          if (sel === '[name="start_time"]') return null;
+          if (sel === 'button[type="submit"]') return mockSubmitBtn;
+          return null;
+        },
+      };
+      const mockCard = { querySelector: () => mockForm };
+
+      const mockTbody = { appendChild: () => {} };
+      global.document.querySelector = (sel) => {
+        if (sel === ".add-entry-form") return mockCard;
+        if (sel === ".entries-table tbody") return mockTbody;
+        if (sel === ".no-entries") return null;
+        if (sel === ".start-time-cell") return null;
+        if (sel === '[name="csrf_token"]') return { value: "test-token" };
+        return null;
+      };
+      global.document.querySelectorAll = () => [];
+      global.document.getElementById = (id) => mockElements[id] || null;
+      global.document.createElement = () => ({
+        className: "",
+        id: "",
+        innerHTML: "",
+        dataset: {},
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        appendChild: () => {},
+      });
+
+      const mockEntry = {
+        id: 1,
+        resident_id: 42,
+        role_id: 1,
+        resident_name: "Test Resident",
+        role_name: "ECC 1",
+        role_is_backup: false,
+        missing_exit_time: false,
+        exit_time: "20:00",
+        exit_time_display: "08:00 PM",
+        start_time: null,
+        start_time_display: null,
+        overtime_display: "2.50 hrs",
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => "application/json" },
+        json: () =>
+          Promise.resolve({
+            success: true,
+            message: "Entry added successfully",
+            entry: mockEntry,
+          }),
+      });
+
+      global.window.initializeAddEntryForm();
+
+      await capturedListener({ preventDefault: () => {} });
+
+      expect(capturedNotification?.type).toBe("success");
+      expect(residentReset).toBe(true);
+      expect(exitReset).toBe(true);
+      expect(residentFocused).toBe(true);
+    });
+
+    test("shows error notification when fetch fails", async () => {
+      let capturedListener = null;
+
+      const mockSubmitBtn = { innerHTML: "Add Entry", disabled: false };
+      const mockForm = {
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        action: "/entries/add",
+        querySelector: (sel) => {
+          if (sel === '[name="csrf_token"]') return { value: "token" };
+          if (sel === 'button[type="submit"]') return mockSubmitBtn;
+          return null;
+        },
+      };
+      const mockCard = { querySelector: () => mockForm };
+      global.document.querySelector = (sel) =>
+        sel === ".add-entry-form" ? mockCard : null;
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        headers: { get: () => "application/json" },
+        json: () =>
+          Promise.resolve({ success: false, message: "Validation failed." }),
+      });
+
+      global.window.initializeAddEntryForm();
+
+      await capturedListener({ preventDefault: () => {} });
+
+      expect(capturedNotification?.type).toBe("error");
+      expect(capturedNotification?.msg).toContain("Validation failed.");
+      // Button should be re-enabled after error
+      expect(mockSubmitBtn.disabled).toBe(false);
+    });
+  });
+});
+
+describe("Async Delete Functions", () => {
+  describe("removeEntryRow", () => {
+    test("removes the row element from the DOM", () => {
+      let removed = false;
+      const mockRow = {
+        dataset: { residentId: "1", roleId: "2" },
+        remove: () => {
+          removed = true;
+        },
+      };
+      mockElements["entry-row-42"] = mockRow;
+
+      global.document.getElementById = (id) => mockElements[id] || null;
+      global.document.querySelectorAll = () => [];
+
+      exportedFunctions.removeEntryRow("42");
+
+      expect(removed).toBe(true);
+    });
+
+    test("does not throw when row does not exist", () => {
+      global.document.getElementById = () => null;
+      global.document.querySelectorAll = () => [];
+
+      expect(() => exportedFunctions.removeEntryRow("999")).not.toThrow();
+    });
+  });
+
+  describe("initializeAsyncDelete", () => {
+    test("attaches submit listener to async-delete-form elements", () => {
+      let capturedListener = null;
+      const mockForm = {
+        dataset: { entryId: "10" },
+        action: "/entries/10/delete",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: () => ({ value: "csrf-tok" }),
+      };
+
+      global.document.querySelectorAll = (sel) =>
+        sel === ".async-delete-form" ? [mockForm] : [];
+
+      exportedFunctions.initializeAsyncDelete();
+
+      expect(capturedListener).toBeTypeOf("function");
+    });
+
+    test("removes the row and notifies on successful delete", async () => {
+      let capturedListener = null;
+      let notified = null;
+      let removed = false;
+
+      global.window.showNotification = (msg, type) => {
+        notified = { msg, type };
+      };
+
+      const mockRow = {
+        dataset: { residentId: "1", roleId: "2" },
+        remove: () => {
+          removed = true;
+        },
+      };
+      mockElements["entry-row-10"] = mockRow;
+
+      const mockForm = {
+        dataset: { entryId: "10" },
+        action: "/entries/10/delete",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: () => ({ value: "csrf-tok" }),
+      };
+
+      global.document.querySelectorAll = (sel) => {
+        if (sel === ".async-delete-form") return [mockForm];
+        return [];
+      };
+      global.document.getElementById = (id) => mockElements[id] || null;
+
+      global.fetch = () =>
+        Promise.resolve({
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: () =>
+            Promise.resolve({
+              success: true,
+              message: "Entry deleted successfully",
+            }),
+        });
+
+      exportedFunctions.initializeAsyncDelete();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(removed).toBe(true);
+      expect(notified?.type).toBe("success");
+    });
+
+    test("defers to the global confirmation handler before async delete", async () => {
+      let capturedListener = null;
+      let preventDefaultCalled = false;
+      let stopImmediatePropagationCalled = false;
+      let fetchCalled = false;
+
+      const mockForm = {
+        dataset: { entryId: "10", confirmMessage: "Delete this entry?" },
+        action: "/entries/10/delete",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: () => ({ value: "csrf-tok" }),
+      };
+
+      global.document.querySelectorAll = (sel) =>
+        sel === ".async-delete-form" ? [mockForm] : [];
+      global.fetch = () => {
+        fetchCalled = true;
+        return Promise.resolve({ ok: true });
+      };
+
+      exportedFunctions.initializeAsyncDelete();
+      await capturedListener({
+        preventDefault: () => {
+          preventDefaultCalled = true;
+        },
+        stopImmediatePropagation: () => {
+          stopImmediatePropagationCalled = true;
+        },
+      });
+
+      expect(preventDefaultCalled).toBe(false);
+      expect(stopImmediatePropagationCalled).toBe(false);
+      expect(fetchCalled).toBe(false);
+    });
+
+    test("posts async delete after confirmation bypass is set", async () => {
+      let capturedListener = null;
+      let fetchCalled = false;
+      let removed = false;
+
+      const mockRow = {
+        dataset: { residentId: "1", roleId: "2" },
+        remove: () => {
+          removed = true;
+        },
+      };
+      mockElements["entry-row-10"] = mockRow;
+
+      const mockForm = {
+        dataset: {
+          entryId: "10",
+          confirmMessage: "Delete this entry?",
+          confirmBypass: "true",
+        },
+        action: "/entries/10/delete",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: () => ({ value: "csrf-tok" }),
+      };
+
+      global.document.querySelectorAll = (sel) => {
+        if (sel === ".async-delete-form") return [mockForm];
+        return [];
+      };
+      global.document.getElementById = (id) => mockElements[id] || null;
+      global.fetch = () => {
+        fetchCalled = true;
+        return Promise.resolve({
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: () =>
+            Promise.resolve({
+              success: true,
+              message: "Entry deleted successfully",
+            }),
+        });
+      };
+
+      exportedFunctions.initializeAsyncDelete();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(fetchCalled).toBe(true);
+      expect(removed).toBe(true);
+    });
+
+    test("shows error notification when delete fetch fails", async () => {
+      let capturedListener = null;
+      let notified = null;
+
+      global.window.showNotification = (msg, type) => {
+        notified = { msg, type };
+      };
+
+      const mockForm = {
+        dataset: { entryId: "11" },
+        action: "/entries/11/delete",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: () => ({ value: "csrf-tok" }),
+      };
+
+      global.document.querySelectorAll = (sel) =>
+        sel === ".async-delete-form" ? [mockForm] : [];
+      global.document.getElementById = () => null;
+
+      global.fetch = () =>
+        Promise.resolve({
+          ok: false,
+          headers: { get: () => "application/json" },
+          json: () =>
+            Promise.resolve({ success: false, message: "Permission denied." }),
+        });
+
+      exportedFunctions.initializeAsyncDelete();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(notified?.type).toBe("error");
+      expect(notified?.msg).toContain("Permission denied.");
+    });
+  });
+});
+
+describe("Duplicate Entry Warning", () => {
+  describe("getExistingEntryKeys", () => {
+    test("returns resident:role keys seeded by initializeEntryKeySet", () => {
+      const rows = [
+        { dataset: { residentId: "1", roleId: "2" } },
+        { dataset: { residentId: "3", roleId: "4" } },
+      ];
+      global.document.querySelectorAll = (sel) =>
+        sel === "tr[data-entry-id]" ? rows : [];
+
+      // Seed the in-memory Set from the mocked DOM
+      global.window.initializeEntryKeySet();
+
+      const keys = exportedFunctions.getExistingEntryKeys();
+
+      expect(keys.has("1:2")).toBe(true);
+      expect(keys.has("3:4")).toBe(true);
+      expect(keys.size).toBe(2);
+    });
+
+    test("skips rows missing resident or role id during initialization", () => {
+      const rows = [
+        { dataset: { residentId: "1" } },
+        { dataset: { roleId: "4" } },
+        { dataset: {} },
+      ];
+      global.document.querySelectorAll = (sel) =>
+        sel === "tr[data-entry-id]" ? rows : [];
+
+      global.window.initializeEntryKeySet();
+
+      const keys = exportedFunctions.getExistingEntryKeys();
+
+      expect(keys.size).toBe(0);
+    });
+  });
+
+  describe("initializeDuplicateEntryWarning", () => {
+    test("does not throw when add-entry-form is absent", () => {
+      global.document.querySelector = () => null;
+      expect(() =>
+        exportedFunctions.initializeDuplicateEntryWarning(),
+      ).not.toThrow();
+    });
+
+    test("shows warning when resident+role combo already exists", () => {
+      let changeHandlerRole = null;
+      let changeHandlerResident = null;
+      let warningDisplay = "none";
+
+      const warningEl = {
+        id: "duplicate-entry-warning",
+        className: "",
+        style: {
+          get display() {
+            return warningDisplay;
+          },
+          set display(v) {
+            warningDisplay = v;
+          },
+        },
+        setAttribute: () => {},
+        set innerHTML(_) {},
+      };
+
+      const mockInsertBefore = () => {};
+
+      const mockMt3 = { before: mockInsertBefore };
+
+      const mockRoleSelect = {
+        value: "2",
+        addEventListener: (evt, fn) => {
+          if (evt === "change") changeHandlerRole = fn;
+        },
+      };
+      const mockResidentSelect = {
+        value: "1",
+        addEventListener: (evt, fn) => {
+          if (evt === "change") changeHandlerResident = fn;
+        },
+      };
+
+      const mockForm = {
+        querySelector: (sel) => {
+          if (sel === '[name="role_id"]') return mockRoleSelect;
+          if (sel === '[name="resident_id"]') return mockResidentSelect;
+          if (sel === ".mt-3") return mockMt3;
+          return null;
+        },
+      };
+      const mockCard = { querySelector: () => mockForm };
+
+      global.document.querySelector = (sel) =>
+        sel === ".add-entry-form" ? mockCard : null;
+
+      global.document.createElement = () => warningEl;
+
+      // Seed the in-memory Set with an existing row (resident 1, role 2)
+      global.document.querySelectorAll = (sel) => {
+        if (sel === "tr[data-entry-id]")
+          return [{ dataset: { residentId: "1", roleId: "2" } }];
+        return [];
+      };
+      global.window.initializeEntryKeySet();
+
+      exportedFunctions.initializeDuplicateEntryWarning();
+
+      // Trigger the check
+      changeHandlerResident();
+
+      expect(warningDisplay).toBe("block");
+    });
+  });
+});
+
+describe("insertEntryRow", () => {
+  let appendedChild;
+  let tbody;
+
+  beforeEach(() => {
+    appendedChild = null;
+    tbody = {
+      appendChild: (el) => {
+        appendedChild = el;
+      },
+    };
+  });
+
+  function setupQuerySelector(tbodyEl, startTimeCell = null) {
+    global.document.querySelector = (sel) => {
+      if (sel === ".entries-table tbody") return tbodyEl;
+      if (sel === ".no-entries") return null;
+      if (sel === ".start-time-cell") return startTimeCell;
+      if (sel === '[name="csrf_token"]') return { value: "tok" };
+      return null;
+    };
+    global.document.querySelectorAll = () => [];
+  }
+
+  const baseEntry = {
+    id: 99,
+    resident_id: 5,
+    role_id: 3,
+    resident_name: "Test Resident",
+    role_name: "ECC 1",
+    role_is_backup: false,
+    missing_exit_time: false,
+    exit_time: "20:30",
+    exit_time_display: "08:30 PM",
+    start_time: null,
+    start_time_display: null,
+    overtime_display: "2.50 hrs",
+  };
+
+  test("appends a new tr with correct data attributes", () => {
+    setupQuerySelector(tbody);
+    // Provide a minimal createElement that returns a real-ish object
+    global.document.createElement = (tag) => {
+      const el = {
+        tagName: tag,
+        className: "",
+        id: "",
+        innerHTML: "",
+        dataset: {},
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        appendChild: () => {},
+      };
+      return el;
+    };
+
+    exportedFunctions.insertEntryRow(baseEntry, false);
+
+    expect(appendedChild).not.toBeNull();
+    expect(appendedChild.dataset.entryId).toBe("99");
+    expect(appendedChild.dataset.residentId).toBe("5");
+    expect(appendedChild.dataset.roleId).toBe("3");
+    expect(appendedChild.dataset.roleIsBackup).toBe("false");
+    expect(appendedChild.id).toBe("entry-row-99");
+  });
+
+  test("adds entry-missing-data class when exit time is missing", () => {
+    setupQuerySelector(tbody);
+    global.document.createElement = () => ({
+      className: "",
+      id: "",
+      innerHTML: "",
+      dataset: {},
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      appendChild: () => {},
+    });
+
+    const entry = {
+      ...baseEntry,
+      missing_exit_time: true,
+      exit_time: null,
+      exit_time_display: null,
+    };
+    exportedFunctions.insertEntryRow(entry, false);
+
+    expect(appendedChild.className).toContain("entry-missing-data");
+  });
+
+  test("does not throw when tbody is absent", () => {
+    setupQuerySelector(null);
+    expect(() =>
+      exportedFunctions.insertEntryRow(baseEntry, false),
+    ).not.toThrow();
+    expect(appendedChild).toBeNull();
+  });
+});
+
+describe("updateEntrySummaryCount", () => {
+  test("updates entry-count span text with correct singular form", () => {
+    let countText = "";
+    const countEl = {
+      get textContent() {
+        return countText;
+      },
+      set textContent(v) {
+        countText = v;
+      },
+    };
+    const summaryEl = {
+      querySelector: (sel) => (sel === ".entry-count" ? countEl : null),
+    };
+    global.document.getElementById = (id) =>
+      id === "sheet-summary" ? summaryEl : null;
+    global.document.querySelectorAll = (sel) =>
+      sel === "tr[data-entry-id]" ? [{ dataset: {} }] : [];
+
+    exportedFunctions.updateEntrySummaryCount();
+
+    expect(countText).toBe("1 entry");
+  });
+
+  test("updates entry-count span text with correct plural form", () => {
+    let countText = "";
+    const countEl = {
+      get textContent() {
+        return countText;
+      },
+      set textContent(v) {
+        countText = v;
+      },
+    };
+    const summaryEl = {
+      querySelector: (sel) => (sel === ".entry-count" ? countEl : null),
+    };
+    global.document.getElementById = (id) =>
+      id === "sheet-summary" ? summaryEl : null;
+    global.document.querySelectorAll = (sel) =>
+      sel === "tr[data-entry-id]"
+        ? [{ dataset: {} }, { dataset: {} }, { dataset: {} }]
+        : [];
+
+    exportedFunctions.updateEntrySummaryCount();
+
+    expect(countText).toBe("3 entries");
+  });
+
+  test("does not throw when sheet-summary element is absent", () => {
+    global.document.getElementById = () => null;
+    global.document.querySelectorAll = () => [];
+    expect(() => exportedFunctions.updateEntrySummaryCount()).not.toThrow();
+  });
+});
+
+describe("initializeAddEntryForm — row insertion on success", () => {
+  let capturedListener = null;
+  let appendedChild = null;
+  let notified = null;
+  let residentReset = false;
+  let exitReset = false;
+
+  beforeEach(() => {
+    capturedListener = null;
+    appendedChild = null;
+    notified = null;
+    residentReset = false;
+    exitReset = false;
+
+    global.window.showNotification = (msg, type) => {
+      notified = { msg, type };
+    };
+
+    const tbody = {
+      appendChild: (el) => {
+        appendedChild = el;
+      },
+    };
+
+    const mockResidentSelect = {
+      get value() {
+        return "5";
+      },
+      set value(v) {
+        if (v === "") residentReset = true;
+      },
+      focus: () => {},
+    };
+    const mockExitInput = {
+      get value() {
+        return "20:30";
+      },
+      set value(v) {
+        if (v === "") exitReset = true;
+      },
+    };
+    const mockSubmitBtn = {
+      innerHTML: '<i class="bi bi-check-circle me-2"></i>Add Entry',
+      disabled: false,
+    };
+
+    const mockForm = {
+      addEventListener: (evt, fn) => {
+        if (evt === "submit") capturedListener = fn;
+      },
+      action: "/entries/add",
+      querySelector: (sel) => {
+        if (sel === '[name="csrf_token"]') return { value: "tok" };
+        if (sel === '[name="resident_id"]') return mockResidentSelect;
+        if (sel === '[name="exit_time"]') return mockExitInput;
+        if (sel === '[name="start_time"]') return null;
+        if (sel === 'button[type="submit"]') return mockSubmitBtn;
+        return null;
+      },
+    };
+    const mockCard = { querySelector: () => mockForm };
+
+    global.document.querySelector = (sel) => {
+      if (sel === ".add-entry-form") return mockCard;
+      if (sel === ".entries-table tbody") return tbody;
+      if (sel === ".no-entries") return null;
+      if (sel === ".start-time-cell") return null;
+      if (sel === '[name="csrf_token"]') return { value: "tok" };
+      return null;
+    };
+    global.document.querySelectorAll = () => [];
+    global.document.createElement = () => ({
+      className: "",
+      id: "",
+      innerHTML: "",
+      dataset: {},
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      appendChild: () => {},
+    });
+  });
+
+  test("inserts row, resets form, no reload on success", async () => {
+    const entry = {
+      id: 50,
+      resident_id: 5,
+      role_id: 3,
+      resident_name: "Alice",
+      role_name: "ECC 1",
+      role_is_backup: false,
+      missing_exit_time: false,
+      exit_time: "20:30",
+      exit_time_display: "08:30 PM",
+      start_time: null,
+      start_time_display: null,
+      overtime_display: "2.50 hrs",
+    };
+
+    let reloadCalled = false;
+    global.window.location = {
+      reload: () => {
+        reloadCalled = true;
+      },
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => "application/json" },
+      json: () =>
+        Promise.resolve({
+          success: true,
+          message: "Entry added successfully",
+          entry,
+        }),
+    });
+
+    global.window.initializeAddEntryForm();
+    await capturedListener({ preventDefault: () => {} });
+
+    expect(notified?.type).toBe("success");
+    expect(appendedChild).not.toBeNull();
+    expect(appendedChild.dataset.entryId).toBe("50");
+    expect(residentReset).toBe(true);
+    expect(exitReset).toBe(true);
+    expect(reloadCalled).toBe(false);
+  });
+
+  test("does not insert row on failure", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      headers: { get: () => "application/json" },
+      json: () =>
+        Promise.resolve({ success: false, message: "Validation error." }),
+    });
+
+    global.window.initializeAddEntryForm();
+    await capturedListener({ preventDefault: () => {} });
+
+    expect(notified?.type).toBe("error");
+    expect(appendedChild).toBeNull();
+  });
+});
+
+describe("initializeAddEntryShortcut", () => {
+  let keydownHandlers;
+  let originalAddEventListener;
+
+  beforeEach(() => {
+    keydownHandlers = [];
+    originalAddEventListener = global.document.addEventListener;
+    global.document.addEventListener = (evt, fn) => {
+      if (evt === "keydown") keydownHandlers.push(fn);
+    };
+    global.document.activeElement = {
+      tagName: "BODY",
+      isContentEditable: false,
+    };
+  });
+
+  afterEach(() => {
+    global.document.addEventListener = originalAddEventListener;
+  });
+
+  test("does not attach handler when add-entry form is absent (sheet locked)", () => {
+    global.document.querySelector = () => null;
+    exportedFunctions.initializeAddEntryShortcut();
+    expect(keydownHandlers.length).toBe(0);
+  });
+
+  test("attaches keydown handler when add-entry form is present", () => {
+    let focused = false;
+    const firstInput = {
+      focus: () => {
+        focused = true;
+      },
+      tagName: "SELECT",
+    };
+    const mockCard = {
+      querySelector: (sel) => (sel === "select, input" ? firstInput : null),
+    };
+    global.document.querySelector = (sel) =>
+      sel === ".add-entry-form" ? mockCard : null;
+
+    exportedFunctions.initializeAddEntryShortcut();
+
+    expect(keydownHandlers.length).toBe(1);
+    let prevented = false;
+    keydownHandlers[0]({
+      key: "n",
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
+    expect(focused).toBe(true);
+    expect(prevented).toBe(true);
+  });
+
+  test("n key focuses first input", () => {
+    let focused = false;
+    const firstInput = {
+      focus: () => {
+        focused = true;
+      },
+    };
+    const mockCard = { querySelector: () => firstInput };
+    global.document.querySelector = (sel) =>
+      sel === ".add-entry-form" ? mockCard : null;
+
+    exportedFunctions.initializeAddEntryShortcut();
+    keydownHandlers[0]({ key: "n", preventDefault: () => {} });
+    expect(focused).toBe(true);
+  });
+
+  test("+ key focuses first input", () => {
+    let focused = false;
+    const firstInput = {
+      focus: () => {
+        focused = true;
+      },
+    };
+    const mockCard = { querySelector: () => firstInput };
+    global.document.querySelector = (sel) =>
+      sel === ".add-entry-form" ? mockCard : null;
+
+    exportedFunctions.initializeAddEntryShortcut();
+    keydownHandlers[0]({ key: "+", preventDefault: () => {} });
+    expect(focused).toBe(true);
+  });
+
+  test("ignores key when focus is on an input element", () => {
+    let focused = false;
+    const firstInput = {
+      focus: () => {
+        focused = true;
+      },
+    };
+    const mockCard = { querySelector: () => firstInput };
+    global.document.querySelector = (sel) =>
+      sel === ".add-entry-form" ? mockCard : null;
+    global.document.activeElement = {
+      tagName: "INPUT",
+      isContentEditable: false,
+    };
+
+    exportedFunctions.initializeAddEntryShortcut();
+    keydownHandlers[0]({ key: "n", preventDefault: () => {} });
+    expect(focused).toBe(false);
+  });
+
+  test("ignores key when focus is on a select element", () => {
+    let focused = false;
+    const firstInput = {
+      focus: () => {
+        focused = true;
+      },
+    };
+    const mockCard = { querySelector: () => firstInput };
+    global.document.querySelector = (sel) =>
+      sel === ".add-entry-form" ? mockCard : null;
+    global.document.activeElement = {
+      tagName: "SELECT",
+      isContentEditable: false,
+    };
+
+    exportedFunctions.initializeAddEntryShortcut();
+    keydownHandlers[0]({ key: "n", preventDefault: () => {} });
+    expect(focused).toBe(false);
+  });
+
+  test("ignores key when focus is on a button element", () => {
+    let focused = false;
+    const firstInput = {
+      focus: () => {
+        focused = true;
+      },
+    };
+    const mockCard = { querySelector: () => firstInput };
+    global.document.querySelector = (sel) =>
+      sel === ".add-entry-form" ? mockCard : null;
+    global.document.activeElement = {
+      tagName: "BUTTON",
+      isContentEditable: false,
+    };
+
+    exportedFunctions.initializeAddEntryShortcut();
+    keydownHandlers[0]({ key: "n", preventDefault: () => {} });
+    expect(focused).toBe(false);
+  });
+
+  test("ignores unrelated keys", () => {
+    let focused = false;
+    const firstInput = {
+      focus: () => {
+        focused = true;
+      },
+    };
+    const mockCard = { querySelector: () => firstInput };
+    global.document.querySelector = (sel) =>
+      sel === ".add-entry-form" ? mockCard : null;
+
+    exportedFunctions.initializeAddEntryShortcut();
+    keydownHandlers[0]({ key: "a", preventDefault: () => {} });
+    expect(focused).toBe(false);
+  });
+});
+
+describe("Async Lock/Unlock", () => {
+  let capturedNotification;
+  let capturedListener;
+
+  beforeEach(() => {
+    capturedNotification = null;
+    capturedListener = null;
+    global.window.showNotification = (msg, type) => {
+      capturedNotification = { msg, type };
+    };
+    global.document.querySelector = mockQuerySelector;
+    global.document.getElementById = mockGetElementById;
+    global.document.querySelectorAll = mockQuerySelectorAll;
+  });
+
+  describe("initializeLockForm", () => {
+    test("does not throw when lock form is absent", () => {
+      global.document.getElementById = () => null;
+      expect(() => global.window.initializeLockForm()).not.toThrow();
+    });
+
+    test("attaches submit listener to lock-sheet-form", () => {
+      const mockForm = {
+        dataset: {},
+        action: "/sheets/2026-01-01/lock",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: (sel) => {
+          if (sel === '[name="csrf_token"]') return { value: "tok" };
+          if (sel === "button[type='submit']")
+            return {
+              disabled: false,
+              innerHTML: '<i class="bi bi-lock me-1"></i>Lock Sheet',
+              classList: {
+                contains: () => false,
+                remove: () => {},
+                add: () => {},
+              },
+            };
+          return null;
+        },
+      };
+      mockElements["lock-sheet-form"] = mockForm;
+      global.document.getElementById = (id) => mockElements[id] || null;
+
+      global.window.initializeLockForm();
+
+      expect(capturedListener).toBeTypeOf("function");
+    });
+
+    test("sends fetch on submit and notifies success (lock)", async () => {
+      let fetchCalled = false;
+      let notifiedSuccess = false;
+
+      global.window.showNotification = (msg, type) => {
+        if (type === "success") notifiedSuccess = true;
+      };
+
+      const mockBtn = {
+        disabled: false,
+        innerHTML: '<i class="bi bi-lock me-1"></i>Lock Sheet',
+        classList: {
+          contains: (cls) => cls === "btn-success",
+          remove: () => {},
+          add: () => {},
+        },
+      };
+
+      const mockForm = {
+        dataset: {},
+        action: "/sheets/2026-01-01/lock",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: (sel) => {
+          if (sel === '[name="csrf_token"]') return { value: "tok" };
+          if (sel === "button[type='submit']") return mockBtn;
+          return null;
+        },
+      };
+      mockElements["lock-sheet-form"] = mockForm;
+      global.document.getElementById = (id) => mockElements[id] || null;
+      global.document.querySelector = (sel) => {
+        if (sel === ".sheet-controls") return { appendChild: () => {} };
+        if (sel === ".add-entry-form") return null;
+        return null;
+      };
+
+      global.FormData = function MockFormData() {};
+      global.fetch = () => {
+        fetchCalled = true;
+        return Promise.resolve({
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: () =>
+            Promise.resolve({
+              success: true,
+              locked: true,
+              locked_by: "Admin",
+              locked_at: "06/01 08:00",
+              message: "Sheet locked successfully",
+            }),
+        });
+      };
+
+      global.window.initializeLockForm();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(fetchCalled).toBe(true);
+      expect(notifiedSuccess).toBe(true);
+      expect(mockBtn.innerHTML).toContain("Unlock Sheet");
+    });
+
+    test("sends fetch on submit and notifies success (unlock)", async () => {
+      let notifiedSuccess = false;
+
+      global.window.showNotification = (msg, type) => {
+        if (type === "success") notifiedSuccess = true;
+      };
+
+      const mockBtn = {
+        disabled: false,
+        innerHTML: '<i class="bi bi-unlock me-1"></i>Unlock Sheet',
+        classList: {
+          contains: (cls) => cls === "btn-warning",
+          remove: () => {},
+          add: () => {},
+        },
+      };
+
+      const mockForm = {
+        dataset: {},
+        action: "/sheets/2026-01-01/lock",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: (sel) => {
+          if (sel === '[name="csrf_token"]') return { value: "tok" };
+          if (sel === "button[type='submit']") return mockBtn;
+          return null;
+        },
+      };
+      mockElements["lock-sheet-form"] = mockForm;
+      mockElements["lock-status"] = { remove: () => {} };
+      global.document.getElementById = (id) => mockElements[id] || null;
+      global.document.querySelector = (sel) => {
+        if (sel === ".sheet-controls") return { appendChild: () => {} };
+        if (sel === ".add-entry-form") return null;
+        return null;
+      };
+
+      global.FormData = function MockFormData() {};
+      global.fetch = () =>
+        Promise.resolve({
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: () =>
+            Promise.resolve({
+              success: true,
+              locked: false,
+              locked_by: null,
+              locked_at: null,
+              message: "Sheet unlocked successfully",
+            }),
+        });
+
+      global.window.initializeLockForm();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(notifiedSuccess).toBe(true);
+      expect(mockBtn.innerHTML).toContain("Lock Sheet");
+    });
+
+    test("shows error notification when fetch fails", async () => {
+      let notifiedError = false;
+
+      global.window.showNotification = (msg, type) => {
+        if (type === "error") notifiedError = true;
+      };
+
+      const mockBtn = {
+        disabled: false,
+        innerHTML: '<i class="bi bi-lock me-1"></i>Lock Sheet',
+        classList: { contains: () => false, remove: () => {}, add: () => {} },
+      };
+
+      const mockForm = {
+        dataset: {},
+        action: "/sheets/2026-01-01/lock",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: (sel) => {
+          if (sel === '[name="csrf_token"]') return { value: "tok" };
+          if (sel === "button[type='submit']") return mockBtn;
+          return null;
+        },
+      };
+      mockElements["lock-sheet-form"] = mockForm;
+      global.document.getElementById = (id) => mockElements[id] || null;
+
+      global.FormData = function MockFormData() {};
+      global.fetch = () => Promise.reject(new Error("Network error"));
+
+      global.window.initializeLockForm();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(notifiedError).toBe(true);
+      expect(mockBtn.disabled).toBe(false);
+    });
+
+    test("missing-exit guard fires and blocks lock when user cancels", async () => {
+      let fetchCalled = false;
+      let confirmCalled = false;
+
+      global.confirm = () => {
+        confirmCalled = true;
+        return false; // user cancels
+      };
+
+      const mockBtn = {
+        disabled: false,
+        innerHTML: '<i class="bi bi-lock me-1"></i>Lock Sheet',
+        classList: { contains: () => false, remove: () => {}, add: () => {} },
+      };
+
+      const mockForm = {
+        dataset: {
+          missingCount: "2",
+          missingResidents: '["Alice", "Bob"]',
+        },
+        action: "/sheets/2026-01-01/lock",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: (sel) => {
+          if (sel === '[name="csrf_token"]') return { value: "tok" };
+          if (sel === "button[type='submit']") return mockBtn;
+          return null;
+        },
+      };
+      mockElements["lock-sheet-form"] = mockForm;
+      global.document.getElementById = (id) => mockElements[id] || null;
+
+      global.FormData = function MockFormData() {};
+      global.fetch = () => {
+        fetchCalled = true;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      };
+
+      global.window.initializeLockForm();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(confirmCalled).toBe(true);
+      expect(fetchCalled).toBe(false);
+    });
+
+    test("add-entry form hidden on lock, shown on unlock", async () => {
+      let addEntryDisplay = "";
+
+      const mockAddEntry = {
+        style: {
+          get display() {
+            return addEntryDisplay;
+          },
+          set display(v) {
+            addEntryDisplay = v;
+          },
+        },
+      };
+
+      const mockBtn = {
+        disabled: false,
+        innerHTML: '<i class="bi bi-lock me-1"></i>Lock Sheet',
+        classList: {
+          contains: (cls) => cls === "btn-success",
+          remove: () => {},
+          add: () => {},
+        },
+      };
+
+      const mockForm = {
+        dataset: {},
+        action: "/sheets/2026-01-01/lock",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: (sel) => {
+          if (sel === '[name="csrf_token"]') return { value: "tok" };
+          if (sel === "button[type='submit']") return mockBtn;
+          return null;
+        },
+      };
+      mockElements["lock-sheet-form"] = mockForm;
+      global.document.getElementById = (id) => mockElements[id] || null;
+      global.document.querySelector = (sel) => {
+        if (sel === ".sheet-controls") return { appendChild: () => {} };
+        if (sel === ".add-entry-form") return mockAddEntry;
+        return null;
+      };
+
+      global.FormData = function MockFormData() {};
+      global.fetch = () =>
+        Promise.resolve({
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: () =>
+            Promise.resolve({
+              success: true,
+              locked: true,
+              locked_by: "Admin",
+              locked_at: "06/01 08:00",
+              message: "Sheet locked successfully",
+            }),
+        });
+
+      global.window.initializeLockForm();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(addEntryDisplay).toBe("none");
+    });
+  });
+});
+
+describe("In-memory entry key Set", () => {
+  beforeEach(() => {
+    global.document.querySelectorAll = mockQuerySelectorAll;
+    global.document.getElementById = mockGetElementById;
+    // Reset the set by calling initializeEntryKeySet with empty DOM
+    global.document.querySelectorAll = () => [];
+    global.window.initializeEntryKeySet();
+  });
+
+  test("getExistingEntryKeys returns the in-memory Set", () => {
+    const keys = global.window.getExistingEntryKeys();
+    expect(keys).toBeInstanceOf(Set);
+  });
+
+  test("initializeEntryKeySet populates Set from DOM rows", () => {
+    global.document.querySelectorAll = (sel) => {
+      if (sel === "tr[data-entry-id]")
+        return [
+          { dataset: { residentId: "1", roleId: "2" } },
+          { dataset: { residentId: "3", roleId: "4" } },
+        ];
+      return [];
+    };
+
+    global.window.initializeEntryKeySet();
+
+    const keys = global.window.getExistingEntryKeys();
+    expect(keys.has("1:2")).toBe(true);
+    expect(keys.has("3:4")).toBe(true);
+    expect(keys.size).toBe(2);
+  });
+
+  test("getExistingEntryKeys reflects Set (no DOM scan each call)", () => {
+    // Seed the set via initializeEntryKeySet
+    global.document.querySelectorAll = (sel) => {
+      if (sel === "tr[data-entry-id]")
+        return [{ dataset: { residentId: "10", roleId: "20" } }];
+      return [];
+    };
+    global.window.initializeEntryKeySet();
+
+    // Now change DOM to return different data — Set must NOT reflect it
+    global.document.querySelectorAll = (sel) => {
+      if (sel === "tr[data-entry-id]")
+        return [{ dataset: { residentId: "99", roleId: "99" } }];
+      return [];
+    };
+
+    const keys = global.window.getExistingEntryKeys();
+    expect(keys.has("10:20")).toBe(true);
+    expect(keys.has("99:99")).toBe(false);
+  });
+
+  test("insertEntryRow adds key to in-memory Set", () => {
+    global.document.querySelectorAll = () => [];
+    global.window.initializeEntryKeySet();
+
+    const tbody = { appendChild: () => {} };
+    global.document.querySelector = (sel) => {
+      if (sel === ".entries-table tbody") return tbody;
+      if (sel === ".no-entries") return null;
+      if (sel === ".start-time-cell") return null;
+      if (sel === '[name="csrf_token"]') return { value: "tok" };
+      return null;
+    };
+    global.document.createElement = () => ({
+      className: "",
+      id: "",
+      innerHTML: "",
+      dataset: {},
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      appendChild: () => {},
+    });
+
+    const entry = {
+      id: 77,
+      resident_id: 7,
+      role_id: 8,
+      resident_name: "Test",
+      role_name: "ECC 1",
+      role_is_backup: false,
+      missing_exit_time: false,
+      exit_time: "20:00",
+      exit_time_display: "08:00 PM",
+      start_time: null,
+      start_time_display: null,
+      overtime_display: "2.50 hrs",
+    };
+
+    global.window.insertEntryRow(entry, false);
+
+    const keys = global.window.getExistingEntryKeys();
+    expect(keys.has("7:8")).toBe(true);
+  });
+
+  test("removeEntryRow deletes key from in-memory Set", () => {
+    // Seed with one key
+    global.document.querySelectorAll = (sel) => {
+      if (sel === "tr[data-entry-id]")
+        return [{ dataset: { residentId: "5", roleId: "6" } }];
+      return [];
+    };
+    global.window.initializeEntryKeySet();
+
+    // Set up a row element to remove
+    const mockRow = {
+      dataset: { residentId: "5", roleId: "6" },
+      remove: () => {},
+    };
+    mockElements["entry-row-55"] = mockRow;
+    global.document.getElementById = (id) => mockElements[id] || null;
+    global.document.querySelectorAll = () => [];
+
+    global.window.removeEntryRow("55");
+
+    const keys = global.window.getExistingEntryKeys();
+    expect(keys.has("5:6")).toBe(false);
+  });
+
+  test("warning uses in-memory Set (not DOM) for duplicate check", () => {
+    // Seed the Set with one key
+    global.document.querySelectorAll = (sel) => {
+      if (sel === "tr[data-entry-id]")
+        return [{ dataset: { residentId: "1", roleId: "2" } }];
+      return [];
+    };
+    global.window.initializeEntryKeySet();
+
+    // getExistingEntryKeys returns the Set
+    const keys = global.window.getExistingEntryKeys();
+    // Duplicate check
+    expect(keys.has("1:2")).toBe(true);
+    expect(keys.has("1:99")).toBe(false);
+  });
+});
+
+describe("insertEntryRow — empty table (tfoot injection)", () => {
+  test("builds table structure and injects tfoot when table is absent", () => {
+    let appendedToCardBody = null;
+    const cardBody = {
+      querySelector: (sel) => {
+        if (sel === ".no-entries") return { remove: () => {} };
+        return null;
+      },
+      appendChild: (el) => {
+        appendedToCardBody = el;
+      },
+    };
+
+    global.document.querySelectorAll = () => [];
+    global.document.querySelector = (sel) => {
+      if (sel === ".entries-table tbody") return null; // no table yet
+      if (sel === ".entries-table .card-body") return cardBody;
+      if (sel === ".no-entries") return null;
+      if (sel === ".start-time-cell") return null;
+      if (sel === '[name="csrf_token"]') return { value: "tok" };
+      return null;
+    };
+
+    const createdElements = [];
+    global.document.createElement = (tag) => {
+      const el = {
+        tagName: tag,
+        className: "",
+        id: "",
+        innerHTML: "",
+        dataset: {},
+        children: [],
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        appendChild: (child) => {
+          el.children.push(child);
+          return child;
+        },
+      };
+      createdElements.push(el);
+      return el;
+    };
+
+    global.window.initializeEntryKeySet();
+
+    const entry = {
+      id: 88,
+      resident_id: 10,
+      role_id: 11,
+      resident_name: "New Entry",
+      role_name: "ECC 2",
+      role_is_backup: false,
+      missing_exit_time: false,
+      exit_time: "20:00",
+      exit_time_display: "08:00 PM",
+      start_time: null,
+      start_time_display: null,
+      overtime_display: "1.00 hrs",
+    };
+
+    global.window.insertEntryRow(entry, false);
+
+    // The card body should have received a wrapper div
+    expect(appendedToCardBody).not.toBeNull();
+    // A tfoot element must have been created
+    const tfootEl = createdElements.find((el) => el.tagName === "tfoot");
+    expect(tfootEl).toBeDefined();
+    expect(tfootEl.innerHTML).toContain("Total Overtime");
+  });
+
+  test("uses page weekend metadata when the first inserted row builds an empty table", () => {
+    let appendedToCardBody = null;
+    const cardBody = {
+      querySelector: (sel) => {
+        if (sel === ".no-entries") return { remove: () => {} };
+        return null;
+      },
+      appendChild: (el) => {
+        appendedToCardBody = el;
+      },
+    };
+
+    mockElements["daily-sheet-page"] = {
+      dataset: { weekendOrHoliday: "true", sheetLocked: "false" },
+    };
+
+    global.document.getElementById = (id) => mockElements[id] || null;
+    global.document.querySelectorAll = () => [];
+    global.document.querySelector = (sel) => {
+      if (sel === ".entries-table tbody") return null;
+      if (sel === ".entries-table .card-body") return cardBody;
+      if (sel === ".no-entries") return null;
+      if (sel === ".start-time-cell") return null;
+      if (sel === '[name="csrf_token"]') return { value: "tok" };
+      return null;
+    };
+
+    const createdElements = [];
+    global.document.createElement = (tag) => {
+      const el = {
+        tagName: tag,
+        className: "",
+        id: "",
+        innerHTML: "",
+        dataset: {},
+        children: [],
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        appendChild: (child) => {
+          el.children.push(child);
+          return child;
+        },
+      };
+      createdElements.push(el);
+      return el;
+    };
+
+    const entry = {
+      id: 90,
+      resident_id: 14,
+      role_id: 15,
+      resident_name: "Weekend Backup",
+      role_name: "Backup",
+      role_is_backup: true,
+      missing_exit_time: false,
+      exit_time: "20:00",
+      exit_time_display: "08:00 PM",
+      start_time: "09:00",
+      start_time_display: "09:00 AM",
+      overtime_display: "8.00 hrs",
+    };
+
+    global.window.insertEntryRow(entry, true);
+
+    const theadEl = createdElements.find((el) => el.tagName === "thead");
+    const tbodyEl = createdElements.find((el) => el.tagName === "tbody");
+    const insertedRow = tbodyEl?.children[0];
+
+    expect(appendedToCardBody).not.toBeNull();
+    expect(theadEl?.innerHTML).toContain("Start Time");
+    expect(insertedRow?.innerHTML).toContain('id="start-input-90"');
+  });
+
+  test("removes no-entries placeholder when table exists but placeholder remains", () => {
+    let placeholderRemoved = false;
+    const noEntries = {
+      remove: () => {
+        placeholderRemoved = true;
+      },
+    };
+
+    const tbody = { appendChild: () => {} };
+
+    global.document.querySelectorAll = () => [];
+    global.document.querySelector = (sel) => {
+      if (sel === ".entries-table tbody") return tbody;
+      if (sel === ".no-entries") return noEntries;
+      if (sel === ".start-time-cell") return null;
+      if (sel === '[name="csrf_token"]') return { value: "tok" };
+      return null;
+    };
+    global.document.createElement = () => ({
+      className: "",
+      id: "",
+      innerHTML: "",
+      dataset: {},
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      appendChild: () => {},
+    });
+
+    global.window.initializeEntryKeySet();
+
+    const entry = {
+      id: 89,
+      resident_id: 12,
+      role_id: 13,
+      resident_name: "Another",
+      role_name: "ECC 3",
+      role_is_backup: false,
+      missing_exit_time: false,
+      exit_time: "20:00",
+      exit_time_display: "08:00 PM",
+      start_time: null,
+      start_time_display: null,
+      overtime_display: "0.50 hrs",
+    };
+
+    global.window.insertEntryRow(entry, false);
+
+    expect(placeholderRemoved).toBe(true);
+  });
+});
+
+describe("applyLockToggle import button visibility", () => {
+  beforeEach(() => {
+    global.window.showNotification = () => {};
+    global.document.querySelector = mockQuerySelector;
+    global.document.querySelectorAll = mockQuerySelectorAll;
+  });
+
+  test("adds d-none to import container when locking", () => {
+    const added = [];
+    const removed = [];
+    const importContainer = {
+      classList: {
+        add: (cls) => added.push(cls),
+        remove: (cls) => removed.push(cls),
+      },
+    };
+
+    mockElements["import-schedule-container"] = importContainer;
+
+    const lockForm = { querySelector: () => null };
+
+    global.window.applyLockToggle(lockForm, true, "Admin", "06/01 09:00");
+
+    expect(added).toContain("d-none");
+    expect(removed).not.toContain("d-none");
+  });
+
+  test("removes d-none from import container when unlocking", () => {
+    const added = [];
+    const removed = [];
+    const importContainer = {
+      classList: {
+        add: (cls) => added.push(cls),
+        remove: (cls) => removed.push(cls),
+      },
+    };
+
+    mockElements["import-schedule-container"] = importContainer;
+
+    const lockForm = { querySelector: () => null };
+
+    global.window.applyLockToggle(lockForm, false, null, null);
+
+    expect(removed).toContain("d-none");
+    expect(added).not.toContain("d-none");
+  });
+
+  test("reveals edit controls rendered hidden for an initially locked sheet", () => {
+    const page = { dataset: { sheetLocked: "true" } };
+    const addEntryForm = { style: { display: "none" } };
+    const editAllControls = { style: { display: "none" } };
+    const actionCell = { style: { display: "none" } };
+    const actionButtons = { style: { display: "none" } };
+    const editControls = { style: { display: "none" } };
+    const timeEditForm = { style: { display: "none" } };
+    const editBtn = { disabled: true };
+
+    mockElements["daily-sheet-page"] = page;
+    mockElements["edit-all-controls"] = editAllControls;
+    mockElements["import-schedule-container"] = {
+      classList: { add: () => {}, remove: () => {} },
+    };
+
+    global.document.getElementById = (id) => mockElements[id] || null;
+    global.document.querySelector = (sel) => {
+      if (sel === ".add-entry-form") return addEntryForm;
+      return null;
+    };
+    global.document.querySelectorAll = (sel) => {
+      if (sel === ".lock-hidden-when-locked") return [actionCell];
+      if (sel === "tr[data-entry-id] [id^='action-buttons-']")
+        return [actionButtons];
+      if (sel === "tr[data-entry-id] [id^='edit-controls-']")
+        return [editControls];
+      if (sel === "tr[data-entry-id] .edit-btn") return [editBtn];
+      if (sel === "tr[data-entry-id] .time-edit-form") return [timeEditForm];
+      return [];
+    };
+
+    const lockForm = { querySelector: () => null };
+
+    global.window.applyLockToggle(lockForm, false, null, null);
+
+    expect(page.dataset.sheetLocked).toBe("false");
+    expect(addEntryForm.style.display).toBe("");
+    expect(editAllControls.style.display).toBe("");
+    expect(actionCell.style.display).toBe("");
+    expect(actionButtons.style.display).toBe("");
+    expect(editControls.style.display).toBe("none");
+    expect(timeEditForm.style.display).toBe("none");
+    expect(editBtn.disabled).toBe(false);
+  });
+
+  test("handles missing import container gracefully", () => {
+    mockElements["import-schedule-container"] = undefined;
+
+    const lockForm = { querySelector: () => null };
+
+    expect(() =>
+      global.window.applyLockToggle(lockForm, true, "Admin", null),
+    ).not.toThrow();
   });
 });

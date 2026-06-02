@@ -185,6 +185,30 @@ class TestContextProcessor:
         assert response.status_code == 200
         # The template should have access to is_admin
 
+    def test_inject_auth_provides_can_escalate_to_admin(self, app):
+        """inject_auth exposes the same escalation capability used by the route."""
+        from flask import session
+
+        original = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            inject_auth = next(
+                processor
+                for processor in app.template_context_processors[None]
+                if processor.__name__ == "inject_auth"
+            )
+            with app.test_request_context("/"):
+                session["dev_user"] = "azamfirr"
+                assert inject_auth()["can_escalate_to_admin"] is True
+
+                session["dev_user"] = "regular.user"
+                assert inject_auth()["can_escalate_to_admin"] is False
+        finally:
+            if original is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+
     def test_inject_dev_disabled_when_mock_not_enabled(self, client):
         """inject_dev returns mock_users_enabled=False when env var is unset."""
         original = os.environ.get("MOCK_USERS_ENABLED")

@@ -452,6 +452,46 @@ class TestEntryAdd:
             db.session.delete(entry)
             db.session.commit()
 
+    def test_add_entry_returns_json_for_async_requests(
+        self, client, app, sample_resident, sample_role
+    ):
+        """Add endpoint returns JSON when X-Expect-JSON header is present."""
+        with app.app_context():
+            entry_date = get_effective_date()
+            sheet = DailySheet.query.filter_by(date=entry_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            response = client.post(
+                "/entries/add",
+                data={
+                    "date": entry_date.strftime("%Y-%m-%d"),
+                    "resident_id": sample_resident.id,
+                    "role_id": sample_role.id,
+                    "exit_time": "20:30",
+                },
+                headers={
+                    "Accept": "application/json",
+                    "X-Expect-JSON": "1",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+            assert response.status_code == 200
+
+            payload = response.get_json()
+            assert payload is not None
+            assert payload["success"] is True
+            assert "entry" in payload
+            assert payload["entry"]["exit_time"] == "20:30"
+            assert "overtime_hours" in payload["entry"]
+
+            # Cleanup
+            entry = db.session.get(TimeEntry, payload["entry"]["id"])
+            if entry:
+                db.session.delete(entry)
+                db.session.commit()
+
 
 class TestEntryDelete:
     """Tests for deleting entries."""
@@ -479,6 +519,35 @@ class TestEntryDelete:
             )
             assert response.status_code == 200
             assert b"deleted" in response.data.lower()
+
+    def test_delete_entry_returns_json_for_async_requests(
+        self, client, app, sample_time_entry
+    ):
+        """Test async delete requests return JSON instead of redirecting."""
+        with app.app_context():
+            entry_id = sample_time_entry.id
+            entry_date = sample_time_entry.date
+
+            sheet = DailySheet.query.filter_by(date=entry_date).first()
+            if sheet:
+                sheet.locked = False
+                db.session.commit()
+
+            response = client.post(
+                f"/entries/{entry_id}/delete",
+                headers={
+                    "Accept": "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+            assert response.status_code == 200
+            assert response.content_type == "application/json"
+            payload = response.get_json()
+            assert payload["success"] is True
+            assert "deleted" in payload["message"].lower()
+
+            # Confirm the entry is actually gone
+            assert db.session.get(TimeEntry, entry_id) is None
 
 
 class TestEntryAuditLogging:

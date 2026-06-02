@@ -34,14 +34,16 @@ from backend.utils import get_effective_date
 @pytest.fixture(scope="session")
 def app() -> Iterator[Flask]:
     """Create application for testing"""
-    flask_app.config.update({
-        "TESTING": True,
-        "SQLALCHEMY_DATABASE_URI": os.environ["DATABASE_URL"],
-        "WTF_CSRF_ENABLED": False,  # Disable CSRF for testing
-        "SECRET_KEY": "test-secret-key",
-        "AUTH_PROXY_USERNAME_HEADER": "",
-        "SAML_ENABLED": False,  # Tests opt in via saml_enabled_app fixture
-    })
+    flask_app.config.update(
+        {
+            "TESTING": True,
+            "SQLALCHEMY_DATABASE_URI": os.environ["DATABASE_URL"],
+            "WTF_CSRF_ENABLED": False,  # Disable CSRF for testing
+            "SECRET_KEY": "test-secret-key",
+            "AUTH_PROXY_USERNAME_HEADER": "",
+            "SAML_ENABLED": False,  # Tests opt in via saml_enabled_app fixture
+        }
+    )
 
     # db.init_app(app) ran at module import time with the production URI.
     # Remove the extension registration so we can re-initialize with the

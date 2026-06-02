@@ -129,6 +129,17 @@ class TestRolesAPI:
             assert "cutoff_hour" in role_data
             assert role_data["cutoff_hour"] == sample_role.cutoff_hour
 
+    def test_role_includes_cutoff_minute(self, client, app, sample_role):
+        """Test that role response includes cutoff_minute."""
+        with app.app_context():
+            response = client.get("/api/roles")
+            data = json.loads(response.data)
+
+            role_data = next((r for r in data if r["name"] == sample_role.name), None)
+            assert role_data is not None
+            assert "cutoff_minute" in role_data
+            assert role_data["cutoff_minute"] == sample_role.cutoff_minute
+
     def test_role_includes_is_backup(self, client, app, sample_role):
         """Test that role response includes is_backup flag."""
         with app.app_context():

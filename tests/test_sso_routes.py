@@ -178,6 +178,28 @@ class TestSamlRoutes:
         finally:
             app.config["SAML_ENABLED"] = original
 
+    def test_logout_clears_local_session_when_build_saml_auth_raises(self, client, app):
+        original = app.config["SAML_ENABLED"]
+        try:
+            app.config["SAML_ENABLED"] = True
+            with client.session_transaction() as sess:
+                sess["auth_user"] = "SAML User"
+
+            with (
+                patch("backend.routes.sso.saml_logout_enabled", return_value=True),
+                patch(
+                    "backend.routes.sso.build_saml_auth",
+                    side_effect=Exception("idp_slo_url_invalid"),
+                ),
+            ):
+                response = client.get("/auth/logout")
+
+            assert response.status_code == 302
+            with client.session_transaction() as sess:
+                assert "auth_user" not in sess
+        finally:
+            app.config["SAML_ENABLED"] = original
+
     def test_logout_clears_local_session_when_slo_not_configured(self, client, app):
         original = app.config["SAML_ENABLED"]
         try:

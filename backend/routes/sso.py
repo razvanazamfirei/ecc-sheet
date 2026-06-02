@@ -131,14 +131,22 @@ def logout():
         clear_session_authenticated_user()
         return redirect(target)
 
-    auth = build_saml_auth(request)
-    redirect_url = auth.logout(
-        return_to=target,
-        name_id=get_saml_name_id(),
-        session_index=get_saml_session_index(),
-    )
-    store_auth_request_id(auth.get_last_request_id(), "logout")
-    return redirect(redirect_url)
+    try:
+        auth = build_saml_auth(request)
+        redirect_url = auth.logout(
+            return_to=target,
+            name_id=get_saml_name_id(),
+            session_index=get_saml_session_index(),
+        )
+        store_auth_request_id(auth.get_last_request_id(), "logout")
+        return redirect(redirect_url)
+    except Exception:
+        current_app.logger.warning(
+            "SP-initiated SAML logout failed; clearing local session only.",
+            exc_info=True,
+        )
+        clear_session_authenticated_user()
+        return redirect(target)
 
 
 @bp.get("/metadata")

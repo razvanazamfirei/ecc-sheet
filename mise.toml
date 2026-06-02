@@ -32,6 +32,10 @@ run = "uv run pytest tests/ -v"
 description = "Build frontend"
 run = "bun run build"
 
+[tasks."dev:superuser"]
+description = "Run Flask development server with mock user switching enabled"
+run = "MOCK_USERS_ENABLED=true uv run python -m backend.app"
+
 [tasks.migrate]
 description = "Run database migrations"
 run = "uv run flask db upgrade"

@@ -5,495 +5,566 @@
   {% set missing_residents = overtime_entries|selectattr('exit_time', 'none')|map(attribute='resident.name')|list %}
   {% set lock_confirm_message = 'Warning: ' ~ missing_count ~ ' entries are missing exit times. These residents will not receive overtime credit: ' ~ (missing_residents|join(', ')) ~ '. Lock anyway?' %}
 
-  {# Auto-lock warning banner (8 AM - 9 AM) #}
-  {% if show_auto_lock_warning %}
-    <div
-      class="alert alert-warning alert-dismissible fade show auto-lock-warning"
-      role="alert"
-      data-auto-dismiss="false">
-      <i class="bi bi-clock-fill me-2"></i>
-      <strong>Warning: This sheet will auto-lock at 09:00 AM</strong>
-      <span id="countdown-timer" data-minutes="{{ minutes_until_lock }}">
-        ({{ minutes_until_lock }} minutes remaining)
-      </span>
-      <button
-        type="button"
-        class="btn-close"
-        data-bs-dismiss="alert"
-        aria-label="Close"></button>
-    </div>
-  {% endif %}
-
-  {% if missing_count > 0 %}
-    <div
-      class="alert alert-warning alert-dismissible fade show"
-      role="alert"
-      data-auto-dismiss="false">
-      <i class="bi bi-exclamation-triangle-fill me-2"></i>
-      <strong>{{ missing_count }} entries missing exit times</strong>
-      <button
-        type="button"
-        class="btn-close"
-        data-bs-dismiss="alert"
-        aria-label="Close"></button>
-    </div>
-  {% endif %}
-
   <div
-    class="d-flex justify-content-between align-items-center mb-4 sheet-header">
-    <div>
-      <h2 class="mb-0"><i class="bi bi-calendar3 me-2"></i>ECC Sheet</h2>
-      <p class="text-body-secondary mb-0" id="sheet-date">
-        {{ today.strftime('%B %d, %Y') }}
-        {% if is_weekend_or_holiday %}
-          <span class="badge bg-info ms-2">
-            <i class="bi bi-calendar-check me-1"></i>Weekend/Holiday
+    id="daily-sheet-page"
+    data-can-edit="{{ can_edit|lower }}"
+    data-sheet-locked="{{ daily_sheet.locked|lower }}"
+    data-weekend-or-holiday="{{ is_weekend_or_holiday|lower }}">
+    {# Auto-lock warning banner (8 AM - 9 AM) #}
+    {% if show_auto_lock_warning %}
+      <div
+        class="alert alert-warning alert-dismissible fade show auto-lock-warning"
+        role="alert"
+        data-auto-dismiss="false">
+        <i class="bi bi-clock-fill me-2"></i>
+        <strong>Warning: This sheet will auto-lock at 09:00 AM</strong>
+        <span id="countdown-timer" data-minutes="{{ minutes_until_lock }}">
+          ({{ minutes_until_lock }} minutes remaining)
+        </span>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="alert"
+          aria-label="Close"></button>
+      </div>
+    {% endif %}
+
+    {% if missing_count > 0 %}
+      <div
+        class="alert alert-warning alert-dismissible fade show"
+        role="alert"
+        data-auto-dismiss="false">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong
+          >{{ missing_count }}
+          {{ 'entry' if missing_count == 1 else 'entries' }}
+          missing exit {{ 'time' if missing_count == 1 else 'times' }}:</strong
+        >
+        {{ missing_residents|join(', ') }}
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="alert"
+          aria-label="Close"></button>
+      </div>
+    {% endif %}
+
+    <div
+      class="d-flex justify-content-between align-items-center mb-4 sheet-header">
+      <div>
+        <h2 class="mb-0"><i class="bi bi-calendar3 me-2"></i>ECC Sheet</h2>
+        <p class="text-body-secondary mb-0" id="sheet-date">
+          {{ today.strftime('%B %d, %Y') }}
+          {% if is_weekend_or_holiday %}
+            <span class="badge bg-info ms-2">
+              <i class="bi bi-calendar-check me-1"></i>Weekend/Holiday
+            </span>
+          {% endif %}
+        </p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap sheet-controls">
+        <div
+          id="import-schedule-container"
+          {% if daily_sheet.locked %}class="d-none"{% endif %}>
+          <form
+            method="POST"
+            action="{{ url_for('schedule.import_schedule', date_str=today.strftime('%Y-%m-%d')) }}"
+            class="d-inline"
+            data-confirm-title="Import Schedule?"
+            data-confirm-message="Import schedule from Amion? This will add entries for residents assigned to roles."
+            data-confirm-label="Import"
+            data-confirm-variant="info">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="btn btn-info btn-sm">
+              <i class="bi bi-cloud-download me-1"></i>Import Schedule
+            </button>
+          </form>
+        </div>
+        {% if can_edit %}
+          <form
+            method="POST"
+            action="{{ url_for('sheets.lock', date_str=today.strftime('%Y-%m-%d')) }}"
+            class="d-inline"
+            id="lock-sheet-form"
+            {% if not daily_sheet.locked and missing_count > 0 %}
+              data-confirm-title="Lock Sheet?"
+              data-confirm-message="{{ lock_confirm_message }}"
+              data-confirm-label="Lock Sheet" data-confirm-variant="warning"
+              data-missing-count="{{ missing_count }}"
+              data-missing-residents='{{ missing_residents|tojson }}'
+            {% endif %}>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button
+              type="submit"
+              class="btn btn-{{ 'warning' if daily_sheet.locked else 'success' }} btn-sm">
+              <i
+                class="bi bi-{{ 'unlock' if daily_sheet.locked else 'lock' }} me-1"></i>
+              {% if daily_sheet.locked %}Unlock Sheet{% else %}Lock Sheet{% endif %}
+            </button>
+          </form>
+        {% endif %}
+        {% if daily_sheet.locked and daily_sheet.locked_by %}
+          <span class="btn btn-sm" id="lock-status">
+            <i class="bi bi-lock-fill me-1"></i>
+            Locked by {{ daily_sheet.locked_by }}
+            {% if daily_sheet.locked_at %}
+              at {{ daily_sheet.locked_at.strftime('%m/%d %H:%M') }}
+            {% endif %}
           </span>
         {% endif %}
-      </p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap sheet-controls">
-      {% if not daily_sheet.locked %}
-        <form
-          method="POST"
-          action="{{ url_for('schedule.import_schedule', date_str=today.strftime('%Y-%m-%d')) }}"
-          class="d-inline"
-          data-confirm-title="Import Schedule?"
-          data-confirm-message="Import schedule from Amion? This will add entries for residents assigned to roles."
-          data-confirm-label="Import"
-          data-confirm-variant="info">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button type="submit" class="btn btn-info btn-sm">
-            <i class="bi bi-cloud-download me-1"></i>Import Schedule
-          </button>
-        </form>
-      {% endif %}
-      {% if can_edit %}
-        <form
-          method="POST"
-          action="{{ url_for('sheets.lock', date_str=today.strftime('%Y-%m-%d')) }}"
-          class="d-inline"
-          id="lock-sheet-form"
-          {% if not daily_sheet.locked and missing_count > 0 %}
-            data-confirm-title="Lock Sheet?"
-            data-confirm-message="{{ lock_confirm_message }}"
-            data-confirm-label="Lock Sheet" data-confirm-variant="warning"
-            data-missing-count="{{ missing_count }}"
-            data-missing-residents='{{ missing_residents|tojson }}'
-          {% endif %}>
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button
-            type="submit"
-            class="btn btn-{{ 'warning' if daily_sheet.locked else 'success' }} btn-sm">
-            <i
-              class="bi bi-{{ 'unlock' if daily_sheet.locked else 'lock' }} me-1"></i>
-            {% if daily_sheet.locked %}Unlock Sheet{% else %}Lock Sheet{% endif %}
-          </button>
-        </form>
-      {% endif %}
-      {% if daily_sheet.locked and daily_sheet.locked_by %}
-        <span class="btn btn-sm">
-          <i class="bi bi-lock-fill me-1"></i>
-          Locked by {{ daily_sheet.locked_by }}
-          {% if daily_sheet.locked_at %}
-            at {{ daily_sheet.locked_at.strftime('%m/%d %H:%M') }}
-          {% endif %}
-        </span>
-      {% endif %}
-      {% if daily_sheet.submitted %}
-        <span class="badge bg-success">
-          <i class="bi bi-check-circle-fill me-1"></i>
-          Submitted at {{ daily_sheet.submitted_at.strftime('%H:%M') }}
-        </span>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="d-flex justify-content-center gap-2 mb-4 date-navigation">
-    <a
-      href="{{ url_for('sheets.view', date_str=prev_date.strftime('%Y-%m-%d')) }}"
-      class="btn btn-outline-secondary">
-      <i class="bi bi-chevron-left me-1"></i>Previous Day
-    </a>
-    <button type="button" class="btn btn-primary" onclick="goToToday()">
-      Today
-    </button>
-    <a
-      href="{{ url_for('sheets.view', date_str=next_date.strftime('%Y-%m-%d')) }}"
-      class="btn btn-outline-secondary">
-      Next Day<i class="bi bi-chevron-right ms-1"></i>
-    </a>
-  </div>
-
-  <div class="card mb-3">
-    <div class="card-body py-2">
-      <div class="d-flex flex-wrap align-items-baseline gap-4">
-        {% if call_team_entries %}
-          {% for entry in call_team_entries %}
-            <span class="text-secondary small">
-              <span class="me-1">{{ entry.role.name }}:</span>
-              <a
-                href="{{ url_for('residents.profile', resident_id=entry.resident.id) }}"
-                class="text-decoration-none text-secondary">
-                {{ entry.resident.name }}
-              </a>
-              {% if entry.resident.phone %}
-                <span class="text-body-secondary"
-                  >({{ entry.resident.phone }})</span
-                >
-              {% endif %}
-            </span>
-          {% endfor %}
-        {% else %}
-          <span class="text-body-secondary small">No call team assigned</span>
+        {% if daily_sheet.submitted %}
+          <span class="badge bg-success">
+            <i class="bi bi-check-circle-fill me-1"></i>
+            Submitted at {{ daily_sheet.submitted_at.strftime('%H:%M') }}
+          </span>
         {% endif %}
       </div>
     </div>
-  </div>
 
-  {% if can_edit and not daily_sheet.locked %}
-    <div class="card mb-4 add-entry-form">
-      <div class="card-body">
-        <h5 class="card-title mb-3">
-          <i class="bi bi-plus-circle me-2"></i>Add New Entry
-        </h5>
-        <form method="POST" action="{{ url_for('entries.add') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <input
-            type="hidden"
-            name="date"
-            value="{{ today.strftime('%Y-%m-%d') }}" />
+    <div class="d-flex justify-content-center gap-2 mb-4 date-navigation">
+      <a
+        href="{{ url_for('sheets.view', date_str=prev_date.strftime('%Y-%m-%d')) }}"
+        class="btn btn-outline-secondary">
+        <i class="bi bi-chevron-left me-1"></i>Previous Day
+      </a>
+      <button type="button" class="btn btn-primary" onclick="goToToday()">
+        Today
+      </button>
+      <a
+        href="{{ url_for('sheets.view', date_str=next_date.strftime('%Y-%m-%d')) }}"
+        class="btn btn-outline-secondary">
+        Next Day<i class="bi bi-chevron-right ms-1"></i>
+      </a>
+    </div>
 
-          <div class="row g-3">
-            <div class="col-md-3">
-              <label for="role_id" class="form-label">Role</label>
-              <select name="role_id" id="role_id" class="form-select" required>
-                <option value="">Select Role</option>
-                {% for role in overtime_roles %}
-                  <option
-                    value="{{ role.id }}"
-                    data-is-backup="{{ role.is_backup|lower }}">
-                    {{ role.name }}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="col-md-3">
-              <label for="resident_id" class="form-label">Resident</label>
-              <select
-                name="resident_id"
-                id="resident_id"
-                class="form-select"
-                required>
-                <option value="">Select Resident</option>
-              </select>
-            </div>
-
-            {% if is_weekend_or_holiday %}
-              <div
-                class="col-md-3"
-                id="start_time_container"
-                style="display: none;">
-                <label for="start_time" class="form-label">
-                  Start Time
-                  <i
-                    class="bi bi-info-circle"
-                    title="Call-in time for backup roles"></i>
-                </label>
-                <input
-                  type="time"
-                  name="start_time"
-                  id="start_time"
-                  class="form-control"
-                  step="300"
-                  placeholder="HH:MM" />
-              </div>
-            {% endif %}
-
-            <div class="col-md-3">
-              <label for="exit_time" class="form-label">Exit Time</label>
-              <input
-                type="time"
-                name="exit_time"
-                id="exit_time"
-                class="form-control"
-                step="300"
-                placeholder="HH:MM"
-                required />
-            </div>
-          </div>
-
-          <div class="mt-3">
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-check-circle me-2"></i>Add Entry
-            </button>
-          </div>
-        </form>
+    <div class="card mb-3">
+      <div class="card-body py-2">
+        <div class="d-flex flex-wrap align-items-baseline gap-4">
+          {% if call_team_entries %}
+            {% for entry in call_team_entries %}
+              <span class="text-secondary small">
+                <span class="me-1">{{ entry.role.name }}:</span>
+                <a
+                  href="{{ url_for('residents.profile', resident_id=entry.resident.id) }}"
+                  class="text-decoration-none text-secondary">
+                  {{ entry.resident.name }}
+                </a>
+                {% if entry.resident.phone %}
+                  <span class="text-body-secondary"
+                    >({{ entry.resident.phone }})</span
+                  >
+                {% endif %}
+              </span>
+            {% endfor %}
+          {% else %}
+            <span class="text-body-secondary small">No call team assigned</span>
+          {% endif %}
+        </div>
       </div>
     </div>
-  {% endif %}
 
-  <div class="card entries-table">
-    <div
-      class="card-header d-flex justify-content-between align-items-center entries-header">
-      <h5 class="mb-0">Entries</h5>
-      {% if can_edit and not daily_sheet.locked and overtime_entries %}
-        <div
-          class="btn-group-sm edit-all-controls"
-          id="edit-all-controls"
-          role="group">
-          <button
-            id="edit-all-btn"
-            onclick="toggleEditAll()"
-            class="btn btn-outline-secondary">
-            <i class="bi bi-pencil-square me-1"></i>Edit All
-          </button>
-          <button
-            id="save-all-btn"
-            onclick="saveAll()"
-            class="btn btn-success"
-            style="display: none;">
-            <i class="bi bi-check-all me-1"></i>Save All
-          </button>
+    {% if can_edit %}
+      <div
+        class="card mb-4 add-entry-form lock-hidden-when-locked"
+        {% if daily_sheet.locked %}style="display: none;"{% endif %}>
+        <div class="card-body">
+          <h5 class="card-title mb-3">
+            <i class="bi bi-plus-circle me-2"></i>Add New Entry
+            <small
+              class="text-body-secondary fw-normal ms-2"
+              style="font-size: 0.7em;"
+              >Press n to focus</small
+            >
+          </h5>
+          <form method="POST" action="{{ url_for('entries.add') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input
+              type="hidden"
+              name="date"
+              value="{{ today.strftime('%Y-%m-%d') }}" />
+
+            <div class="row g-3">
+              <div class="col-md-3">
+                <label for="role_id" class="form-label">Role</label>
+                <select
+                  name="role_id"
+                  id="role_id"
+                  class="form-select"
+                  required>
+                  <option value="">Select Role</option>
+                  {% for role in overtime_roles %}
+                    <option
+                      value="{{ role.id }}"
+                      data-is-backup="{{ role.is_backup|lower }}">
+                      {{ role.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-3">
+                <label for="resident_id" class="form-label">Resident</label>
+                <select
+                  name="resident_id"
+                  id="resident_id"
+                  class="form-select"
+                  required>
+                  <option value="">Select Resident</option>
+                </select>
+              </div>
+
+              {% if is_weekend_or_holiday %}
+                <div
+                  class="col-md-3"
+                  id="start_time_container"
+                  style="display: none;">
+                  <label for="start_time" class="form-label">
+                    Start Time
+                    <i
+                      class="bi bi-info-circle"
+                      title="Call-in time for backup roles"></i>
+                  </label>
+                  <input
+                    type="time"
+                    name="start_time"
+                    id="start_time"
+                    class="form-control"
+                    step="300"
+                    placeholder="HH:MM" />
+                </div>
+              {% endif %}
+
+              <div class="col-md-3">
+                <label for="exit_time" class="form-label">Exit Time</label>
+                <input
+                  type="time"
+                  name="exit_time"
+                  id="exit_time"
+                  class="form-control"
+                  step="300"
+                  placeholder="HH:MM"
+                  required />
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle me-2"></i>Add Entry
+              </button>
+            </div>
+          </form>
         </div>
-      {% endif %}
-    </div>
-    <div class="card-body p-0">
-      {% if overtime_entries %}
-        <div class="table-responsive">
-          <table class="table table-striped table-hover mb-0">
-            <thead class="table-light">
-              <tr>
-                <th class="col-2">Role</th>
-                <th class="col-2">Name</th>
-                {% if is_weekend_or_holiday %}
-                  <th class="col-3">Start Time</th>
-                {% endif %}
-                <th class="col-1">Anes Stop</th>
-                <th class="col-2">Exit Time</th>
-                <th class="col-1">Overtime</th>
-                {% if can_edit and not daily_sheet.locked %}
-                  <th class="col-1">Actions</th>
-                {% endif %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for entry in overtime_entries %}
-                <tr
-                  class="align-middle
-                  {% if not entry.exit_time %}
-                    entry-missing-data
-                  {% endif %}"
-                  id="entry-row-{{ entry.id }}"
-                  data-entry-id="{{ entry.id }}"
-                  data-role-is-backup="{{ entry.role.is_backup|lower }}">
-                  <td>
-                    <span class="badge bg-secondary"
-                      >{{ entry.role.name }}</span
-                    >
-                    {% if entry.role.is_backup and is_weekend_or_holiday %}
-                      <span
-                        class="badge bg-info"
-                        title="Backup role on weekend/holiday - full overtime applies">
-                        <i class="bi bi-telephone"></i>
-                      </span>
-                    {% endif %}
-                    {% if entry.source == 'amion_import' %}
-                      <span
-                        class="badge bg-info"
-                        title="Imported from Amion on {{ entry.import_transaction.timestamp.strftime('%m/%d %H:%M') if entry.import_transaction else 'N/A' }}">
-                        <i class="bi bi-cloud-download"></i>
-                      </span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    <a
-                      href="{{ url_for('residents.profile', resident_id=entry.resident.id) }}"
-                      class="text-decoration-none text-body">
-                      {{ entry.resident.name }}
-                    </a>
-                  </td>
+      </div>
+    {% endif %}
+
+    <div class="card entries-table">
+      <div
+        class="card-header d-flex justify-content-between align-items-center entries-header">
+        <div>
+          <h5 class="mb-0">Entries</h5>
+          {% if overtime_entries %}
+            {% set total_overtime = overtime_entries|sum(attribute='overtime_hours')|default(0, true) %}
+            <small class="text-body-secondary sheet-summary" id="sheet-summary">
+              <span class="entry-count"
+                >{{ overtime_entries|length }}
+                {{ 'entry' if overtime_entries|length == 1 else 'entries' }}</span
+              >
+              {% if missing_count > 0 %}
+                &middot;
+                <span class="text-warning fw-semibold">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i
+                  >{{ missing_count }} missing</span
+                >
+              {% endif %}
+              &middot;
+              <strong id="summary-total-overtime"
+                >{{ "%.2f"|format(total_overtime) }}</strong
+              >
+              hrs overtime
+            </small>
+          {% else %}
+            <small class="text-body-secondary sheet-summary" id="sheet-summary">
+              <span class="entry-count">0 entries</span>
+              &middot;
+              <strong id="summary-total-overtime">0.00</strong>
+              hrs overtime
+            </small>
+          {% endif %}
+        </div>
+        {% if can_edit and overtime_entries %}
+          <div
+            class="btn-group-sm edit-all-controls lock-hidden-when-locked"
+            id="edit-all-controls"
+            {% if daily_sheet.locked %}style="display: none;"{% endif %}
+            role="group">
+            <button
+              id="edit-all-btn"
+              onclick="toggleEditAll()"
+              class="btn btn-outline-secondary">
+              <i class="bi bi-pencil-square me-1"></i>Edit All
+            </button>
+            <button
+              id="save-all-btn"
+              onclick="saveAll()"
+              class="btn btn-success"
+              style="display: none;">
+              <i class="bi bi-check-all me-1"></i>Save All
+            </button>
+          </div>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        {% if overtime_entries %}
+          <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="col-2">Role</th>
+                  <th class="col-2">Name</th>
                   {% if is_weekend_or_holiday %}
-                    <td class="start-time-cell" id="start-cell-{{ entry.id }}">
-                      {% if entry.role.is_backup %}
+                    <th class="col-3">Start Time</th>
+                  {% endif %}
+                  <th class="col-1">Anes Stop</th>
+                  <th class="col-2">Exit Time</th>
+                  <th class="col-1">Overtime</th>
+                  {% if can_edit %}
+                    <th
+                      class="col-1 lock-hidden-when-locked"
+                      {% if daily_sheet.locked %}style="display: none;"{% endif %}>
+                      Actions
+                    </th>
+                  {% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for entry in overtime_entries %}
+                  <tr
+                    class="align-middle
+                  {% if not entry.exit_time %}
+                      entry-missing-data
+                    {% endif %}"
+                    id="entry-row-{{ entry.id }}"
+                    data-entry-id="{{ entry.id }}"
+                    data-resident-id="{{ entry.resident_id }}"
+                    data-role-id="{{ entry.role_id }}"
+                    data-role-is-backup="{{ entry.role.is_backup|lower }}">
+                    <td>
+                      <span class="badge bg-secondary"
+                        >{{ entry.role.name }}</span
+                      >
+                      {% if entry.role.is_backup and is_weekend_or_holiday %}
                         <span
-                          id="start-display-{{ entry.id }}"
-                          onclick="{% if can_edit and not daily_sheet.locked %}editEntry({{ entry.id }}){% endif %}"
-                          {% if can_edit and not daily_sheet.locked %}
-                            title="Click to edit time"
-                          {% endif %}>
-                          {% if entry.start_time %}
-                            {{ entry.start_time.strftime('%I:%M %p') }}
-                          {% else %}
-                            <span class="text-body-secondary">-</span>
-                          {% endif %}
+                          class="badge bg-info"
+                          title="Backup role on weekend/holiday - full overtime applies">
+                          <i class="bi bi-telephone"></i>
                         </span>
-                        <input
-                          type="time"
-                          name="start_time"
-                          form="form-{{ entry.id }}"
-                          id="start-input-{{ entry.id }}"
-                          value="{{ entry.start_time.strftime('%H:%M') if entry.start_time else '' }}"
-                          step="300"
-                          enterkeyhint="done"
-                          class="form-control"
-                          style="display: none; width: 150px;" />
-                      {% else %}
-                        <span class="text-body-secondary">-</span>
+                      {% endif %}
+                      {% if entry.source == 'amion_import' %}
+                        <span
+                          class="badge bg-info"
+                          title="Imported from Amion on {{ entry.import_transaction.timestamp.strftime('%m/%d %H:%M') if entry.import_transaction else 'N/A' }}">
+                          <i class="bi bi-cloud-download"></i>
+                        </span>
                       {% endif %}
                     </td>
-                  {% endif %}
-                  <td class="anesthesia-stop-time-cell">
-                    <span class="text-body-secondary fw-lighter fs-6">
-                      {% if entry.anesthesia_stop_time %}
-                        {{ entry.anesthesia_stop_time.strftime('%I:%M %p') }}
-                      {% else %}
-                        -
-                      {% endif %}
-                    </span>
-                  </td>
-                  <td
-                    class="exit-time-cell{{ ' missing' if not entry.exit_time else '' }}"
-                    id="cell-{{ entry.id }}">
-                    <span
-                      class="time-display"
-                      id="display-{{ entry.id }}"
-                      onclick="{% if can_edit and not daily_sheet.locked %}
-                        editEntry({{ entry.id }})
-                      {% endif %}"
-                      {% if can_edit and not daily_sheet.locked %}
-                        title="Click to edit time"
-                      {% endif %}>
-                      {% if can_edit %}
-                        {% if entry.exit_time %}
-                          {{ entry.exit_time.strftime('%I:%M %p') }}
-                        {% else %}
-                          <span class="text-warning">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                            Exit time?
+                    <td>
+                      <a
+                        href="{{ url_for('residents.profile', resident_id=entry.resident.id) }}"
+                        class="text-decoration-none text-body">
+                        {{ entry.resident.name }}
+                      </a>
+                    </td>
+                    {% if is_weekend_or_holiday %}
+                      <td
+                        class="start-time-cell"
+                        id="start-cell-{{ entry.id }}">
+                        {% if entry.role.is_backup %}
+                          <span
+                            id="start-display-{{ entry.id }}"
+                            onclick="{% if can_edit %}editEntry({{ entry.id }}){% endif %}"
+                            {% if can_edit %}
+                              title="Click to edit time"
+                            {% endif %}>
+                            {% if entry.start_time %}
+                              {{ entry.start_time.strftime('%I:%M %p') }}
+                            {% else %}
+                              <span class="text-body-secondary">-</span>
+                            {% endif %}
                           </span>
-                        {% endif %}
-                      {% else %}
-                        {% if entry.exit_time %}
-                          {{ entry.exit_time.strftime('%I:%M %p') }}
+                          <input
+                            type="time"
+                            name="start_time"
+                            form="form-{{ entry.id }}"
+                            id="start-input-{{ entry.id }}"
+                            value="{{ entry.start_time.strftime('%H:%M') if entry.start_time else '' }}"
+                            step="300"
+                            enterkeyhint="done"
+                            class="form-control"
+                            style="display: none; width: 150px;" />
                         {% else %}
                           <span class="text-body-secondary">-</span>
                         {% endif %}
-                      {% endif %}
-                    </span>
-                    <form
-                      method="POST"
-                      action="{{ url_for('entries.update', entry_id=entry.id) }}"
-                      class="time-edit-form"
-                      id="form-{{ entry.id }}"
-                      data-entry-id="{{ entry.id }}"
-                      style="display: none;">
-                      <input
-                        type="hidden"
-                        name="csrf_token"
-                        value="{{ csrf_token() }}" />
-                      <input
-                        type="time"
-                        name="exit_time"
-                        id="input-{{ entry.id }}"
-                        value="{{ entry.exit_time.strftime('%H:%M') if entry.exit_time else '' }}"
-                        step="300"
-                        enterkeyhint="done"
-                        class="form-control"
-                        style="width: 150px;" />
-                      <button
-                        type="submit"
-                        class="visually-hidden"
-                        tabindex="-1"
-                        aria-hidden="true">
-                        Save
-                      </button>
-                    </form>
-                  </td>
-                  <td class="overtime-cell">
-                    <span id="overtime-{{ entry.id }}">
-                      {{ "%.2f"|format(entry.overtime_hours) }} hrs
-                    </span>
-                  </td>
-                  {% if can_edit and not daily_sheet.locked %}
-                    <td id="actions-{{ entry.id }}">
-                      <div
-                        class="btn-group action-buttons"
-                        role="group"
-                        id="edit-controls-{{ entry.id }}"
+                      </td>
+                    {% endif %}
+                    <td class="anesthesia-stop-time-cell">
+                      <span class="text-body-secondary fw-lighter fs-6">
+                        {% if entry.anesthesia_stop_time %}
+                          {{ entry.anesthesia_stop_time.strftime('%I:%M %p') }}
+                        {% else %}
+                          -
+                        {% endif %}
+                      </span>
+                    </td>
+                    <td
+                      class="exit-time-cell{{ ' missing' if not entry.exit_time else '' }}"
+                      id="cell-{{ entry.id }}">
+                      <span
+                        class="time-display"
+                        id="display-{{ entry.id }}"
+                        onclick="{% if can_edit %}
+                          editEntry({{ entry.id }})
+                        {% endif %}"
+                        {% if can_edit %}
+                          title="Click to edit time"
+                        {% endif %}>
+                        {% if can_edit %}
+                          {% if entry.exit_time %}
+                            {{ entry.exit_time.strftime('%I:%M %p') }}
+                          {% else %}
+                            <span class="text-warning">
+                              <i class="bi bi-exclamation-triangle-fill"></i>
+                              Exit time?
+                            </span>
+                          {% endif %}
+                        {% else %}
+                          {% if entry.exit_time %}
+                            {{ entry.exit_time.strftime('%I:%M %p') }}
+                          {% else %}
+                            <span class="text-body-secondary">-</span>
+                          {% endif %}
+                        {% endif %}
+                      </span>
+                      <form
+                        method="POST"
+                        action="{{ url_for('entries.update', entry_id=entry.id) }}"
+                        class="time-edit-form"
+                        id="form-{{ entry.id }}"
+                        data-entry-id="{{ entry.id }}"
                         style="display: none;">
+                        <input
+                          type="hidden"
+                          name="csrf_token"
+                          value="{{ csrf_token() }}" />
+                        <input
+                          type="time"
+                          name="exit_time"
+                          id="input-{{ entry.id }}"
+                          value="{{ entry.exit_time.strftime('%H:%M') if entry.exit_time else '' }}"
+                          step="300"
+                          enterkeyhint="done"
+                          class="form-control"
+                          style="width: 150px;" />
                         <button
-                          type="button"
-                          onclick="saveEntry({{ entry.id }})"
-                          class="btn btn-outline-success save-btn">
-                          <i class="bi bi-check fs-6"></i>
+                          type="submit"
+                          class="visually-hidden"
+                          tabindex="-1"
+                          aria-hidden="true">
+                          Save
                         </button>
-                        <button
-                          type="button"
-                          onclick="cancelEdit({{ entry.id }})"
-                          class="btn btn-outline-secondary cancel-btn">
-                          <i class="bi bi-x fs-6"></i>
-                        </button>
-                      </div>
-                      <div
-                        class="btn-group action-buttons"
-                        role="group"
-                        id="action-buttons-{{ entry.id }}">
-                        <div class="btn-group">
+                      </form>
+                    </td>
+                    <td class="overtime-cell">
+                      <span id="overtime-{{ entry.id }}">
+                        {{ "%.2f"|format(entry.overtime_hours) }} hrs
+                      </span>
+                    </td>
+                    {% if can_edit %}
+                      <td
+                        id="actions-{{ entry.id }}"
+                        class="lock-hidden-when-locked"
+                        {% if daily_sheet.locked %}style="display: none;"{% endif %}>
+                        <div
+                          class="btn-group action-buttons"
+                          role="group"
+                          id="edit-controls-{{ entry.id }}"
+                          style="display: none;">
                           <button
                             type="button"
-                            onclick="editEntry({{ entry.id }})"
-                            class="btn btn-outline-primary edit-btn">
-                            <i class="bi bi-pencil fs-6"></i>
+                            onclick="saveEntry({{ entry.id }})"
+                            class="btn btn-outline-success save-btn">
+                            <i class="bi bi-check fs-6"></i>
+                          </button>
+                          <button
+                            type="button"
+                            onclick="cancelEdit({{ entry.id }})"
+                            class="btn btn-outline-secondary cancel-btn">
+                            <i class="bi bi-x fs-6"></i>
                           </button>
                         </div>
-                        <form
-                          method="POST"
-                          action="{{ url_for('entries.delete', entry_id=entry.id) }}"
-                          class="btn-group delete-form"
-                          data-confirm-title="Delete Entry?"
-                          data-confirm-message="Delete this entry?"
-                          data-confirm-label="Delete"
-                          data-confirm-variant="danger">
-                          <input
-                            type="hidden"
-                            name="csrf_token"
-                            value="{{ csrf_token() }}" />
-                          <button type="submit" class="btn btn-outline-danger">
-                            <i class="bi bi-trash fs-6"></i>
-                          </button>
-                        </form>
-                      </div>
-                    </td>
+                        <div
+                          class="btn-group action-buttons"
+                          role="group"
+                          id="action-buttons-{{ entry.id }}">
+                          <div class="btn-group">
+                            <button
+                              type="button"
+                              onclick="editEntry({{ entry.id }})"
+                              class="btn btn-outline-primary edit-btn">
+                              <i class="bi bi-pencil fs-6"></i>
+                            </button>
+                          </div>
+                          <form
+                            method="POST"
+                            action="{{ url_for('entries.delete', entry_id=entry.id) }}"
+                            class="btn-group delete-form async-delete-form"
+                            data-entry-id="{{ entry.id }}"
+                            data-confirm-title="Delete Entry?"
+                            data-confirm-message="Delete this entry?"
+                            data-confirm-label="Delete"
+                            data-confirm-variant="danger">
+                            <input
+                              type="hidden"
+                              name="csrf_token"
+                              value="{{ csrf_token() }}" />
+                            <button
+                              type="submit"
+                              class="btn btn-outline-danger">
+                              <i class="bi bi-trash fs-6"></i>
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="table-light">
+                <tr>
+                  <td colspan="{{ 5 if is_weekend_or_holiday else 4 }}">
+                    <strong>Total Overtime:</strong>
+                  </td>
+                  <td class="overtime-cell">
+                    <strong
+                      >{{ "%.2f"|format(overtime_entries|sum(attribute='overtime_hours')|default(0, true)) }}
+                      hrs</strong
+                    >
+                  </td>
+                  {% if can_edit %}
+                    <td
+                      class="lock-hidden-when-locked"
+                      {% if daily_sheet.locked %}style="display: none;"{% endif %}></td>
                   {% endif %}
                 </tr>
-              {% endfor %}
-            </tbody>
-            <tfoot class="table-light">
-              <tr>
-                <td colspan="{{ 5 if is_weekend_or_holiday else 4 }}">
-                  <strong>Total Overtime:</strong>
-                </td>
-                <td class="overtime-cell">
-                  <strong
-                    >{{ "%.2f"|format(overtime_entries|sum(attribute='overtime_hours')|default(0, true)) }}
-                    hrs</strong
-                  >
-                </td>
-                {% if can_edit and not daily_sheet.locked %}
-                  <td></td>
-                {% endif %}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      {% else %}
-        <div class="p-4 text-center text-body-secondary no-entries">
-          <i class="bi bi-inbox display-4 d-block mb-2"></i>
-          <p>No entries for this date.</p>
-        </div>
-      {% endif %}
+              </tfoot>
+            </table>
+          </div>
+        {% else %}
+          <div class="p-4 text-center text-body-secondary no-entries">
+            <i class="bi bi-inbox display-4 d-block mb-2"></i>
+            <p>No entries for this date.</p>
+          </div>
+        {% endif %}
+      </div>
     </div>
   </div>
 {% endblock %}
