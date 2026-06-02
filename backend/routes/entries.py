@@ -88,6 +88,10 @@ def _entry_json_payload(entry: "TimeEntry") -> dict:
         "id": entry.id,
         "resident_id": entry.resident_id,
         "role_id": entry.role_id,
+        "resident_name": entry.resident.name if entry.resident else "",
+        "resident_url": f"/residents/{entry.resident_id}",
+        "role_name": entry.role.name if entry.role else "",
+        "role_is_backup": entry.role.is_backup if entry.role else False,
         "missing_exit_time": entry.exit_time is None,
         "overtime_hours": entry.overtime_hours,
         "overtime_display": f"{entry.overtime_hours:.2f} hrs",
@@ -445,10 +449,10 @@ def add():
             "An error occurred while adding the entry.",
         ),
         date_str=sheet_date_str,
-        success_response=lambda _: flash_sheet_redirect(
+        success_response=lambda entry: _entry_success_response(
+            entry,
             sheet_date_str,
             "Entry added successfully",
-            "success",
         ),
     )
 
@@ -537,11 +541,6 @@ def delete(entry_id):
 
     def _success(result: tuple[int, dict[str, int | str | None]]) -> Response:
         saved_entry_id, log_details = result
-        response = flash_sheet_redirect(
-            sheet_date_str,
-            "Entry deleted successfully",
-            "success",
-        )
         try:
             log_delete("TimeEntry", saved_entry_id, log_details)
         except Exception:
@@ -550,7 +549,13 @@ def delete(entry_id):
                 saved_entry_id,
                 exc_info=True,
             )
-        return response
+        if _wants_json_response():
+            return jsonify({"success": True, "message": "Entry deleted successfully"})
+        return flash_sheet_redirect(
+            sheet_date_str,
+            "Entry deleted successfully",
+            "success",
+        )
 
     return _entry_mutation_response(
         lambda: _delete_entry_record(entry),

@@ -137,6 +137,96 @@ class TestReportExport:
         # Should show error message
         assert b"invalid" in response.data.lower() or b"error" in response.data.lower()
 
+    def test_export_csv_exclude_zero_overtime_omits_zero_residents(
+        self, client, app, sample_time_entry, sample_resident, sample_role
+    ):
+        """CSV export with exclude_zero_overtime=1 omits residents with 0 overtime."""
+        from datetime import date as date_type, time as time_type
+
+        with app.app_context():
+            # Create a second resident with a zero-overtime entry (exit before cutoff)
+            zero_resident = Resident(name="Zero OT Resident", active=True)
+            db.session.add(zero_resident)
+            db.session.flush()
+
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            entry_date = entry.date
+
+            zero_entry = TimeEntry(
+                date=entry_date,
+                resident_id=zero_resident.id,
+                role_id=sample_role.id,
+                exit_time=time_type(8, 0),  # well before cutoff → 0 overtime
+            )
+            db.session.add(zero_entry)
+            db.session.commit()
+            zero_resident_id = zero_resident.id
+            zero_entry_id = zero_entry.id
+
+            try:
+                response = client.post(
+                    "/api/report/export_csv",
+                    data={
+                        "start_date": entry_date.strftime("%Y-%m-%d"),
+                        "end_date": entry_date.strftime("%Y-%m-%d"),
+                        "exclude_zero_overtime": "1",
+                    },
+                )
+                assert response.status_code == 200
+                assert "text/csv" in response.content_type
+                csv_text = response.data.decode()
+                assert "Zero OT Resident" not in csv_text
+                assert "_excl_zero" in response.headers.get("Content-Disposition", "")
+            finally:
+                db.session.delete(db.session.get(TimeEntry, zero_entry_id))
+                db.session.delete(db.session.get(Resident, zero_resident_id))
+                db.session.commit()
+
+    def test_export_csv_include_zero_overtime_when_flag_off(
+        self, client, app, sample_time_entry, sample_resident, sample_role
+    ):
+        """CSV export with exclude_zero_overtime=0 includes zero-overtime residents."""
+        from datetime import time as time_type
+
+        with app.app_context():
+            zero_resident = Resident(name="Zero OT Resident2", active=True)
+            db.session.add(zero_resident)
+            db.session.flush()
+
+            entry = db.session.get(TimeEntry, sample_time_entry.id)
+            entry_date = entry.date
+
+            zero_entry = TimeEntry(
+                date=entry_date,
+                resident_id=zero_resident.id,
+                role_id=sample_role.id,
+                exit_time=time_type(8, 0),
+            )
+            db.session.add(zero_entry)
+            db.session.commit()
+            zero_resident_id = zero_resident.id
+            zero_entry_id = zero_entry.id
+
+            try:
+                response = client.post(
+                    "/api/report/export_csv",
+                    data={
+                        "start_date": entry_date.strftime("%Y-%m-%d"),
+                        "end_date": entry_date.strftime("%Y-%m-%d"),
+                        "exclude_zero_overtime": "0",
+                    },
+                )
+                assert response.status_code == 200
+                csv_text = response.data.decode()
+                assert "Zero OT Resident2" in csv_text
+                assert "_excl_zero" not in response.headers.get(
+                    "Content-Disposition", ""
+                )
+            finally:
+                db.session.delete(db.session.get(TimeEntry, zero_entry_id))
+                db.session.delete(db.session.get(Resident, zero_resident_id))
+                db.session.commit()
+
 
 class TestReportEdgeCases:
     """Edge case tests for reports."""

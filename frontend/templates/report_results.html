@@ -25,6 +25,39 @@
   </div>
 
   {% if resident_data %}
+    {% set grand_total = resident_data.values()|sum(attribute='total_overtime') %}
+    {% set resident_count = resident_data|length %}
+    <div class="card mb-4 bg-light border-0">
+      <div class="card-body py-2">
+        <div class="d-flex gap-4 flex-wrap align-items-center small">
+          <span>
+            <strong>{{ resident_count }}</strong>
+            {{ 'resident' if resident_count == 1 else 'residents' }}
+          </span>
+          <span>
+            <strong class="overtime-cell"
+              >{{ "%.2f"|format(grand_total) }} hrs</strong
+            >
+            total overtime
+          </span>
+          {% if resident_count > 1 %}
+            <span class="text-body-secondary"
+              >Click a resident row to view details.</span
+            >
+          {% endif %}
+          <label
+            class="form-check-label d-flex align-items-center gap-1 ms-auto text-body-secondary"
+            style="cursor: pointer;">
+            <input
+              type="checkbox"
+              id="hide-zero-overtime"
+              class="form-check-input"
+              onchange="toggleZeroOvertimeRows(this.checked)" />
+            Hide zero-overtime residents
+          </label>
+        </div>
+      </div>
+    </div>
     {% if resident_data|length == 1 %}
       {# Single resident selected - show detailed view directly #}
       <div class="card report-details mb-4">
@@ -147,11 +180,107 @@
       </div>
     {% endif %}
 
-    <div class="d-flex gap-2 export-options flex-wrap">
+    {# Export preview modal #}
+    <div
+      class="modal fade"
+      id="exportPreviewModal"
+      tabindex="-1"
+      aria-labelledby="exportPreviewModalLabel"
+      aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="exportPreviewModalLabel">
+              <i class="bi bi-file-earmark-arrow-down me-2"></i>Export Preview
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <dl class="row mb-0">
+              <dt class="col-sm-5">Date range</dt>
+              <dd class="col-sm-7">
+                {{ start_date.strftime('%B %d, %Y') }} to
+                {{ end_date.strftime('%B %d, %Y') }}
+              </dd>
+              <dt class="col-sm-5">Residents</dt>
+              <dd class="col-sm-7" id="export-resident-count">
+                {{ resident_count }}
+                {{ 'resident' if resident_count == 1 else 'residents' }}
+              </dd>
+              <dt class="col-sm-5">Total overtime</dt>
+              <dd class="col-sm-7">{{ "%.2f"|format(grand_total) }} hrs</dd>
+            </dl>
+            <p
+              class="text-body-secondary small mt-3 mb-0"
+              id="export-filter-note">
+              <i class="bi bi-info-circle me-1"></i>
+              The export includes all residents regardless of the zero-overtime
+              filter.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-outline-secondary"
+              data-bs-dismiss="modal">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-success"
+              id="export-csv-confirm">
+              <i class="bi bi-file-earmark-spreadsheet me-2"></i>Export Detailed
+              CSV
+            </button>
+            {% if can_use_extended_reports %}
+              <button
+                type="button"
+                class="btn btn-outline-primary"
+                id="export-xlsx-confirm">
+                <i class="bi bi-file-earmark-excel me-2"></i>Export Payroll XLSX
+              </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Hidden export forms — submitted by the modal confirm buttons #}
+    <form
+      method="POST"
+      action="{{ url_for('reports.export_csv') }}"
+      id="export-csv-form"
+      style="display: none;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input
+        type="hidden"
+        name="start_date"
+        value="{{ start_date.strftime('%Y-%m-%d') }}" />
+      <input
+        type="hidden"
+        name="end_date"
+        value="{{ end_date.strftime('%Y-%m-%d') }}" />
+      <input
+        type="hidden"
+        name="resident_id"
+        value="{{ resident_id if resident_id else '' }}" />
+      <input
+        type="hidden"
+        name="exclude_zero_overtime"
+        value="0"
+        id="csv-exclude-zero" />
+    </form>
+
+    {% if can_use_extended_reports %}
       <form
         method="POST"
-        action="{{ url_for('reports.export_csv') }}"
-        class="d-inline">
+        action="{{ url_for('reports.export_payroll_xlsx') }}"
+        id="export-xlsx-form"
+        style="display: none;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input
           type="hidden"
@@ -165,35 +294,33 @@
           type="hidden"
           name="resident_id"
           value="{{ resident_id if resident_id else '' }}" />
-        <button type="submit" class="btn btn-success">
-          <i class="bi bi-file-earmark-spreadsheet me-2"></i>Export Detailed CSV
-        </button>
+        <input
+          type="hidden"
+          name="exclude_zero_overtime"
+          value="0"
+          id="xlsx-exclude-zero" />
       </form>
+    {% endif %}
 
+    <div class="d-flex gap-2 export-options flex-wrap">
+      <button
+        type="button"
+        class="btn btn-success"
+        data-bs-toggle="modal"
+        data-bs-target="#exportPreviewModal"
+        data-export-target="csv">
+        <i class="bi bi-file-earmark-spreadsheet me-2"></i>Export Detailed CSV
+      </button>
       {% if can_use_extended_reports %}
-        <form
-          method="POST"
-          action="{{ url_for('reports.export_payroll_xlsx') }}"
-          class="d-inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <input
-            type="hidden"
-            name="start_date"
-            value="{{ start_date.strftime('%Y-%m-%d') }}" />
-          <input
-            type="hidden"
-            name="end_date"
-            value="{{ end_date.strftime('%Y-%m-%d') }}" />
-          <input
-            type="hidden"
-            name="resident_id"
-            value="{{ resident_id if resident_id else '' }}" />
-          <button type="submit" class="btn btn-outline-primary">
-            <i class="bi bi-file-earmark-excel me-2"></i>Export Payroll XLSX
-          </button>
-        </form>
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          data-bs-toggle="modal"
+          data-bs-target="#exportPreviewModal"
+          data-export-target="xlsx">
+          <i class="bi bi-file-earmark-excel me-2"></i>Export Payroll XLSX
+        </button>
       {% endif %}
-
       <button onclick="window.print()" class="btn btn-primary">
         <i class="bi bi-printer me-2"></i>Print Report
       </button>
@@ -212,4 +339,99 @@
       </div>
     </div>
   {% endif %}
+{% endblock %}
+{% block scripts %}
+  <script>
+    function toggleZeroOvertimeRows(hide) {
+      document.querySelectorAll(".resident-row-clickable").forEach((row) => {
+        const overtimeCell = row.querySelector(".overtime-cell strong");
+        if (!overtimeCell) return;
+        const hours = parseFloat(overtimeCell.textContent);
+        const isZero = !isNaN(hours) && hours === 0;
+        if (isZero) {
+          const nextRow = row.nextElementSibling;
+          row.style.display = hide ? "none" : "";
+          if (nextRow) nextRow.style.display = hide ? "none" : "";
+        }
+      });
+    }
+
+    /**
+     * Counts visible and total residents in the summary table.
+     * @returns {object} Object with visible and total counts
+     */
+    function countResidentVisibility() {
+      const rows = document.querySelectorAll(".resident-row-clickable");
+      const total = rows.length;
+      let visible = 0;
+      rows.forEach((row) => {
+        if (row.style.display !== "none") {
+          visible++;
+        }
+      });
+      return { visible, total };
+    }
+
+    /**
+     * Syncs the exclude_zero_overtime hidden fields to match the checkbox,
+     * updates the modal resident count line, and updates the filter note.
+     */
+    function updateExportModal() {
+      const filterActive =
+        document.getElementById("hide-zero-overtime")?.checked || false;
+
+      // Sync hidden form fields
+      const csvExclude = document.getElementById("csv-exclude-zero");
+      if (csvExclude) csvExclude.value = filterActive ? "1" : "0";
+      const xlsxExclude = document.getElementById("xlsx-exclude-zero");
+      if (xlsxExclude) xlsxExclude.value = filterActive ? "1" : "0";
+
+      // Update resident count display
+      const dd = document.getElementById("export-resident-count");
+      if (dd) {
+        const { visible, total } = countResidentVisibility();
+        const residentWord = total === 1 ? "resident" : "residents";
+        if (filterActive && visible < total) {
+          const hidden = total - visible;
+          dd.textContent = `${visible} of ${total} ${residentWord} (${hidden} zero-overtime excluded)`;
+        } else {
+          dd.textContent = `${total} ${residentWord}`;
+        }
+      }
+
+      // Update the filter note text
+      const note = document.getElementById("export-filter-note");
+      if (note) {
+        if (filterActive) {
+          note.innerHTML =
+            '<i class="bi bi-funnel-fill me-1"></i>' +
+            "Export excludes zero-overtime residents (filter active).";
+        } else {
+          note.innerHTML =
+            '<i class="bi bi-info-circle me-1"></i>' +
+            "The export includes all residents regardless of the zero-overtime filter.";
+        }
+      }
+    }
+
+    (function () {
+      const csvBtn = document.getElementById("export-csv-confirm");
+      const xlsxBtn = document.getElementById("export-xlsx-confirm");
+      const csvForm = document.getElementById("export-csv-form");
+      const xlsxForm = document.getElementById("export-xlsx-form");
+
+      if (csvBtn && csvForm) {
+        csvBtn.addEventListener("click", () => csvForm.submit());
+      }
+      if (xlsxBtn && xlsxForm) {
+        xlsxBtn.addEventListener("click", () => xlsxForm.submit());
+      }
+
+      // Update modal state before it is shown
+      const modal = document.getElementById("exportPreviewModal");
+      if (modal) {
+        modal.addEventListener("show.bs.modal", updateExportModal);
+      }
+    })();
+  </script>
 {% endblock %}

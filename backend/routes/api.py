@@ -23,6 +23,7 @@ def roles():
             "id": r.id,
             "name": r.name,
             "cutoff_hour": r.cutoff_hour,
+            "cutoff_minute": r.cutoff_minute,
             "is_backup": r.is_backup,
         }
         for r in all_roles

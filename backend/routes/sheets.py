@@ -3,15 +3,16 @@
 import logging
 from datetime import date, timedelta
 
-from flask import Blueprint, render_template
+from flask import Blueprint, jsonify, render_template
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from ..audit import log_lock
 from ..auth import get_current_user, is_admin, is_first_call
+from ..db_session import commit_or_rollback
 from ..holidays import is_weekend_or_holiday
 from ..models import DailySheet, Role, TimeEntry, db
-from ..utils import get_effective_date, get_philadelphia_time
+from ..utils import _wants_json_response, get_effective_date, get_philadelphia_time
 from ._helpers import (
     commit_flash_redirect,
     flash_sheet_redirect,
@@ -181,6 +182,31 @@ def lock(date_str):
             logger.warning("Audit log failed for sheet %s", date_str, exc_info=True)
 
         return f"Sheet {'locked' if daily_sheet.locked else 'unlocked'} successfully"
+
+    if _wants_json_response():
+        try:
+            message = commit_or_rollback(_toggle_lock)
+        except Exception:
+            logger.exception("Failed to toggle sheet lock for %s", date_str)
+            db.session.rollback()
+            error_msg = "An unexpected error occurred. Please try again."
+            return jsonify({"success": False, "message": error_msg}), 500
+
+        locked_at_str = (
+            daily_sheet.locked_at.strftime("%m/%d %H:%M")
+            if daily_sheet.locked_at
+            else None
+        )
+        return jsonify(
+            {
+                "success": True,
+                "locked": daily_sheet.locked,
+                "locked_by": daily_sheet.locked_by,
+                "locked_at": locked_at_str,
+                "show_import_button": not daily_sheet.locked,
+                "message": message,
+            }
+        )
 
     return commit_flash_redirect(
         _toggle_lock,

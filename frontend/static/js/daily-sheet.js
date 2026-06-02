@@ -7,6 +7,13 @@ const originalValues = {};
 const OVERTIME_VALUE_REGEX = /[\d.]+/;
 
 /**
+ * In-memory set of "residentId:roleId" keys for existing entry rows.
+ * Initialized on page load; updated on insert/delete.
+ * @type {Set<string>}
+ */
+const existingEntryKeys = new Set();
+
+/**
  * Returns the DOM elements associated with a single entry row
  * @param {string|number} entryId - The entry ID
  * @returns {object} Entry element references
@@ -341,6 +348,140 @@ function initializeLockConfirmation() {
 }
 
 /**
+ * Updates the lock button and lock status display after an async lock toggle.
+ * @param {HTMLFormElement} form - The lock form
+ * @param {boolean} locked - New lock state
+ * @param {string|null} lockedBy - User who locked the sheet
+ * @param {string|null} lockedAt - Formatted timestamp
+ */
+function applyLockToggle(form, locked, lockedBy, lockedAt) {
+  // Update button appearance
+  const btn = form.querySelector("button[type='submit']");
+  if (btn) {
+    if (locked) {
+      btn.innerHTML = '<i class="bi bi-unlock me-1"></i>Unlock Sheet';
+      btn.classList.remove("btn-success");
+      btn.classList.add("btn-warning");
+    } else {
+      btn.innerHTML = '<i class="bi bi-lock me-1"></i>Lock Sheet';
+      btn.classList.remove("btn-warning");
+      btn.classList.add("btn-success");
+    }
+    btn.disabled = false;
+  }
+
+  // Update or remove the lock status span
+  const controls = document.querySelector(".sheet-controls");
+  let lockStatus = document.getElementById("lock-status");
+  if (locked && lockedBy) {
+    if (!lockStatus) {
+      lockStatus = document.createElement("span");
+      lockStatus.id = "lock-status";
+      lockStatus.className = "btn btn-sm";
+      controls?.appendChild(lockStatus);
+    }
+    lockStatus.innerHTML =
+      `<i class="bi bi-lock-fill me-1"></i>Locked by ${escapeHtml(lockedBy)}` +
+      (lockedAt ? ` at ${escapeHtml(lockedAt)}` : "");
+  } else if (lockStatus) {
+    lockStatus.remove();
+  }
+
+  // Show/hide the Add Entry form and Edit All controls based on lock state
+  const addEntryForm = document.querySelector(".add-entry-form");
+  if (addEntryForm) {
+    addEntryForm.style.display = locked ? "none" : "";
+  }
+  const editAllControls = document.getElementById("edit-all-controls");
+  if (editAllControls) {
+    editAllControls.style.display = locked ? "none" : "";
+  }
+
+  // Show/hide the Import Schedule button based on lock state
+  const importContainer = document.getElementById("import-schedule-container");
+  if (importContainer) {
+    if (locked) {
+      importContainer.classList.add("d-none");
+    } else {
+      importContainer.classList.remove("d-none");
+    }
+  }
+}
+
+/**
+ * Attaches async fetch to the lock/unlock form.
+ * Preserves the missing-exit confirmation guard.
+ */
+function initializeLockForm() {
+  const form = document.getElementById("lock-sheet-form");
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    // Missing-exit guard: when locking with missing entries, confirm first
+    const isMissingCount =
+      form.dataset.missingCount && parseInt(form.dataset.missingCount, 10) > 0;
+    const btn = form.querySelector("button[type='submit']");
+    const isUnlocking = btn?.classList.contains("btn-warning");
+    if (isMissingCount && !isUnlocking) {
+      const proceed = await confirmLockWithMissing(form);
+      if (!proceed) {
+        return;
+      }
+    }
+
+    const csrfToken = form.querySelector('[name="csrf_token"]')?.value || "";
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML =
+        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+    }
+
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        credentials: "same-origin",
+        headers: {
+          "Accept": "application/json",
+          "X-CSRFToken": csrfToken,
+          "X-Expect-JSON": "1",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+      const payload = await parseJsonResponse(response);
+
+      if (!response.ok || !payload.success) {
+        throw new Error(
+          payload.message || "Error toggling sheet lock. Please try again.",
+        );
+      }
+
+      applyLockToggle(
+        form,
+        payload.locked,
+        payload.locked_by,
+        payload.locked_at,
+      );
+      notify(payload.message || "Sheet lock toggled.", "success");
+    } catch (error) {
+      notify(
+        error.message || "Error toggling sheet lock. Please try again.",
+        "error",
+      );
+      console.error("Lock toggle error:", error);
+      if (btn) {
+        btn.disabled = false;
+      }
+    }
+  });
+}
+
+/**
  * Enables edit mode for a single entry
  * @param {number} entryId - The entry ID to edit
  */
@@ -431,6 +572,11 @@ function updateTotalOvertime() {
   if (totalElement) {
     totalElement.textContent = `${total.toFixed(2)} hrs`;
   }
+
+  const summaryElement = document.getElementById("summary-total-overtime");
+  if (summaryElement) {
+    summaryElement.textContent = total.toFixed(2);
+  }
 }
 
 /**
@@ -481,7 +627,7 @@ async function saveEntry(entryId, options = {}) {
       body: formData,
       credentials: "same-origin",
       headers: {
-        Accept: "application/json",
+        "Accept": "application/json",
         "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
         "X-Requested-With": "XMLHttpRequest",
@@ -632,7 +778,7 @@ async function saveAll() {
       body: JSON.stringify({ entries }),
       credentials: "same-origin",
       headers: {
-        Accept: "application/json",
+        "Accept": "application/json",
         "Content-Type": "application/json",
         "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
@@ -712,6 +858,14 @@ window.toggleEditAll = toggleEditAll;
 window.saveAll = saveAll;
 window.copyToClipboard = copyToClipboard;
 window.initializeInlineEditors = initializeInlineEditors;
+window.initializeAddEntryForm = initializeAddEntryForm;
+window.initializeAsyncDelete = initializeAsyncDelete;
+window.initializeDuplicateEntryWarning = initializeDuplicateEntryWarning;
+window.removeEntryRow = removeEntryRow;
+window.getExistingEntryKeys = getExistingEntryKeys;
+window.initializeLockForm = initializeLockForm;
+window.applyLockToggle = applyLockToggle;
+window.initializeEntryKeySet = initializeEntryKeySet;
 
 /**
  * Toggles start time field visibility based on selected role
@@ -802,12 +956,605 @@ function initializeInlineEditors() {
   });
 }
 
+/**
+ * Determines whether a weekend/holiday start-time column is present in the table
+ * @returns {boolean}
+ */
+function isWeekendOrHoliday() {
+  return document.querySelector(".start-time-cell") !== null;
+}
+
+/**
+ * Returns whether the sheet is currently locked (no add-entry form present)
+ * @returns {boolean}
+ */
+function isSheetLocked() {
+  return document.querySelector(".add-entry-form") === null;
+}
+
+/**
+ * Builds the full table structure when the entries card is empty.
+ * Replaces the "no entries" placeholder with a proper table+tbody+tfoot.
+ * @param {boolean} canEdit - Whether the current user can edit entries
+ * @param {boolean} weekend - Whether the sheet is a weekend/holiday
+ * @returns {HTMLElement} The newly created tbody element
+ */
+function buildEmptyTable(canEdit, weekend) {
+  const cardBody = document.querySelector(".entries-table .card-body");
+  if (!cardBody) {
+    return null;
+  }
+
+  // Remove the "no entries" placeholder
+  const noEntries = cardBody.querySelector(".no-entries");
+  if (noEntries) {
+    noEntries.remove();
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "table-responsive";
+
+  const table = document.createElement("table");
+  table.className = "table table-striped table-hover mb-0";
+
+  const thead = document.createElement("thead");
+  thead.className = "table-light";
+  let headHtml = "<tr>";
+  headHtml += '<th class="col-2">Role</th>';
+  headHtml += '<th class="col-2">Name</th>';
+  if (weekend) {
+    headHtml += '<th class="col-3">Start Time</th>';
+  }
+  headHtml += '<th class="col-1">Anes Stop</th>';
+  headHtml += '<th class="col-2">Exit Time</th>';
+  headHtml += '<th class="col-1">Overtime</th>';
+  if (canEdit) {
+    headHtml += '<th class="col-1">Actions</th>';
+  }
+  headHtml += "</tr>";
+  thead.innerHTML = headHtml;
+
+  const newTbody = document.createElement("tbody");
+
+  const tfoot = document.createElement("tfoot");
+  tfoot.className = "table-light";
+  const colSpan = weekend ? 5 : 4;
+  tfoot.innerHTML = `<tr>
+    <td colspan="${colSpan}"><strong>Total Overtime:</strong></td>
+    <td class="overtime-cell"><strong>0.00 hrs</strong></td>
+    ${canEdit ? "<td></td>" : ""}
+  </tr>`;
+
+  table.appendChild(thead);
+  table.appendChild(newTbody);
+  table.appendChild(tfoot);
+  wrapper.appendChild(table);
+  cardBody.appendChild(wrapper);
+
+  return newTbody;
+}
+
+/**
+ * Inserts a new entry row into the entries table after a successful add.
+ * @param {object} entry - Entry payload from the server
+ * @param {boolean} canEdit - Whether the current user can edit entries
+ */
+function insertEntryRow(entry, canEdit) {
+  const weekend = isWeekendOrHoliday();
+
+  let tbody = document.querySelector(".entries-table tbody");
+  if (!tbody) {
+    // Table not yet present (empty sheet) — build the full table structure
+    tbody = buildEmptyTable(canEdit, weekend);
+    if (!tbody) {
+      return;
+    }
+  } else {
+    // Table exists — remove no-entries placeholder if somehow still present
+    const noEntries = document.querySelector(".no-entries");
+    if (noEntries) {
+      noEntries.remove();
+    }
+  }
+
+  // Track in in-memory Set
+  const residentId = String(entry.resident_id);
+  const roleId = String(entry.role_id);
+  existingEntryKeys.add(`${residentId}:${roleId}`);
+
+  const isBackup = entry.role_is_backup;
+  const missingExit = entry.missing_exit_time;
+  const exitTimeDisplay = missingExit
+    ? '<span class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Exit time?</span>'
+    : escapeHtml(entry.exit_time_display || "");
+  const startTimeDisplay = entry.start_time_display
+    ? escapeHtml(entry.start_time_display)
+    : '<span class="text-body-secondary">-</span>';
+
+  let startTimeCell = "";
+  if (weekend) {
+    if (isBackup) {
+      startTimeCell = `
+        <td class="start-time-cell" id="start-cell-${entry.id}">
+          <span id="start-display-${entry.id}"
+            onclick="editEntry(${entry.id})"
+            title="Click to edit time">
+            ${startTimeDisplay}
+          </span>
+          <input type="time" name="start_time" form="form-${entry.id}"
+            id="start-input-${entry.id}"
+            value="${escapeHtml(entry.start_time || "")}"
+            step="300" enterkeyhint="done"
+            class="form-control" style="display: none; width: 150px;" />
+        </td>`;
+    } else {
+      startTimeCell = `<td class="start-time-cell"><span class="text-body-secondary">-</span></td>`;
+    }
+  }
+
+  let actionsCell = "";
+  if (canEdit) {
+    actionsCell = `
+      <td id="actions-${entry.id}">
+        <div class="btn-group action-buttons" role="group"
+          id="edit-controls-${entry.id}" style="display: none;">
+          <button type="button" onclick="saveEntry(${entry.id})"
+            class="btn btn-outline-success save-btn">
+            <i class="bi bi-check fs-6"></i>
+          </button>
+          <button type="button" onclick="cancelEdit(${entry.id})"
+            class="btn btn-outline-secondary cancel-btn">
+            <i class="bi bi-x fs-6"></i>
+          </button>
+        </div>
+        <div class="btn-group action-buttons" role="group"
+          id="action-buttons-${entry.id}">
+          <div class="btn-group">
+            <button type="button" onclick="editEntry(${entry.id})"
+              class="btn btn-outline-primary edit-btn">
+              <i class="bi bi-pencil fs-6"></i>
+            </button>
+          </div>
+          <form method="POST" action="/entries/${entry.id}/delete"
+            class="btn-group delete-form async-delete-form"
+            data-entry-id="${entry.id}"
+            data-confirm-title="Delete Entry?"
+            data-confirm-message="Delete this entry?"
+            data-confirm-label="Delete"
+            data-confirm-variant="danger">
+            <input type="hidden" name="csrf_token"
+              value="${escapeHtml(document.querySelector('[name="csrf_token"]')?.value || "")}" />
+            <button type="submit" class="btn btn-outline-danger">
+              <i class="bi bi-trash fs-6"></i>
+            </button>
+          </form>
+        </div>
+      </td>`;
+  }
+
+  const tr = document.createElement("tr");
+  tr.className = "align-middle" + (missingExit ? " entry-missing-data" : "");
+  tr.id = `entry-row-${entry.id}`;
+  tr.dataset.entryId = String(entry.id);
+  tr.dataset.residentId = String(entry.resident_id);
+  tr.dataset.roleId = String(entry.role_id);
+  tr.dataset.roleIsBackup = String(isBackup);
+
+  tr.innerHTML = `
+    <td>
+      <span class="badge bg-secondary">${escapeHtml(entry.role_name)}</span>
+    </td>
+    <td>
+      <a href="/residents/${entry.resident_id}"
+        class="text-decoration-none text-body">
+        ${escapeHtml(entry.resident_name)}
+      </a>
+    </td>
+    ${startTimeCell}
+    <td class="anesthesia-stop-time-cell">
+      <span class="text-body-secondary fw-lighter fs-6">-</span>
+    </td>
+    <td class="exit-time-cell${missingExit ? " missing" : ""}"
+      id="cell-${entry.id}">
+      <span class="time-display" id="display-${entry.id}"
+        onclick="editEntry(${entry.id})"
+        title="Click to edit time">
+        ${exitTimeDisplay}
+      </span>
+      <form method="POST" action="/entries/${entry.id}/update"
+        class="time-edit-form" id="form-${entry.id}"
+        data-entry-id="${entry.id}" style="display: none;">
+        <input type="hidden" name="csrf_token"
+          value="${escapeHtml(document.querySelector('[name="csrf_token"]')?.value || "")}" />
+        <input type="time" name="exit_time" id="input-${entry.id}"
+          value="${escapeHtml(entry.exit_time || "")}"
+          step="300" enterkeyhint="done"
+          class="form-control" style="width: 150px;" />
+        <button type="submit" class="visually-hidden" tabindex="-1"
+          aria-hidden="true">Save</button>
+      </form>
+    </td>
+    <td class="overtime-cell">
+      <span id="overtime-${entry.id}">${escapeHtml(entry.overtime_display)}</span>
+    </td>
+    ${actionsCell}`;
+
+  tbody.appendChild(tr);
+
+  // Wire up the new row's inline editor and delete handler
+  const newForm = tr.querySelector(".time-edit-form");
+  if (newForm) {
+    const entryId = entry.id;
+    newForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await saveEntry(entryId);
+    });
+  }
+  const deleteForm = tr.querySelector(".async-delete-form");
+  if (deleteForm) {
+    const entryId = String(entry.id);
+    deleteForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const csrfToken =
+        deleteForm.querySelector('[name="csrf_token"]')?.value || "";
+      try {
+        const response = await fetch(deleteForm.action, {
+          method: "POST",
+          body: new FormData(deleteForm),
+          headers: {
+            "Accept": "application/json",
+            "X-CSRFToken": csrfToken,
+            "X-Expect-JSON": "1",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        });
+        const payload = await parseJsonResponse(response);
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.message || "Failed to delete entry.");
+        }
+        removeEntryRow(entryId);
+        notify(payload.message || "Entry deleted successfully.", "success");
+      } catch (error) {
+        notify(
+          error.message || "Error deleting entry. Please try again.",
+          "error",
+        );
+        console.error("Delete entry error:", error);
+      }
+    });
+  }
+}
+
+/**
+ * Updates the missing-exit-time warning banner after an insert or delete.
+ * Reads resident names from all rows with the entry-missing-data class.
+ */
+function updateMissingExitWarning() {
+  const missingRows = document.querySelectorAll("tr.entry-missing-data");
+  const missingCount = missingRows.length;
+
+  // Collect names from the name cell (td:nth-child(2) anchor text)
+  const names = Array.from(missingRows).map((row) => {
+    const anchor = row.querySelector("td:nth-child(2) a");
+    return anchor ? anchor.textContent.trim() : "";
+  });
+
+  // Find or create the missing-exit alert
+  let alert = document.querySelector(
+    ".alert.alert-warning:not(.auto-lock-warning)",
+  );
+
+  if (missingCount === 0) {
+    if (alert) {
+      alert.style.display = "none";
+    }
+    return;
+  }
+
+  if (alert) {
+    alert.style.display = "";
+    const strong = alert.querySelector("strong");
+    if (strong) {
+      const label =
+        missingCount === 1
+          ? "entry missing exit time:"
+          : "entries missing exit times:";
+      strong.textContent = `${missingCount} ${label}`;
+    }
+    // Replace the text node that follows the strong
+    const childNodes = Array.from(alert.childNodes);
+    childNodes.forEach((node) => {
+      if (node.nodeType === 3 /* TEXT_NODE */) {
+        node.textContent = " " + names.join(", ") + " ";
+      }
+    });
+  }
+}
+
+/**
+ * Updates the summary entry count shown below the Entries header.
+ */
+function updateEntrySummaryCount() {
+  const rows = getEntryRows();
+  const count = rows.length;
+  const summaryEl = document.getElementById("sheet-summary");
+  if (!summaryEl) {
+    return;
+  }
+  const countEl = summaryEl.querySelector(".entry-count");
+  if (countEl) {
+    countEl.textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
+  }
+}
+
+/**
+ * Handles async submission of the "Add New Entry" form.
+ * On success, inserts the new row directly without a page reload.
+ */
+function initializeAddEntryForm() {
+  const card = document.querySelector(".add-entry-form");
+  if (!card) return;
+  const form = card.querySelector("form");
+  if (!form) return;
+
+  // Determine whether the current user has edit rights (add form is only
+  // rendered when can_edit && !locked, so its presence implies canEdit=true).
+  const canEdit = true;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalHtml = submitBtn ? submitBtn.innerHTML : "";
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Adding...';
+    }
+
+    try {
+      const csrfToken = form.querySelector('[name="csrf_token"]')?.value || "";
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: {
+          "Accept": "application/json",
+          "X-CSRFToken": csrfToken,
+          "X-Expect-JSON": "1",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+
+      const payload = await parseJsonResponse(response);
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.message || "Failed to add entry.");
+      }
+
+      // Insert the new row directly into the DOM
+      insertEntryRow(payload.entry, canEdit);
+      updateTotalOvertime();
+      updateEntrySummaryCount();
+      updateMissingExitWarning();
+
+      notify(payload.message || "Entry added successfully.", "success");
+
+      // Reset variable fields; keep role selected for rapid repeat-entry
+      const residentSelect = form.querySelector('[name="resident_id"]');
+      const exitTimeInput = form.querySelector('[name="exit_time"]');
+      const startTimeInput = form.querySelector('[name="start_time"]');
+      if (residentSelect) residentSelect.value = "";
+      if (exitTimeInput) exitTimeInput.value = "";
+      if (startTimeInput) startTimeInput.value = "";
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalHtml;
+      }
+      if (residentSelect) residentSelect.focus();
+    } catch (error) {
+      notify(error.message || "Error adding entry. Please try again.", "error");
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalHtml;
+      }
+    }
+  });
+}
+
+/**
+ * Initializes the keyboard shortcut to focus the Add Entry form.
+ * Pressing n or + focuses the first input of the add-entry form.
+ */
+function initializeAddEntryShortcut() {
+  const card = document.querySelector(".add-entry-form");
+  if (!card) return; // Sheet is locked or user cannot edit
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "n" && event.key !== "+") return;
+
+    // Do not trigger when focus is inside an interactive element
+    const active = document.activeElement;
+    if (active) {
+      const tag = active.tagName.toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "select" ||
+        tag === "textarea" ||
+        tag === "button" ||
+        active.isContentEditable
+      ) {
+        return;
+      }
+    }
+
+    event.preventDefault();
+    const firstInput = card.querySelector("select, input");
+    if (firstInput && typeof firstInput.focus === "function") {
+      firstInput.focus();
+    }
+  });
+}
+
+// Expose for testing
+window.insertEntryRow = insertEntryRow;
+window.updateMissingExitWarning = updateMissingExitWarning;
+window.updateEntrySummaryCount = updateEntrySummaryCount;
+window.initializeAddEntryShortcut = initializeAddEntryShortcut;
+window.isSheetLocked = isSheetLocked;
+
+/**
+ * Removes an entry row from the DOM and updates totals
+ * @param {string|number} entryId - The entry ID to remove
+ */
+function removeEntryRow(entryId) {
+  const row = document.getElementById(`entry-row-${entryId}`);
+  if (row) {
+    const residentId = row.dataset.residentId;
+    const roleId = row.dataset.roleId;
+    if (residentId && roleId) {
+      existingEntryKeys.delete(`${residentId}:${roleId}`);
+    }
+    row.remove();
+  }
+  updateTotalOvertime();
+
+  // Update the summary entry count
+  const rows = getEntryRows();
+  const summaryEl = document.getElementById("sheet-summary");
+  if (summaryEl) {
+    const count = rows.length;
+    const countEl = summaryEl.querySelector(".entry-count");
+    if (countEl) {
+      countEl.textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
+    }
+  }
+}
+
+/**
+ * Attaches async delete handlers to all delete forms on the page.
+ * Intercepts the confirmation flow already wired up by the global
+ * confirm-dialog handler, then removes the row on success instead
+ * of reloading the page.
+ */
+function initializeAsyncDelete() {
+  const forms = document.querySelectorAll(".async-delete-form");
+  forms.forEach((form) => {
+    const entryId = form.dataset.entryId;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const csrfToken = form.querySelector('[name="csrf_token"]')?.value || "";
+
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: new FormData(form),
+          headers: {
+            "Accept": "application/json",
+            "X-CSRFToken": csrfToken,
+            "X-Expect-JSON": "1",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        });
+        const payload = await parseJsonResponse(response);
+
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.message || "Failed to delete entry.");
+        }
+
+        removeEntryRow(entryId);
+        notify(payload.message || "Entry deleted successfully.", "success");
+      } catch (error) {
+        notify(
+          error.message || "Error deleting entry. Please try again.",
+          "error",
+        );
+        console.error("Delete entry error:", error);
+      }
+    });
+  });
+}
+
+/**
+ * Returns the in-memory set of "residentId:roleId" keys.
+ * @returns {Set<string>}
+ */
+function getExistingEntryKeys() {
+  return existingEntryKeys;
+}
+
+/**
+ * Populates the in-memory entry key Set from current DOM rows.
+ * Called once on page load.
+ */
+function initializeEntryKeySet() {
+  existingEntryKeys.clear();
+  document.querySelectorAll("tr[data-entry-id]").forEach((row) => {
+    const residentId = row.dataset.residentId;
+    const roleId = row.dataset.roleId;
+    if (residentId && roleId) {
+      existingEntryKeys.add(`${residentId}:${roleId}`);
+    }
+  });
+}
+
+/**
+ * Wires up a duplicate-entry warning on the Add Entry form.
+ * Shows an inline warning (without blocking submit) when the
+ * selected resident+role combo already has a row on this sheet.
+ */
+function initializeDuplicateEntryWarning() {
+  const card = document.querySelector(".add-entry-form");
+  if (!card) {
+    return;
+  }
+  const form = card.querySelector("form");
+  const roleSelect = form?.querySelector('[name="role_id"]');
+  const residentSelect = form?.querySelector('[name="resident_id"]');
+  if (!form || !roleSelect || !residentSelect) {
+    return;
+  }
+
+  // Create the warning element
+  const warning = document.createElement("div");
+  warning.id = "duplicate-entry-warning";
+  warning.className = "alert alert-warning py-1 px-2 mt-2 mb-0 small";
+  warning.style.display = "none";
+  warning.setAttribute("role", "alert");
+  warning.innerHTML =
+    '<i class="bi bi-exclamation-triangle-fill me-1"></i>' +
+    "This resident already has an entry for this role today.";
+  form.querySelector(".mt-3")?.before(warning);
+
+  function checkDuplicate() {
+    const residentId = residentSelect.value;
+    const roleId = roleSelect.value;
+    if (!residentId || !roleId) {
+      warning.style.display = "none";
+      return;
+    }
+    const isDuplicate = getExistingEntryKeys().has(`${residentId}:${roleId}`);
+    warning.style.display = isDuplicate ? "block" : "none";
+  }
+
+  roleSelect.addEventListener("change", checkDuplicate);
+  residentSelect.addEventListener("change", checkDuplicate);
+}
+
 // Initialize when DOM is ready
 function initializePage() {
+  initializeEntryKeySet();
   initializeCountdown();
   initializeRoleSelect();
   initializeLockConfirmation();
+  initializeLockForm();
   initializeInlineEditors();
+  initializeAddEntryForm();
+  initializeAsyncDelete();
+  initializeDuplicateEntryWarning();
+  initializeAddEntryShortcut();
 }
 
 if (document.readyState === "loading") {
