@@ -108,7 +108,7 @@
                   {{ current_user }}
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
-                  {% if not is_admin %}
+                  {% if can_escalate_to_admin %}
                     <li>
                       <form
                         method="POST"

@@ -17,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .anesthesia_sync import AnesthesiaSyncError, sync_anesthesia_stop_times
 from .auth import (
+    can_escalate_to_admin,
     get_admin_users,
     get_current_user,
     get_payroll_admin_users,
@@ -177,6 +178,7 @@ def inject_auth():
     return {
         "current_user": get_current_user(),
         "is_admin": is_admin(),
+        "can_escalate_to_admin": can_escalate_to_admin(),
         "can_logout": bool(
             (session_user and saml_enabled(app.config)) or has_mock_session
         ),

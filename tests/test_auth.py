@@ -850,13 +850,32 @@ class TestDevRoutes:
             with client.session_transaction() as sess:
                 sess.pop("dev_user", None)
 
-    def test_become_admin_menu_uses_post_form(self, client):
-        """Dev menu renders Become Admin as a POST form, not a GET link."""
+    def test_become_admin_menu_hidden_for_users_who_cannot_escalate(self, client):
+        """Dev menu hides Become Admin when the route would deny escalation."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         try:
             os.environ["MOCK_USERS_ENABLED"] = "true"
             with client.session_transaction() as sess:
                 sess["dev_user"] = "regular.user"
+            response = client.get("/")
+            assert response.status_code == 200
+            assert b'action="/dev/become-admin"' not in response.data
+            assert b'href="/dev/become-admin"' not in response.data
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+            with client.session_transaction() as sess:
+                sess.pop("dev_user", None)
+
+    def test_become_admin_menu_uses_post_form_for_users_who_can_escalate(self, client):
+        """Dev menu renders Become Admin as a POST form for escalation-capable users."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            with client.session_transaction() as sess:
+                sess["dev_user"] = "azamfirr"
             response = client.get("/")
             assert response.status_code == 200
             assert b'action="/dev/become-admin"' in response.data
