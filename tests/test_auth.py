@@ -767,7 +767,8 @@ class TestCanLogout:
                 sess["dev_user"] = "Admin"
             response = client.get("/")
             assert response.status_code == 200
-            assert b"/dev/sign-out" in response.data
+            assert b'action="/dev/sign-out"' in response.data
+            assert b'href="/dev/sign-out"' not in response.data
         finally:
             if original_mock is not None:
                 os.environ["MOCK_USERS_ENABLED"] = original_mock
@@ -846,6 +847,25 @@ class TestDevRoutes:
                 os.environ["ADMIN_USERS"] = original_admins
             else:
                 os.environ.pop("ADMIN_USERS", None)
+            with client.session_transaction() as sess:
+                sess.pop("dev_user", None)
+
+    def test_become_admin_menu_uses_post_form(self, client):
+        """Dev menu renders Become Admin as a POST form, not a GET link."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            with client.session_transaction() as sess:
+                sess["dev_user"] = "regular.user"
+            response = client.get("/")
+            assert response.status_code == 200
+            assert b'action="/dev/become-admin"' in response.data
+            assert b'href="/dev/become-admin"' not in response.data
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
             with client.session_transaction() as sess:
                 sess.pop("dev_user", None)
 

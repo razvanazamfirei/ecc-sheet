@@ -90,6 +90,9 @@ beforeEach(() => {
   Object.keys(mockElements).forEach((key) => {
     delete mockElements[key];
   });
+  global.document.getElementById = mockGetElementById;
+  global.document.querySelectorAll = mockQuerySelectorAll;
+  global.document.querySelector = mockQuerySelector;
   confirmReturnValue = true;
   global.FormData = function MockFormData() {};
 });
@@ -1521,6 +1524,97 @@ describe("Async Delete Functions", () => {
       expect(notified?.type).toBe("success");
     });
 
+    test("defers to the global confirmation handler before async delete", async () => {
+      let capturedListener = null;
+      let preventDefaultCalled = false;
+      let stopImmediatePropagationCalled = false;
+      let fetchCalled = false;
+
+      const mockForm = {
+        dataset: { entryId: "10", confirmMessage: "Delete this entry?" },
+        action: "/entries/10/delete",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: () => ({ value: "csrf-tok" }),
+      };
+
+      global.document.querySelectorAll = (sel) =>
+        sel === ".async-delete-form" ? [mockForm] : [];
+      global.fetch = () => {
+        fetchCalled = true;
+        return Promise.resolve({ ok: true });
+      };
+
+      exportedFunctions.initializeAsyncDelete();
+      await capturedListener({
+        preventDefault: () => {
+          preventDefaultCalled = true;
+        },
+        stopImmediatePropagation: () => {
+          stopImmediatePropagationCalled = true;
+        },
+      });
+
+      expect(preventDefaultCalled).toBe(false);
+      expect(stopImmediatePropagationCalled).toBe(false);
+      expect(fetchCalled).toBe(false);
+    });
+
+    test("posts async delete after confirmation bypass is set", async () => {
+      let capturedListener = null;
+      let fetchCalled = false;
+      let removed = false;
+
+      const mockRow = {
+        dataset: { residentId: "1", roleId: "2" },
+        remove: () => {
+          removed = true;
+        },
+      };
+      mockElements["entry-row-10"] = mockRow;
+
+      const mockForm = {
+        dataset: {
+          entryId: "10",
+          confirmMessage: "Delete this entry?",
+          confirmBypass: "true",
+        },
+        action: "/entries/10/delete",
+        addEventListener: (evt, fn) => {
+          if (evt === "submit") capturedListener = fn;
+        },
+        querySelector: () => ({ value: "csrf-tok" }),
+      };
+
+      global.document.querySelectorAll = (sel) => {
+        if (sel === ".async-delete-form") return [mockForm];
+        return [];
+      };
+      global.document.getElementById = (id) => mockElements[id] || null;
+      global.fetch = () => {
+        fetchCalled = true;
+        return Promise.resolve({
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: () =>
+            Promise.resolve({
+              success: true,
+              message: "Entry deleted successfully",
+            }),
+        });
+      };
+
+      exportedFunctions.initializeAsyncDelete();
+      await capturedListener({
+        preventDefault: () => {},
+        stopImmediatePropagation: () => {},
+      });
+
+      expect(fetchCalled).toBe(true);
+      expect(removed).toBe(true);
+    });
+
     test("shows error notification when delete fetch fails", async () => {
       let capturedListener = null;
       let notified = null;
@@ -2684,6 +2778,79 @@ describe("insertEntryRow — empty table (tfoot injection)", () => {
     expect(tfootEl.innerHTML).toContain("Total Overtime");
   });
 
+  test("uses page weekend metadata when the first inserted row builds an empty table", () => {
+    let appendedToCardBody = null;
+    const cardBody = {
+      querySelector: (sel) => {
+        if (sel === ".no-entries") return { remove: () => {} };
+        return null;
+      },
+      appendChild: (el) => {
+        appendedToCardBody = el;
+      },
+    };
+
+    mockElements["daily-sheet-page"] = {
+      dataset: { weekendOrHoliday: "true", sheetLocked: "false" },
+    };
+
+    global.document.getElementById = (id) => mockElements[id] || null;
+    global.document.querySelectorAll = () => [];
+    global.document.querySelector = (sel) => {
+      if (sel === ".entries-table tbody") return null;
+      if (sel === ".entries-table .card-body") return cardBody;
+      if (sel === ".no-entries") return null;
+      if (sel === ".start-time-cell") return null;
+      if (sel === '[name="csrf_token"]') return { value: "tok" };
+      return null;
+    };
+
+    const createdElements = [];
+    global.document.createElement = (tag) => {
+      const el = {
+        tagName: tag,
+        className: "",
+        id: "",
+        innerHTML: "",
+        dataset: {},
+        children: [],
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        appendChild: (child) => {
+          el.children.push(child);
+          return child;
+        },
+      };
+      createdElements.push(el);
+      return el;
+    };
+
+    const entry = {
+      id: 90,
+      resident_id: 14,
+      role_id: 15,
+      resident_name: "Weekend Backup",
+      role_name: "Backup",
+      role_is_backup: true,
+      missing_exit_time: false,
+      exit_time: "20:00",
+      exit_time_display: "08:00 PM",
+      start_time: "09:00",
+      start_time_display: "09:00 AM",
+      overtime_display: "8.00 hrs",
+    };
+
+    global.window.insertEntryRow(entry, true);
+
+    const theadEl = createdElements.find((el) => el.tagName === "thead");
+    const tbodyEl = createdElements.find((el) => el.tagName === "tbody");
+    const insertedRow = tbodyEl?.children[0];
+
+    expect(appendedToCardBody).not.toBeNull();
+    expect(theadEl?.innerHTML).toContain("Start Time");
+    expect(insertedRow?.innerHTML).toContain('id="start-input-90"');
+  });
+
   test("removes no-entries placeholder when table exists but placeholder remains", () => {
     let placeholderRemoved = false;
     const noEntries = {
@@ -2780,6 +2947,52 @@ describe("applyLockToggle import button visibility", () => {
 
     expect(removed).toContain("d-none");
     expect(added).not.toContain("d-none");
+  });
+
+  test("reveals edit controls rendered hidden for an initially locked sheet", () => {
+    const page = { dataset: { sheetLocked: "true" } };
+    const addEntryForm = { style: { display: "none" } };
+    const editAllControls = { style: { display: "none" } };
+    const actionCell = { style: { display: "none" } };
+    const actionButtons = { style: { display: "none" } };
+    const editControls = { style: { display: "none" } };
+    const timeEditForm = { style: { display: "none" } };
+    const editBtn = { disabled: true };
+
+    mockElements["daily-sheet-page"] = page;
+    mockElements["edit-all-controls"] = editAllControls;
+    mockElements["import-schedule-container"] = {
+      classList: { add: () => {}, remove: () => {} },
+    };
+
+    global.document.getElementById = (id) => mockElements[id] || null;
+    global.document.querySelector = (sel) => {
+      if (sel === ".add-entry-form") return addEntryForm;
+      return null;
+    };
+    global.document.querySelectorAll = (sel) => {
+      if (sel === ".lock-hidden-when-locked") return [actionCell];
+      if (sel === "tr[data-entry-id] [id^='action-buttons-']")
+        return [actionButtons];
+      if (sel === "tr[data-entry-id] [id^='edit-controls-']")
+        return [editControls];
+      if (sel === "tr[data-entry-id] .edit-btn") return [editBtn];
+      if (sel === "tr[data-entry-id] .time-edit-form") return [timeEditForm];
+      return [];
+    };
+
+    const lockForm = { querySelector: () => null };
+
+    global.window.applyLockToggle(lockForm, false, null, null);
+
+    expect(page.dataset.sheetLocked).toBe("false");
+    expect(addEntryForm.style.display).toBe("");
+    expect(editAllControls.style.display).toBe("");
+    expect(actionCell.style.display).toBe("");
+    expect(actionButtons.style.display).toBe("");
+    expect(editControls.style.display).toBe("none");
+    expect(timeEditForm.style.display).toBe("none");
+    expect(editBtn.disabled).toBe(false);
   });
 
   test("handles missing import container gracefully", () => {

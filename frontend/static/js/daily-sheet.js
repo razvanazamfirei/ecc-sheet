@@ -15,6 +15,53 @@ const OVERTIME_VALUE_REGEX = /[\d.]+/;
 const existingEntryKeys = new Set();
 
 /**
+ * Returns the page-level daily sheet metadata element when present.
+ * @returns {HTMLElement|null} Daily sheet page element
+ */
+function getDailySheetPage() {
+  return document.getElementById("daily-sheet-page");
+}
+
+/**
+ * Reads a boolean data attribute using "true"/"false" string values.
+ * @param {HTMLElement|null} element - Element to inspect
+ * @param {string} key - dataset key
+ * @returns {boolean|null} Parsed boolean or null when not declared
+ */
+function getBooleanDatasetValue(element, key) {
+  const value = element?.dataset?.[key];
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  return null;
+}
+
+/**
+ * Persists the current lock state in page metadata for async UI guards.
+ * @param {boolean} locked - Whether the sheet is locked
+ */
+function setSheetLocked(locked) {
+  const page = getDailySheetPage();
+  if (page?.dataset) {
+    page.dataset.sheetLocked = locked ? "true" : "false";
+  }
+}
+
+/**
+ * Shows or hides elements that are rendered for async unlock but hidden while
+ * the sheet is locked.
+ * @param {boolean} locked - Whether the sheet is locked
+ */
+function setLockControlledVisibility(locked) {
+  document.querySelectorAll(".lock-hidden-when-locked").forEach((element) => {
+    element.style.display = locked ? "none" : "";
+  });
+}
+
+/**
  * Returns the DOM elements associated with a single entry row
  * @param {string|number} entryId - The entry ID
  * @returns {object} Entry element references
@@ -189,8 +236,7 @@ function escapeHtml(text) {
 async function copyToClipboard(event) {
   const rows = getEntryRows();
   const dateElement = document.getElementById("sheet-date");
-  const isWeekendOrHoliday =
-    document.querySelector(".start-time-cell") !== null;
+  const weekendOrHoliday = isWeekendOrHoliday();
 
   if (!rows.length) {
     notify("No entries to copy", "warning");
@@ -206,7 +252,7 @@ async function copyToClipboard(event) {
   html += "<thead><tr>";
   html += "<th>Role</th>";
   html += "<th>Name</th>";
-  if (isWeekendOrHoliday) {
+  if (weekendOrHoliday) {
     html += "<th>Start Time</th>";
   }
   html += "<th>Overtime</th>";
@@ -214,7 +260,7 @@ async function copyToClipboard(event) {
   html += "<tbody>";
 
   let plainText = `Attached is the resident ECC sheet for ${dateText}.\n\n`;
-  plainText += `Role\tName${isWeekendOrHoliday ? "\tStart Time" : ""}\tOvertime\n`;
+  plainText += `Role\tName${weekendOrHoliday ? "\tStart Time" : ""}\tOvertime\n`;
 
   let totalOvertime = 0;
 
@@ -240,7 +286,7 @@ async function copyToClipboard(event) {
 
     plainText += `${role}\t${name}`;
 
-    if (isWeekendOrHoliday) {
+    if (weekendOrHoliday) {
       const startElement = row.querySelector(".start-time-cell span");
       const start = startElement ? startElement.textContent.trim() : "-";
       html += `<td>${escapeHtml(start)}</td>`;
@@ -259,7 +305,7 @@ async function copyToClipboard(event) {
 
   html += "</tbody>";
   html += "<tfoot><tr>";
-  html += `<td colspan='${isWeekendOrHoliday ? "3" : "2"}'><strong>Total Overtime:</strong></td>`;
+  html += `<td colspan='${weekendOrHoliday ? "3" : "2"}'><strong>Total Overtime:</strong></td>`;
   html += `<td><strong>${totalOvertime.toFixed(2)} hrs</strong></td>`;
   html += "</tr></tfoot>";
   html += "</table>";
@@ -388,6 +434,14 @@ function applyLockToggle(form, locked, lockedBy, lockedAt) {
     lockStatus.remove();
   }
 
+  // If locking while edit-all is active, cancel it before applying locked state.
+  if (locked && editAllMode) {
+    toggleEditAll();
+  }
+
+  setSheetLocked(locked);
+  setLockControlledVisibility(locked);
+
   // Show/hide the Add Entry form and Edit All controls based on lock state
   const addEntryForm = document.querySelector(".add-entry-form");
   if (addEntryForm) {
@@ -410,9 +464,14 @@ function applyLockToggle(form, locked, lockedBy, lockedAt) {
 
   // Disable/enable per-row edit/delete buttons
   document
-    .querySelectorAll("tr[data-entry-id] .action-buttons")
+    .querySelectorAll("tr[data-entry-id] [id^='action-buttons-']")
     .forEach((el) => {
       el.style.display = locked ? "none" : "";
+    });
+  document
+    .querySelectorAll("tr[data-entry-id] [id^='edit-controls-']")
+    .forEach((el) => {
+      el.style.display = "none";
     });
   document.querySelectorAll("tr[data-entry-id] .edit-btn").forEach((btn) => {
     btn.disabled = locked;
@@ -420,13 +479,8 @@ function applyLockToggle(form, locked, lockedBy, lockedAt) {
   document
     .querySelectorAll("tr[data-entry-id] .time-edit-form")
     .forEach((el) => {
-      el.style.display = locked ? "none" : "";
+      el.style.display = "none";
     });
-
-  // If locking while edit-all is active, cancel it
-  if (locked && editAllMode) {
-    toggleEditAll();
-  }
 }
 
 /**
@@ -509,6 +563,10 @@ function initializeLockForm() {
  * @param {number} entryId - The entry ID to edit
  */
 function editEntry(entryId) {
+  if (isSheetLocked()) {
+    return;
+  }
+
   const elements = setEntryEditingState(entryId, true);
   if (!elements.exitInput) {
     return;
@@ -984,14 +1042,31 @@ function initializeInlineEditors() {
  * @returns {boolean}
  */
 function isWeekendOrHoliday() {
+  const pageValue = getBooleanDatasetValue(
+    getDailySheetPage(),
+    "weekendOrHoliday",
+  );
+  if (pageValue !== null) {
+    return pageValue;
+  }
+
   return document.querySelector(".start-time-cell") !== null;
 }
 
 /**
- * Returns whether the sheet is currently locked (no add-entry form present)
+ * Returns whether the sheet is currently locked.
  * @returns {boolean}
  */
 function isSheetLocked() {
+  const pageValue = getBooleanDatasetValue(getDailySheetPage(), "sheetLocked");
+  if (pageValue !== null) {
+    return pageValue;
+  }
+
+  if (!document.getElementById("lock-sheet-form")) {
+    return false;
+  }
+
   return document.querySelector(".add-entry-form") === null;
 }
 
@@ -1032,7 +1107,7 @@ function buildEmptyTable(canEdit, weekend) {
   headHtml += '<th class="col-2">Exit Time</th>';
   headHtml += '<th class="col-1">Overtime</th>';
   if (canEdit) {
-    headHtml += '<th class="col-1">Actions</th>';
+    headHtml += '<th class="col-1 lock-hidden-when-locked">Actions</th>';
   }
   headHtml += "</tr>";
   thead.innerHTML = headHtml;
@@ -1045,7 +1120,7 @@ function buildEmptyTable(canEdit, weekend) {
   tfoot.innerHTML = `<tr>
     <td colspan="${colSpan}"><strong>Total Overtime:</strong></td>
     <td class="overtime-cell"><strong>0.00 hrs</strong></td>
-    ${canEdit ? "<td></td>" : ""}
+    ${canEdit ? '<td class="lock-hidden-when-locked"></td>' : ""}
   </tr>`;
 
   table.appendChild(thead);
@@ -1118,7 +1193,7 @@ function insertEntryRow(entry, canEdit) {
   let actionsCell = "";
   if (canEdit) {
     actionsCell = `
-      <td id="actions-${entry.id}">
+      <td id="actions-${entry.id}" class="lock-hidden-when-locked">
         <div class="btn-group action-buttons" role="group"
           id="edit-controls-${entry.id}" style="display: none;">
           <button type="button" onclick="saveEntry(${entry.id})"
@@ -1213,40 +1288,7 @@ function insertEntryRow(entry, canEdit) {
       await saveEntry(entryId);
     });
   }
-  const deleteForm = tr.querySelector(".async-delete-form");
-  if (deleteForm) {
-    const entryId = String(entry.id);
-    deleteForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const csrfToken =
-        deleteForm.querySelector('[name="csrf_token"]')?.value || "";
-      try {
-        const response = await fetch(deleteForm.action, {
-          method: "POST",
-          body: new FormData(deleteForm),
-          headers: {
-            "Accept": "application/json",
-            "X-CSRFToken": csrfToken,
-            "X-Expect-JSON": "1",
-            "X-Requested-With": "XMLHttpRequest",
-          },
-        });
-        const payload = await parseJsonResponse(response);
-        if (!response.ok || !payload.success) {
-          throw new Error(payload.message || "Failed to delete entry.");
-        }
-        removeEntryRow(entryId);
-        notify(payload.message || "Entry deleted successfully.", "success");
-      } catch (error) {
-        notify(
-          error.message || "Error deleting entry. Please try again.",
-          "error",
-        );
-        console.error("Delete entry error:", error);
-      }
-    });
-  }
+  bindAsyncDeleteForm(tr.querySelector(".async-delete-form"));
 }
 
 /**
@@ -1406,6 +1448,7 @@ function initializeAddEntryShortcut() {
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "n" && event.key !== "+") return;
+    if (isSheetLocked()) return;
 
     // Do not trigger when focus is inside an interactive element
     const active = document.activeElement;
@@ -1466,49 +1509,68 @@ function removeEntryRow(entryId) {
 }
 
 /**
+ * Sends an async delete request for a confirmed delete form.
+ * @param {HTMLFormElement} form - Delete form
+ * @returns {Promise<void>}
+ */
+async function submitAsyncDelete(form) {
+  const entryId = form.dataset.entryId;
+  const csrfToken = form.querySelector('[name="csrf_token"]')?.value || "";
+
+  try {
+    const response = await fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
+      headers: {
+        "Accept": "application/json",
+        "X-CSRFToken": csrfToken,
+        "X-Expect-JSON": "1",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+    const payload = await parseJsonResponse(response);
+
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.message || "Failed to delete entry.");
+    }
+
+    removeEntryRow(entryId);
+    notify(payload.message || "Entry deleted successfully.", "success");
+  } catch (error) {
+    notify(error.message || "Error deleting entry. Please try again.", "error");
+    console.error("Delete entry error:", error);
+  }
+}
+
+/**
+ * Attaches async delete handling to one delete form.
+ * Defers the first submit to the global confirmation handler when the form
+ * declares confirmation data, then handles the confirmed bypass submit via AJAX.
+ * @param {HTMLFormElement|null} form - Delete form
+ */
+function bindAsyncDeleteForm(form) {
+  if (!form || form.dataset.asyncDeleteBound === "true") {
+    return;
+  }
+
+  form.dataset.asyncDeleteBound = "true";
+  form.addEventListener("submit", async (event) => {
+    if (form.dataset.confirmMessage && form.dataset.confirmBypass !== "true") {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    await submitAsyncDelete(form);
+  });
+}
+
+/**
  * Attaches async delete handlers to all delete forms on the page.
- * Intercepts the confirmation flow already wired up by the global
- * confirm-dialog handler, then removes the row on success instead
- * of reloading the page.
  */
 function initializeAsyncDelete() {
-  const forms = document.querySelectorAll(".async-delete-form");
-  forms.forEach((form) => {
-    const entryId = form.dataset.entryId;
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      const csrfToken = form.querySelector('[name="csrf_token"]')?.value || "";
-
-      try {
-        const response = await fetch(form.action, {
-          method: "POST",
-          body: new FormData(form),
-          headers: {
-            "Accept": "application/json",
-            "X-CSRFToken": csrfToken,
-            "X-Expect-JSON": "1",
-            "X-Requested-With": "XMLHttpRequest",
-          },
-        });
-        const payload = await parseJsonResponse(response);
-
-        if (!response.ok || !payload.success) {
-          throw new Error(payload.message || "Failed to delete entry.");
-        }
-
-        removeEntryRow(entryId);
-        notify(payload.message || "Entry deleted successfully.", "success");
-      } catch (error) {
-        notify(
-          error.message || "Error deleting entry. Please try again.",
-          "error",
-        );
-        console.error("Delete entry error:", error);
-      }
-    });
-  });
+  document.querySelectorAll(".async-delete-form").forEach(bindAsyncDeleteForm);
 }
 
 /**
