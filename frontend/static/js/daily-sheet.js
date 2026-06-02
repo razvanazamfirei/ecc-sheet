@@ -2,6 +2,7 @@
  * Daily Sheet Page JavaScript
  * Handles entry editing, bulk save, auto-lock countdown, and clipboard copy
  */
+/** biome-ignore-all lint/security/noSecrets: false positive */
 let editAllMode = false;
 const originalValues = {};
 const OVERTIME_VALUE_REGEX = /[\d.]+/;
@@ -447,7 +448,7 @@ function initializeLockForm() {
         body: new FormData(form),
         credentials: "same-origin",
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "X-CSRFToken": csrfToken,
           "X-Expect-JSON": "1",
           "X-Requested-With": "XMLHttpRequest",
@@ -627,7 +628,7 @@ async function saveEntry(entryId, options = {}) {
       body: formData,
       credentials: "same-origin",
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
         "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
         "X-Requested-With": "XMLHttpRequest",
@@ -778,7 +779,7 @@ async function saveAll() {
       body: JSON.stringify({ entries }),
       credentials: "same-origin",
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
         "Content-Type": "application/json",
         "X-CSRFToken": csrfToken,
         "X-Expect-JSON": "1",
@@ -1043,17 +1044,17 @@ function insertEntryRow(entry, canEdit) {
   const weekend = isWeekendOrHoliday();
 
   let tbody = document.querySelector(".entries-table tbody");
-  if (!tbody) {
-    // Table not yet present (empty sheet) — build the full table structure
-    tbody = buildEmptyTable(canEdit, weekend);
-    if (!tbody) {
-      return;
-    }
-  } else {
+  if (tbody) {
     // Table exists — remove no-entries placeholder if somehow still present
     const noEntries = document.querySelector(".no-entries");
     if (noEntries) {
       noEntries.remove();
+    }
+  } else {
+    // Table not yet present (empty sheet) — build the full table structure
+    tbody = buildEmptyTable(canEdit, weekend);
+    if (!tbody) {
+      return;
     }
   }
 
@@ -1133,7 +1134,7 @@ function insertEntryRow(entry, canEdit) {
   }
 
   const tr = document.createElement("tr");
-  tr.className = "align-middle" + (missingExit ? " entry-missing-data" : "");
+  tr.className = `align-middle${missingExit ? " entry-missing-data" : ""}`;
   tr.id = `entry-row-${entry.id}`;
   tr.dataset.entryId = String(entry.id);
   tr.dataset.residentId = String(entry.resident_id);
@@ -1203,7 +1204,7 @@ function insertEntryRow(entry, canEdit) {
           method: "POST",
           body: new FormData(deleteForm),
           headers: {
-            "Accept": "application/json",
+            Accept: "application/json",
             "X-CSRFToken": csrfToken,
             "X-Expect-JSON": "1",
             "X-Requested-With": "XMLHttpRequest",
@@ -1241,7 +1242,7 @@ function updateMissingExitWarning() {
   });
 
   // Find or create the missing-exit alert
-  let alert = document.querySelector(
+  const alert = document.querySelector(
     ".alert.alert-warning:not(.auto-lock-warning)",
   );
 
@@ -1266,7 +1267,7 @@ function updateMissingExitWarning() {
     const childNodes = Array.from(alert.childNodes);
     childNodes.forEach((node) => {
       if (node.nodeType === 3 /* TEXT_NODE */) {
-        node.textContent = " " + names.join(", ") + " ";
+        node.textContent = ` ${names.join(", ")} `;
       }
     });
   }
@@ -1319,7 +1320,7 @@ function initializeAddEntryForm() {
         method: "POST",
         body: new FormData(form),
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "X-CSRFToken": csrfToken,
           "X-Expect-JSON": "1",
           "X-Requested-With": "XMLHttpRequest",
@@ -1452,7 +1453,7 @@ function initializeAsyncDelete() {
           method: "POST",
           body: new FormData(form),
           headers: {
-            "Accept": "application/json",
+            Accept: "application/json",
             "X-CSRFToken": csrfToken,
             "X-Expect-JSON": "1",
             "X-Requested-With": "XMLHttpRequest",

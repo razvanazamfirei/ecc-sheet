@@ -6,7 +6,7 @@ All routes return 404 in production.
 
 from flask import Blueprint, abort, redirect, request, session
 
-from ..auth import mock_users_enabled
+from ..auth import get_admin_users, mock_users_enabled
 from ._forms import form_text
 from ._helpers import redirect_to
 
@@ -27,6 +27,23 @@ def switch_user():
         session["dev_user"] = user
     else:
         session.pop("dev_user", None)
+    if request.referrer:
+        return redirect(request.referrer)
+    return redirect_to("sheets.index")
+
+
+@bp.get("/sign-out")
+def sign_out():
+    """Clear the dev session user override."""
+    session.pop("dev_user", None)
+    return redirect_to("sheets.index")
+
+
+@bp.get("/become-admin")
+def become_admin():
+    """Set dev session user to the first configured admin."""
+    admins = get_admin_users()
+    session["dev_user"] = admins[0] if admins else "Admin"
     if request.referrer:
         return redirect(request.referrer)
     return redirect_to("sheets.index")

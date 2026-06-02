@@ -141,7 +141,7 @@ class TestReportExport:
         self, client, app, sample_time_entry, sample_resident, sample_role
     ):
         """CSV export with exclude_zero_overtime=1 omits residents with 0 overtime."""
-        from datetime import date as date_type, time as time_type
+        from datetime import time as time_type
 
         with app.app_context():
             # Create a second resident with a zero-overtime entry (exit before cutoff)

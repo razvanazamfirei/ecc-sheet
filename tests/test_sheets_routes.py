@@ -1122,9 +1122,7 @@ class TestSheetLockJsonResponse:
                     locked_at=original_locked_at,
                 )
 
-    def test_lock_json_includes_show_import_button_false_when_locked(
-        self, client, app
-    ):
+    def test_lock_json_includes_show_import_button_false_when_locked(self, client, app):
         """Lock JSON response includes show_import_button=False when sheet is locked."""
         with app.app_context():
             today = get_effective_date()
@@ -1168,7 +1166,8 @@ class TestSheetLockJsonResponse:
     def test_unlock_json_includes_show_import_button_true_when_unlocked(
         self, client, app
     ):
-        """Unlock JSON response includes show_import_button=True when sheet is unlocked."""
+        """Unlock JSON response includes show_import_button=True when sheet is
+        unlocked."""
         with app.app_context():
             today = get_effective_date()
             date_str = today.strftime("%Y-%m-%d")

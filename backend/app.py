@@ -173,10 +173,13 @@ def require_authenticated_request():
 def inject_auth():
     """Inject authentication functions into template context."""
     session_user = get_session_authenticated_user()
+    has_mock_session = mock_users_enabled() and bool(session.get("dev_user"))
     return {
         "current_user": get_current_user(),
         "is_admin": is_admin(),
-        "can_logout": bool(session_user and saml_enabled(app.config)),
+        "can_logout": bool(
+            (session_user and saml_enabled(app.config)) or has_mock_session
+        ),
     }
 
 
