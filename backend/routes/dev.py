@@ -32,14 +32,14 @@ def switch_user():
     return redirect_to("sheets.index")
 
 
-@bp.get("/sign-out")
+@bp.post("/sign-out")
 def sign_out():
     """Clear the dev session user override."""
     session.pop("dev_user", None)
     return redirect_to("sheets.index")
 
 
-@bp.get("/become-admin")
+@bp.post("/become-admin")
 def become_admin():
     """Set dev session user to the first configured admin."""
     if not can_escalate_to_admin():

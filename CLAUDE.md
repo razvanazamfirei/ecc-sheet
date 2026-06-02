@@ -56,7 +56,7 @@ environment)
 
 - **pytest 9.0.2** - Python testing framework
 - **pytest-cov 7.0.0** - Coverage plugin
-- **Vitest 30.2.0** - JavaScript testing framework
+- **Vitest ^4.1.8** - JavaScript testing framework
 
 ### Build Tools
 

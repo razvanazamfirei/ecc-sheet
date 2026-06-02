@@ -13,9 +13,6 @@ EnvironmentFile=/opt/ecc-sheet/.env
 Environment=FLASK_APP=backend.app
 Environment=PATH=/opt/ecc-sheet/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Bootstrap schema and seed data on every start so upgrades apply automatically.
-ExecStartPre=/opt/ecc-sheet/.venv/bin/flask --app backend.app bootstrap-application
-
 ExecStart=/opt/ecc-sheet/.venv/bin/gunicorn \
     --workers 2 \
     --bind 127.0.0.1:5000 \

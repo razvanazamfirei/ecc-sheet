@@ -19,6 +19,7 @@ from ..auth import (
 )
 from ..errors import ValidationError
 from ..models import PayrollSettings, TimeEntry
+from ..type_defs import ResidentData
 from ..report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
@@ -109,7 +110,7 @@ def _exclude_zero_overtime_flag() -> bool:
     return request.form.get("exclude_zero_overtime", "0") == "1"
 
 
-def _filter_zero_overtime(resident_data) -> dict:
+def _filter_zero_overtime(resident_data: ResidentData) -> ResidentData:
     """Remove residents with zero total overtime from the aggregated data."""
     return {k: v for k, v in resident_data.items() if v["total_overtime"] > 0}
 

@@ -407,6 +407,26 @@ function applyLockToggle(form, locked, lockedBy, lockedAt) {
       importContainer.classList.remove("d-none");
     }
   }
+
+  // Disable/enable per-row edit/delete buttons
+  document
+    .querySelectorAll("tr[data-entry-id] .action-buttons")
+    .forEach((el) => {
+      el.style.display = locked ? "none" : "";
+    });
+  document.querySelectorAll("tr[data-entry-id] .edit-btn").forEach((btn) => {
+    btn.disabled = locked;
+  });
+  document
+    .querySelectorAll("tr[data-entry-id] .time-edit-form")
+    .forEach((el) => {
+      el.style.display = locked ? "none" : "";
+    });
+
+  // If locking while edit-all is active, cancel it
+  if (locked && editAllMode) {
+    toggleEditAll();
+  }
 }
 
 /**
@@ -436,6 +456,7 @@ function initializeLockForm() {
     }
 
     const csrfToken = form.querySelector('[name="csrf_token"]')?.value || "";
+    const originalBtnHtml = btn ? btn.innerHTML : "";
     if (btn) {
       btn.disabled = true;
       btn.innerHTML =
@@ -477,6 +498,7 @@ function initializeLockForm() {
       console.error("Lock toggle error:", error);
       if (btn) {
         btn.disabled = false;
+        btn.innerHTML = originalBtnHtml;
       }
     }
   });
@@ -1263,13 +1285,24 @@ function updateMissingExitWarning() {
           : "entries missing exit times:";
       strong.textContent = `${missingCount} ${label}`;
     }
-    // Replace the text node that follows the strong
     const childNodes = Array.from(alert.childNodes);
     childNodes.forEach((node) => {
       if (node.nodeType === 3 /* TEXT_NODE */) {
         node.textContent = ` ${names.join(", ")} `;
       }
     });
+  }
+
+  // Keep the lock form's data attributes in sync
+  const lockForm = document.getElementById("lock-sheet-form");
+  if (lockForm) {
+    if (missingCount > 0) {
+      lockForm.dataset.missingCount = String(missingCount);
+      lockForm.dataset.missingResidents = JSON.stringify(names);
+    } else {
+      delete lockForm.dataset.missingCount;
+      delete lockForm.dataset.missingResidents;
+    }
   }
 }
 

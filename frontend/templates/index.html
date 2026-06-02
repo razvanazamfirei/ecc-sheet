@@ -271,6 +271,13 @@
             >
             hrs overtime
           </small>
+        {% else %}
+          <small class="text-body-secondary sheet-summary" id="sheet-summary">
+            <span class="entry-count">0 entries</span>
+            &middot;
+            <strong id="summary-total-overtime">0.00</strong>
+            hrs overtime
+          </small>
         {% endif %}
       </div>
       {% if can_edit and not daily_sheet.locked and overtime_entries %}

@@ -243,7 +243,10 @@ class TestIsAdmin:
             os.environ["ADMIN_USERS"] = "SomeOtherAdmin"
             assert is_admin() is True
         finally:
-            for key, val in [("USER_NAME", original_user), ("ADMIN_USERS", original_admins)]:
+            for key, val in [
+                ("USER_NAME", original_user),
+                ("ADMIN_USERS", original_admins),
+            ]:
                 if val is not None:
                     os.environ[key] = val
                 else:
@@ -258,7 +261,10 @@ class TestIsAdmin:
             os.environ["ADMIN_USERS"] = "Admin"
             assert is_admin() is False
         finally:
-            for key, val in [("USER_NAME", original_user), ("ADMIN_USERS", original_admins)]:
+            for key, val in [
+                ("USER_NAME", original_user),
+                ("ADMIN_USERS", original_admins),
+            ]:
                 if val is not None:
                     os.environ[key] = val
                 else:
@@ -791,13 +797,13 @@ class TestDevRoutes:
     """Tests for /dev/* routes."""
 
     def test_sign_out_clears_dev_user_and_redirects(self, client):
-        """GET /dev/sign-out clears dev_user from session and redirects."""
+        """POST /dev/sign-out clears dev_user from session and redirects."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         try:
             os.environ["MOCK_USERS_ENABLED"] = "true"
             with client.session_transaction() as sess:
                 sess["dev_user"] = "Some User"
-            response = client.get("/dev/sign-out")
+            response = client.post("/dev/sign-out")
             assert response.status_code == 302
             with client.session_transaction() as sess:
                 assert "dev_user" not in sess
@@ -808,18 +814,18 @@ class TestDevRoutes:
                 os.environ.pop("MOCK_USERS_ENABLED", None)
 
     def test_sign_out_returns_404_when_mock_disabled(self, client):
-        """GET /dev/sign-out returns 404 when MOCK_USERS_ENABLED is not set."""
+        """POST /dev/sign-out returns 404 when MOCK_USERS_ENABLED is not set."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         try:
             os.environ.pop("MOCK_USERS_ENABLED", None)
-            response = client.get("/dev/sign-out")
+            response = client.post("/dev/sign-out")
             assert response.status_code == 404
         finally:
             if original_mock is not None:
                 os.environ["MOCK_USERS_ENABLED"] = original_mock
 
     def test_become_admin_sets_dev_user_to_first_admin(self, client):
-        """GET /dev/become-admin sets dev_user to the first admin (owner is always first)."""
+        """POST /dev/become-admin sets dev_user to the first admin (owner is always first)."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         original_admins = os.environ.get("ADMIN_USERS")
         try:
@@ -827,7 +833,7 @@ class TestDevRoutes:
             os.environ["ADMIN_USERS"] = "Other Admin"
             with client.session_transaction() as sess:
                 sess["dev_user"] = "azamfirr"
-            response = client.get("/dev/become-admin")
+            response = client.post("/dev/become-admin")
             assert response.status_code == 302
             with client.session_transaction() as sess:
                 assert sess.get("dev_user") == "azamfirr"
@@ -844,13 +850,13 @@ class TestDevRoutes:
                 sess.pop("dev_user", None)
 
     def test_become_admin_returns_403_for_non_owner(self, client):
-        """GET /dev/become-admin returns 403 for any user who is not the owner."""
+        """POST /dev/become-admin returns 403 for any user who is not the owner."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         try:
             os.environ["MOCK_USERS_ENABLED"] = "true"
             with client.session_transaction() as sess:
                 sess["dev_user"] = "regular.user"
-            response = client.get("/dev/become-admin")
+            response = client.post("/dev/become-admin")
             assert response.status_code == 403
         finally:
             if original_mock is not None:
@@ -861,7 +867,7 @@ class TestDevRoutes:
                 sess.pop("dev_user", None)
 
     def test_become_admin_falls_back_to_owner_when_admin_users_empty(self, client):
-        """GET /dev/become-admin resolves to the owner when ADMIN_USERS is empty."""
+        """POST /dev/become-admin resolves to the owner when ADMIN_USERS is empty."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         original_admins = os.environ.get("ADMIN_USERS")
         try:
@@ -869,7 +875,7 @@ class TestDevRoutes:
             os.environ["ADMIN_USERS"] = ""
             with client.session_transaction() as sess:
                 sess["dev_user"] = "azamfirr"
-            response = client.get("/dev/become-admin")
+            response = client.post("/dev/become-admin")
             assert response.status_code == 302
             with client.session_transaction() as sess:
                 assert sess.get("dev_user") == "azamfirr"
@@ -886,11 +892,11 @@ class TestDevRoutes:
                 sess.pop("dev_user", None)
 
     def test_become_admin_returns_404_when_mock_disabled(self, client):
-        """GET /dev/become-admin returns 404 when MOCK_USERS_ENABLED is not set."""
+        """POST /dev/become-admin returns 404 when MOCK_USERS_ENABLED is not set."""
         original_mock = os.environ.get("MOCK_USERS_ENABLED")
         try:
             os.environ.pop("MOCK_USERS_ENABLED", None)
-            response = client.get("/dev/become-admin")
+            response = client.post("/dev/become-admin")
             assert response.status_code == 404
         finally:
             if original_mock is not None:
