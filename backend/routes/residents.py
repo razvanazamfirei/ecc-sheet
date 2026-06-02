@@ -12,18 +12,22 @@ from flask import (
 from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 
-from ..audit import log_create, log_update
-from ..auth import admin_required, get_current_user, is_admin, is_first_call
-from ..models import AuditLog, Resident, TimeEntry, db
-from ..payroll_audit import filter_payroll_resident_changes
-from ..staff_import import import_staff_list
-from ._forms import (
+from backend.audit import log_create, log_update
+from backend.auth import admin_required, get_current_user, is_admin, is_first_call
+from backend.models import AuditLog, Resident, TimeEntry, db
+from backend.payroll_audit import filter_payroll_resident_changes
+from backend.routes._forms import (
     form_text,
     optional_form_int,
     optional_form_iso_date,
     optional_form_text,
 )
-from ._helpers import commit_flash_redirect, diff_snapshots, flash_redirect
+from backend.routes._helpers import (
+    commit_flash_redirect,
+    diff_snapshots,
+    flash_redirect,
+)
+from backend.staff_import import import_staff_list
 
 bp: Blueprint = Blueprint("residents", __name__, url_prefix="/residents")
 logger: Logger = logging.getLogger(__name__)

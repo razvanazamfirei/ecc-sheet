@@ -2,7 +2,7 @@
 
 from flask import jsonify
 
-from .utils import setup_logging
+from backend.utils import setup_logging
 
 logger = setup_logging()
 

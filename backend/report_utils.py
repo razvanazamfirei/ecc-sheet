@@ -8,8 +8,8 @@ import openpyxl
 from flask_sqlalchemy.query import Query
 from sqlalchemy.orm import joinedload
 
-from .models import PayrollSettings, Resident, Role, TimeEntry, db
-from .type_defs import (
+from backend.models import PayrollSettings, Resident, Role, TimeEntry, db
+from backend.type_defs import (
     ResidentData,
     ResidentEntryDict,
     ResidentID,

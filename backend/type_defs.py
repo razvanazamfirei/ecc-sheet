@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 if TYPE_CHECKING:
-    from .models import AuditLog, Resident, TimeEntry
+    from backend.models import AuditLog, Resident, TimeEntry
 
 
 class ResidentTimeEntryDict(TypedDict):

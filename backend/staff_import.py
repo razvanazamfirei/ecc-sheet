@@ -27,10 +27,10 @@ from backend.payroll_audit import (
 from backend.resident_normalization import (
     canonicalize_class_year,
     clean_text,
-    normalize_email,
     split_name,
 )
 from backend.type_defs import ImportResult, StaffList, StaffRecord
+from backend.utils import normalize_email
 
 logger = logging.getLogger(__name__)
 

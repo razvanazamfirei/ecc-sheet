@@ -8,8 +8,8 @@ from logging import Logger
 from flask import Blueprint, render_template, request
 from werkzeug.wrappers import Response
 
-from ..audit import log_update
-from ..auth import (
+from backend.audit import log_update
+from backend.auth import (
     admin_required,
     can_filter_reports_by_resident,
     can_view_all_reports,
@@ -17,24 +17,24 @@ from ..auth import (
     is_payroll_admin,
     payroll_admin_required,
 )
-from ..errors import ValidationError
-from ..models import PayrollSettings, TimeEntry
-from ..type_defs import ResidentData
-from ..report_utils import (
+from backend.errors import ValidationError
+from backend.models import PayrollSettings, TimeEntry
+from backend.report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
     generate_csv_content,
     generate_payroll_xlsx,
     get_resident_name,
 )
-from ._forms import form_text, optional_form_int
-from ._helpers import (
+from backend.routes._forms import form_text, optional_form_int
+from backend.routes._helpers import (
     commit_flash_redirect,
     diff_snapshots,
     flash_redirect,
     parse_iso_date,
     rollback_flash_redirect,
 )
+from backend.type_defs import ResidentData
 
 bp: Blueprint = Blueprint("reports", __name__)
 logger: Logger = logging.getLogger(__name__)

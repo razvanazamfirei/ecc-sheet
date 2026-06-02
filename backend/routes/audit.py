@@ -2,8 +2,8 @@
 
 from flask import Blueprint, render_template, request
 
-from ..auth import admin_required
-from ..models import AuditLog
+from backend.auth import admin_required
+from backend.models import AuditLog
 
 bp = Blueprint("audit", __name__)
 

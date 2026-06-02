@@ -10,8 +10,8 @@ from urllib.parse import urlsplit
 
 from flask import current_app, has_app_context, request, session, url_for
 
-from .env_utils import env_flag, env_str
-from .errors import (
+from backend.env_utils import env_flag, env_str
+from backend.errors import (
     SAMLInvalidJSONError,
     SAMLInvalidSettingsError,
     SAMLMissingDependencyError,
@@ -48,7 +48,7 @@ def saml_public_endpoint(endpoint: str | None) -> bool:
 
 
 def saml_logout_enabled(config: Mapping[str, object] | None = None) -> bool:
-    """Return True when the loaded IdP config exposes a logout endpoint."""
+    """Return True when the loaded IdP config exposes a valid logout endpoint."""
     settings, _ = load_saml_settings(config=config)
     try:
         single_logout = settings.get("idp", {}).get("singleLogoutService", {})
@@ -170,7 +170,7 @@ def saml_use_name_id(config: Mapping[str, object] | None = None) -> bool:
     return env_flag("SAML_USE_NAME_ID", default=True)
 
 
-def load_saml_settings(
+def load_saml_settings(  # noqa: PLR0912, PLR0915
     config: Mapping[str, object] | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     """Load the configured OneLogin toolkit settings."""
@@ -186,6 +186,7 @@ def load_saml_settings(
         settings_json = env_str("SAML_SETTINGS_JSON")
         settings_path_value = env_str("SAML_SETTINGS_PATH")
 
+    base_path = None
     if settings_json:
         try:
             settings = json.loads(str(settings_json))
@@ -195,33 +196,73 @@ def load_saml_settings(
             raise SAMLInvalidSettingsError(
                 "SAML_SETTINGS_JSON must decode to a JSON object."
             )
-        return settings, None
+    else:
+        if not settings_path_value:
+            raise SAMLSettingsNotFoundError(
+                "SAML is enabled but no SAML settings were configured. "
+                "Set SAML_SETTINGS_PATH or SAML_SETTINGS_JSON."
+            )
 
-    if not settings_path_value:
-        raise SAMLSettingsNotFoundError(
-            "SAML is enabled but no SAML settings were configured. "
-            "Set SAML_SETTINGS_PATH or SAML_SETTINGS_JSON."
-        )
+        path = Path(str(settings_path_value))
+        if not path.is_absolute():
+            path = (_PROJECT_ROOT / path).resolve()
+        if not path.is_file():
+            raise SAMLSettingsNotFoundError(f"SAML settings file not found: {path}")
 
-    path = Path(str(settings_path_value))
-    if not path.is_absolute():
-        path = (_PROJECT_ROOT / path).resolve()
-    if not path.is_file():
-        raise SAMLSettingsNotFoundError(f"SAML settings file not found: {path}")
+        try:
+            settings = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise SAMLInvalidJSONError(
+                f"SAML settings file is not valid JSON: {path}"
+            ) from exc
 
-    try:
-        settings = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise SAMLInvalidJSONError(
-            f"SAML settings file is not valid JSON: {path}"
-        ) from exc
+        if not isinstance(settings, dict):
+            raise SAMLInvalidSettingsError(
+                f"SAML settings file must contain a JSON object: {path}"
+            )
+        base_path = str(path.parent)
 
-    if not isinstance(settings, dict):
-        raise SAMLInvalidSettingsError(
-            f"SAML settings file must contain a JSON object: {path}"
-        )
+    idp = settings.get("idp")
+    if isinstance(idp, dict):
+        single_logout = idp.get("singleLogoutService")
+        if single_logout is None:
+            single_logout = {}
+            idp["singleLogoutService"] = single_logout
 
-    return settings, str(path.parent)
+        if isinstance(single_logout, dict):
+            single_sign_on = idp.get("singleSignOnService", {})
+            sso_url = (
+                str(single_sign_on.get("url") or "").strip()
+                if isinstance(single_sign_on, dict)
+                else ""
+            )
+            parsed_sso_url = urlsplit(sso_url)
+            sso_path_parts = [part for part in parsed_sso_url.path.split("/") if part]
+
+            if (
+                parsed_sso_url.scheme in {"http", "https"}
+                and parsed_sso_url.netloc
+                and len(sso_path_parts) == 2
+                and sso_path_parts[0] == "samlp"
+            ):
+                single_logout["url"] = parsed_sso_url._replace(
+                    path=f"/samlp/{sso_path_parts[1]}/logout",
+                    query="",
+                    fragment="",
+                ).geturl()
+            else:
+                logout_url = str(single_logout.get("url") or "").strip()
+                parsed_logout_url = urlsplit(logout_url)
+                if (
+                    logout_url
+                    and parsed_logout_url.scheme in {"http", "https"}
+                    and parsed_logout_url.netloc
+                ):
+                    single_logout["url"] = logout_url
+                else:
+                    single_logout.pop("url", None)
+
+    return settings, base_path
 
 
 def validate_saml_configuration(

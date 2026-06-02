@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .models import Resident
+from backend.models import Resident
 
 PAYROLL_RESIDENT_FIELDS = frozenset({"name", "lawson_id", "hire_date"})
 

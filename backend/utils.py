@@ -1,14 +1,17 @@
 """Utility functions for logging and validation."""
 
+from __future__ import annotations
+
 import logging
 import shutil
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytz
+from email_validator import validate_email
 from flask import request
 
-from .config import Config
+from backend.config import Config
 
 logger = logging.getLogger("ecc_sheet")
 
@@ -108,3 +111,16 @@ def get_effective_date(dt: datetime | None = None) -> date:
         return (dt - timedelta(days=1)).date()
 
     return dt.date()
+
+
+def normalize_email(address: str) -> str:
+    """Validate and normalize a single email address."""
+    return validate_email(address.strip(), check_deliverability=False).normalized
+
+
+def parse_iso_date(raw: str, *, error_message: str = "Invalid date format") -> date:
+    """Parse an ISO date string or raise ValueError with a caller-supplied message."""
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError(error_message) from exc

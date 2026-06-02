@@ -55,27 +55,26 @@ function showNotification(message, type = "success") {
     return null;
   }
 
-  let alertType;
-  let icon;
-  if (["success", "warning", "info", "danger"].includes(type)) {
-    alertType = type === "error" ? "danger" : type;
-  } else {
-    alertType = type === "error" ? "danger" : "success";
-  }
-  if (alertType === "warning") {
-    icon = alertType === "success" ? "check-circle" : "exclamation-circle";
-  } else if (alertType === "info") {
-    icon = alertType === "success" ? "check-circle" : "info-circle";
-  } else {
-    icon = alertType === "success" ? "check-circle" : "exclamation-triangle";
-  }
+  const supportedTypes = ["success", "warning", "info", "danger"];
+  const alertType =
+    type === "error"
+      ? "danger"
+      : supportedTypes.includes(type)
+        ? type
+        : "success";
+  const icons = {
+    success: "check-circle",
+    warning: "exclamation-circle",
+    info: "info-circle",
+    danger: "exclamation-triangle",
+  };
 
   const notification = document.createElement("div");
   notification.className = `alert alert-${alertType} alert-dismissible fade show`;
   notification.role = "alert";
 
   const iconElement = document.createElement("i");
-  iconElement.className = `bi bi-${icon} me-2`;
+  iconElement.className = `bi bi-${icons[alertType]} me-2`;
   notification.appendChild(iconElement);
 
   const messageElement = document.createElement("span");

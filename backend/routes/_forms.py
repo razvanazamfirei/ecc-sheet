@@ -6,7 +6,7 @@ from datetime import date
 
 from flask import request
 
-from ..parsing import parse_iso_date
+from backend.utils import parse_iso_date
 
 
 def form_text(key: str) -> str:

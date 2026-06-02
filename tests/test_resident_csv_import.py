@@ -38,6 +38,16 @@ class TestParseResidentCsv:
         assert records[0].hire_date == date(2025, 7, 1)
         assert records[0].active is True
 
+    def test_parse_allows_missing_email_column(self):
+        records = parse_resident_csv("name,epic_id\nNo Email Resident,RCSVNOEMAIL\n")
+
+        assert records[0].email is None
+
+    def test_parse_allows_blank_email_value(self):
+        records = parse_resident_csv("name,email\nBlank Email Resident,   \n")
+
+        assert records[0].email is None
+
     def test_parse_rejects_unknown_column(self):
         with pytest.raises(ValidationError, match="unsupported columns"):
             parse_resident_csv("name,badge_number\nJane Doe,123\n")

@@ -110,17 +110,6 @@ function getEntryRows() {
 }
 
 /**
- * Sets the display style for an element when present
- * @param {HTMLElement|null} element - Element to update
- * @param {string} display - CSS display value
- */
-function setElementDisplay(element, display) {
-  if (element?.style) {
-    element.style.display = display;
-  }
-}
-
-/**
  * Updates the inline editor visibility for a single entry row
  * @param {string|number} entryId - The entry ID
  * @param {boolean} editing - Whether the row is in edit mode
@@ -128,16 +117,24 @@ function setElementDisplay(element, display) {
  */
 function setEntryEditingState(entryId, editing) {
   const elements = getEntryElements(entryId);
-  setElementDisplay(elements.display, editing ? "none" : "inline");
-  setElementDisplay(elements.form, editing ? "inline" : "none");
-  setElementDisplay(elements.actionButtons, editing ? "none" : "inline-flex");
-  setElementDisplay(elements.editControls, editing ? "inline-flex" : "none");
+  if (elements.display?.style) {
+    elements.display.style.display = editing ? "none" : "inline";
+  }
+  if (elements.form?.style) {
+    elements.form.style.display = editing ? "inline" : "none";
+  }
+  if (elements.actionButtons?.style) {
+    elements.actionButtons.style.display = editing ? "none" : "inline-flex";
+  }
+  if (elements.editControls?.style) {
+    elements.editControls.style.display = editing ? "inline-flex" : "none";
+  }
 
   if (elements.startInput) {
-    setElementDisplay(elements.startInput, editing ? "inline" : "none");
+    elements.startInput.style.display = editing ? "inline" : "none";
   }
   if (elements.startDisplay) {
-    setElementDisplay(elements.startDisplay, editing ? "none" : "inline");
+    elements.startDisplay.style.display = editing ? "none" : "inline";
   }
 
   return elements;
@@ -811,17 +808,6 @@ function buildBulkSaveRequest(rows) {
 }
 
 /**
- * Enables or disables row-level inline-edit controls during bulk save
- * @param {object[]} controls - Row control descriptors from buildBulkSaveRequest
- * @param {boolean} disabled - Whether controls should be disabled
- */
-function setBulkSaveDisabled(controls, disabled) {
-  controls.forEach((controlsForEntry) => {
-    setEntryControlsDisabled(controlsForEntry, disabled);
-  });
-}
-
-/**
  * Saves all entries asynchronously
  */
 async function saveAll() {
@@ -851,7 +837,9 @@ async function saveAll() {
   if (editAllBtn) {
     editAllBtn.disabled = true;
   }
-  setBulkSaveDisabled(controls, true);
+  controls.forEach((controlsForEntry) => {
+    setEntryControlsDisabled(controlsForEntry, true);
+  });
 
   try {
     const response = await fetch("/entries/update-all", {
@@ -887,7 +875,9 @@ async function saveAll() {
     notify(error.message || "Error saving entries. Please try again.", "error");
     console.error("Save all error:", error);
   } finally {
-    setBulkSaveDisabled(controls, false);
+    controls.forEach((controlsForEntry) => {
+      setEntryControlsDisabled(controlsForEntry, false);
+    });
     if (saveAllBtn) {
       saveAllBtn.disabled = false;
       saveAllBtn.innerHTML = '<i class="bi bi-check-all me-1"></i>Save All';
@@ -1495,17 +1485,7 @@ function removeEntryRow(entryId) {
     row.remove();
   }
   updateTotalOvertime();
-
-  // Update the summary entry count
-  const rows = getEntryRows();
-  const summaryEl = document.getElementById("sheet-summary");
-  if (summaryEl) {
-    const count = rows.length;
-    const countEl = summaryEl.querySelector(".entry-count");
-    if (countEl) {
-      countEl.textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
-    }
-  }
+  updateEntrySummaryCount();
 }
 
 /**

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Response, abort, current_app, redirect, request
 
-from ..saml import (
+from backend.saml import (
     build_saml_auth,
     build_saml_settings,
     clear_session_authenticated_user,
@@ -62,6 +62,7 @@ def acs():
 
     attributes = auth.get_attributes()
     name_id = auth.get_nameid()
+    session_index = auth.get_session_index()
     attribute_keys = sorted(attributes)
     current_app.logger.debug(
         "SAML ACS: attribute_keys=%s attribute_count=%d name_id_present=%s "
@@ -69,7 +70,7 @@ def acs():
         attribute_keys,
         len(attribute_keys),
         bool(name_id),
-        bool(auth.get_session_index()),
+        bool(session_index),
     )
     username = resolve_username(attributes=attributes, name_id=name_id)
     current_app.logger.debug(
@@ -88,7 +89,7 @@ def acs():
     set_session_authenticated_user(
         username,
         name_id=name_id,
-        session_index=auth.get_session_index(),
+        session_index=session_index,
     )
 
     relay_state = request.form.get("RelayState")
@@ -131,13 +132,16 @@ def logout():
         clear_session_authenticated_user()
         return redirect(target)
 
+    name_id = get_saml_name_id()
+    session_index = get_saml_session_index()
     try:
         auth = build_saml_auth(request)
         redirect_url = auth.logout(
             return_to=target,
-            name_id=get_saml_name_id(),
-            session_index=get_saml_session_index(),
+            name_id=name_id,
+            session_index=session_index,
         )
+        clear_session_authenticated_user()
         store_auth_request_id(auth.get_last_request_id(), "logout")
         return redirect(redirect_url)
     except Exception:

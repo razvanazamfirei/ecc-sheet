@@ -5,11 +5,15 @@ from logging import Logger
 
 from flask import Blueprint, abort, render_template, request
 
-from ..audit import log_update_strict
-from ..auth import admin_required
-from ..models import Role, db
-from ._forms import form_text
-from ._helpers import commit_flash_redirect, diff_snapshots, flash_redirect
+from backend.audit import log_update_strict
+from backend.auth import admin_required
+from backend.models import Role, db
+from backend.routes._forms import form_text
+from backend.routes._helpers import (
+    commit_flash_redirect,
+    diff_snapshots,
+    flash_redirect,
+)
 
 bp: Blueprint = Blueprint("roles", __name__, url_prefix="/roles")
 logger: Logger = logging.getLogger(__name__)

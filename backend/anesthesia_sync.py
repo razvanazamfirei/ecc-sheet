@@ -14,11 +14,11 @@ from typing import Any, Final
 from flask import current_app, has_app_context
 from sqlalchemy.orm import joinedload
 
-from .audit import log_import_strict, log_update_strict
-from .config import Config
-from .db_session import commit_or_rollback
-from .models import Resident, TimeEntry
-from .parsing import parse_iso_date
+from backend.audit import log_import_strict, log_update_strict
+from backend.config import Config
+from backend.db_session import commit_or_rollback
+from backend.models import Resident, TimeEntry
+from backend.utils import parse_iso_date
 
 logger = logging.getLogger(__name__)
 

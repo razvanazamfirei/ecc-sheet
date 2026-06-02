@@ -15,21 +15,20 @@ from sqlalchemy import inspect as sqlalchemy_inspect
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from .anesthesia_sync import AnesthesiaSyncError, sync_anesthesia_stop_times
-from .auth import (
-    can_escalate_to_admin,
+from backend.anesthesia_sync import AnesthesiaSyncError, sync_anesthesia_stop_times
+from backend.auth import (
     get_admin_users,
     get_current_user,
     get_payroll_admin_users,
     is_admin,
     mock_users_enabled,
 )
-from .config import Config
-from .db_session import commit_or_rollback
-from .email_service import init_email_service
-from .errors import APIError, SAMLConfigError
-from .holidays import get_federal_holidays
-from .instance_config import (
+from backend.config import Config
+from backend.db_session import commit_or_rollback
+from backend.email_service import init_email_service
+from backend.errors import APIError, SAMLConfigError
+from backend.holidays import get_federal_holidays
+from backend.instance_config import (
     BACKUP_ROLE_NAMES,
     CALL_TEAM_ROLE_NAMES,
     DEFAULT_CUTOFF_HOUR,
@@ -38,18 +37,18 @@ from .instance_config import (
     ROLE_CUTOFF_HOURS,
     ROLE_CUTOFF_MINUTES,
 )
-from .models import Holiday, Resident, Role, db
-from .resident_csv_import import import_residents_csv_file
-from .routes import dev as _dev_module
-from .routes import register_blueprints
-from .routes import sso as _sso_module
-from .saml import (
+from backend.models import Holiday, Resident, Role, db
+from backend.resident_csv_import import import_residents_csv_file
+from backend.routes import dev as _dev_module
+from backend.routes import register_blueprints
+from backend.routes import sso as _sso_module
+from backend.saml import (
     get_session_authenticated_user,
     saml_enabled,
     saml_public_endpoint,
     validate_saml_configuration,
 )
-from .utils import _wants_json_response, get_effective_date, setup_logging
+from backend.utils import _wants_json_response, get_effective_date, setup_logging
 
 try:
     import fcntl
@@ -178,7 +177,6 @@ def inject_auth():
     return {
         "current_user": get_current_user(),
         "is_admin": is_admin(),
-        "can_escalate_to_admin": can_escalate_to_admin(),
         "can_logout": bool(
             (session_user and saml_enabled(app.config)) or has_mock_session
         ),
