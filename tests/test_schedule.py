@@ -940,7 +940,7 @@ class TestScheduleImport:
 @pytest.mark.integration
 def test_import_supports_first_call_role_aliases(mock_get, client, app, monkeypatch):
     """Test configured first-call aliases are treated as importable roles."""
-    monkeypatch.setenv("FIRST_CALL_ROLES", "Custom First Call")
+    monkeypatch.setitem(app.config, "FIRST_CALL_ROLES", "Custom First Call")
 
     with app.app_context():
         test_date = date(2024, 4, 14)
@@ -1089,8 +1089,8 @@ def test_import_invalid_date(client):
 @pytest.mark.integration
 def test_import_requires_editor_role(mock_get, client, app, monkeypatch):
     """Regular non-editor users cannot trigger schedule imports."""
-    monkeypatch.setenv("USER_NAME", "Regular User")
-    monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+    monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+    monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
     test_date = date(2024, 4, 7)
 
     with app.app_context():

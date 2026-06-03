@@ -83,10 +83,10 @@ class TestSheetsIndex:
         assert response.status_code == 200
         assert b"Lock Sheet" in response.data or b"Unlock Sheet" in response.data
 
-    def test_index_shows_import_button_for_regular_user(self, client, monkeypatch):
+    def test_index_shows_import_button_for_regular_user(self, client, app, monkeypatch):
         """Regular users still see schedule import even without edit rights."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.get("/")
         assert response.status_code == 200
@@ -837,8 +837,8 @@ class TestSheetLockPermissions:
 
     def test_lock_blocked_for_non_first_call(self, client, app, monkeypatch):
         """Non-admin, non-first-call user cannot lock/unlock the sheet."""
-        monkeypatch.setenv("USER_NAME", "Regular Viewer")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular Viewer")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         with app.app_context():
             today = get_effective_date()

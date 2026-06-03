@@ -382,24 +382,26 @@ class TestPayrollSettings:
         assert b"Payroll Settings" in response.data
 
     def test_payroll_settings_page_read_only_for_non_payroll_admin(
-        self, client, monkeypatch
+        self, client, app, monkeypatch
     ):
         """Test that regular admins see read-only view."""
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "Someone Else")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "Someone Else")
         response = client.get("/payroll-settings")
         assert response.status_code == 200
         assert b"read-only" in response.data.lower()
 
-    def test_payroll_settings_requires_admin(self, client, monkeypatch):
+    def test_payroll_settings_requires_admin(self, client, app, monkeypatch):
         """Test that payroll settings page requires admin."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
         response = client.get("/payroll-settings", follow_redirects=True)
         assert b"Admin privileges required" in response.data
 
-    def test_payroll_settings_save_requires_payroll_admin(self, client, monkeypatch):
+    def test_payroll_settings_save_requires_payroll_admin(
+        self, client, app, monkeypatch
+    ):
         """Test that non-payroll-admin cannot save settings."""
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "Someone Else")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "Someone Else")
         response = client.post(
             "/payroll-settings",
             data={"program": "X"},
@@ -409,8 +411,8 @@ class TestPayrollSettings:
 
     def test_payroll_settings_save(self, client, app, monkeypatch):
         """Test saving payroll settings as payroll admin."""
-        monkeypatch.setenv("USER_NAME", "CI-Test-User")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "CI-Test-User")
+        monkeypatch.setitem(app.config, "USER_NAME", "CI-Test-User")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "CI-Test-User")
 
         with app.app_context():
             response = client.post(
@@ -438,8 +440,8 @@ class TestPayrollSettings:
 
     def test_payroll_settings_save_empty_values(self, client, app, monkeypatch):
         """Test saving empty payroll settings stores None for integer fields."""
-        monkeypatch.setenv("USER_NAME", "CI-Test-User")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "CI-Test-User")
+        monkeypatch.setitem(app.config, "USER_NAME", "CI-Test-User")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "CI-Test-User")
 
         with app.app_context():
             response = client.post(
@@ -464,8 +466,8 @@ class TestPayrollSettings:
 
     def test_payroll_settings_save_invalid_integer(self, client, app, monkeypatch):
         """Test invalid payroll integer input returns a flashed validation error."""
-        monkeypatch.setenv("USER_NAME", "CI-Test-User")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "CI-Test-User")
+        monkeypatch.setitem(app.config, "USER_NAME", "CI-Test-User")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "CI-Test-User")
 
         with app.app_context():
             response = client.post(
@@ -485,18 +487,18 @@ class TestReportExportPermissions:
     """Tests that extended report actions stay admin/payroll-only."""
 
     @staticmethod
-    def _set_non_payroll_env() -> dict[str, str]:
-        """Return env overrides for a non-payroll, non-admin user."""
+    def _non_payroll_config() -> dict[str, str]:
+        """Return config overrides for a non-payroll, non-admin user."""
         return {
             "USER_NAME": "Regular Viewer",
             "ADMIN_USERS": "Admin Only",
             "PAYROLL_ADMIN_USERS": "",
         }
 
-    def test_payroll_xlsx_blocked_for_regular_user(self, client, monkeypatch):
+    def test_payroll_xlsx_blocked_for_regular_user(self, client, app, monkeypatch):
         """Non-admin/non-payroll user is redirected from payroll XLSX export."""
-        for k, v in self._set_non_payroll_env().items():
-            monkeypatch.setenv(k, v)
+        for key, value in self._non_payroll_config().items():
+            monkeypatch.setitem(app.config, key, value)
 
         response = client.post(
             "/api/report/export_payroll_xlsx",
@@ -520,11 +522,11 @@ class TestReportExportPermissions:
 class TestReportRestriction:
     """Tests report filtering permissions and restrictions."""
 
-    def test_restricted_user_sees_self_only_note(self, client, monkeypatch):
+    def test_restricted_user_sees_self_only_note(self, client, app, monkeypatch):
         """Reports page shows 'your entries only' for non-admin."""
-        monkeypatch.setenv("USER_NAME", "Regular Viewer")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular Viewer")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "")
 
         response = client.get("/reports")
         assert response.status_code == 200
@@ -540,10 +542,10 @@ class TestReportRestriction:
         self, client, app, sample_time_entry, monkeypatch
     ):
         """Listed report viewers can filter residents but still lack extras."""
-        monkeypatch.setenv("USER_NAME", "Demo Viewer")
-        monkeypatch.setenv("ADMIN_USERS", "Razvan Azamfirei")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "")
-        monkeypatch.setenv("REPORT_VIEW_ALL_USERS", "Demo Viewer")
+        monkeypatch.setitem(app.config, "USER_NAME", "Demo Viewer")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Razvan Azamfirei")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "")
+        monkeypatch.setitem(app.config, "REPORT_VIEW_ALL_USERS", "Demo Viewer")
 
         response = client.get("/reports")
         assert response.status_code == 200
@@ -566,10 +568,10 @@ class TestReportRestriction:
         self, client, app, sample_time_entry, sample_resident, monkeypatch
     ):
         """Listed report viewers keep their submitted resident filter."""
-        monkeypatch.setenv("USER_NAME", "Demo Viewer")
-        monkeypatch.setenv("ADMIN_USERS", "Razvan Azamfirei")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "")
-        monkeypatch.setenv("REPORT_VIEW_ALL_USERS", "Demo Viewer")
+        monkeypatch.setitem(app.config, "USER_NAME", "Demo Viewer")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Razvan Azamfirei")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "")
+        monkeypatch.setitem(app.config, "REPORT_VIEW_ALL_USERS", "Demo Viewer")
 
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
@@ -633,9 +635,9 @@ class TestReportRestriction:
         self, client, app, sample_time_entry, monkeypatch
     ):
         """Payroll admins share the extended report actions branch."""
-        monkeypatch.setenv("USER_NAME", "Payroll Person")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "Payroll Person")
+        monkeypatch.setitem(app.config, "USER_NAME", "Payroll Person")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "Payroll Person")
 
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)
@@ -653,9 +655,9 @@ class TestReportRestriction:
         self, client, app, sample_time_entry, sample_resident, monkeypatch
     ):
         """Non-admin report POST ignores submitted resident_id and uses own."""
-        monkeypatch.setenv("USER_NAME", "Regular Viewer")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular Viewer")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "")
 
         with app.app_context():
             entry = db.session.get(TimeEntry, sample_time_entry.id)

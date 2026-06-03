@@ -1,1 +1,1 @@
-"""Import workflows for external and managed resident data."""
+"""Import workflows for external and managed staff data."""

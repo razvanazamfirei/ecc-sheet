@@ -59,12 +59,12 @@ ecc-sheet/
 │   ├── instance_settings.json  # Configurable role definitions and cutoffs
 │   ├── models.py               # Database models (Resident, Role, TimeEntry, DailySheet, AuditLog, Holiday)
 │   ├── audit.py                # Audit logging utilities
-│   ├── database/               # Session, runtime schema, and default-data bootstrap helpers
-│   ├── imports/                # Staff and resident CSV import workflows
+│   ├── database/               # Session, backups, runtime schema, and bootstrap helpers
+│   ├── imports/                # Staff import workflows
 │   ├── reporting/              # Report generation and payroll export helpers
 │   ├── security/               # Authorization, SAML, and Flask auth hooks
 │   ├── errors.py               # Custom exception classes
-│   ├── utils.py                # Logging, backups, timezone helpers
+│   ├── utils.py                # Logging, timezone, response, and email helpers
 │   ├── holidays.py             # Holiday utilities
 │   └── routes/                 # Route blueprints (modular organization)
 │       ├── __init__.py
@@ -324,36 +324,31 @@ Modular route organization for better code structure:
 
 ### 4. Authentication & Authorization (`backend/security/`)
 
-**No Login System:**
+The security module supports two authentication modes configured via
+environment variables:
 
-- Authentication handled externally (SSO, reverse proxy)
-- User identity from `USER_NAME` environment variable
+**Proxy-Header Auth** (`AUTH_PROXY_USERNAME_HEADER`):
+
+- The username is read from a configurable HTTP request header injected by a
+  trusted reverse proxy. No local session or login page is involved.
+
+**SAML Auth** (`SAML_ENABLED=true`):
+
+- The app acts as a SAML Service Provider. Login, logout, ACS, SLS, and
+  metadata endpoints are served at `/auth/login`, `/auth/logout`, `/auth/acs`,
+  `/auth/sls`, and `/auth/metadata`.
+- Authenticated user identity is stored in the Flask session using config keys
+  defined in `backend.config` (`SAML_SESSION_USER_KEY`, `SAML_SESSION_DATA_KEY`,
+  `SAML_LOGIN_REQUEST_ID_KEY`, `SAML_LOGOUT_REQUEST_ID_KEY`).
 
 **Authorization:**
 
-```python
-def get_current_user() -> str:
-    """Get current user from environment."""
-    return os.getenv('USER_NAME', 'Unknown')
-
-
-def is_admin() -> bool:
-    """Check if current user is admin."""
-    admin_users = os.getenv('ADMIN_USERS', '').split(',')
-    return get_current_user() in admin_users
-
-
-def admin_required(f):
-    """Decorator to restrict route to admins."""
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not is_admin():
-            abort(403)
-        return f(*args, **kwargs)
-
-    return decorated_function
-```
+- Admin users, payroll admins, and report viewers are configured via
+  comma-separated environment lists (`ADMIN_USERS`, `PAYROLL_ADMIN_USERS`,
+  `REPORT_VIEW_ALL_USERS`).
+- Route protection uses decorators and view-level checks against the current
+  user identity from `backend/security.saml` or the proxy header.
+- `MOCK_USERS_ENABLED=true` enables a dev-only user switcher.
 
 ### 5. Audit Logging (`backend/audit.py`)
 
@@ -408,15 +403,16 @@ def log_import(date, entries_count):
 - Independence Day, Labor Day, Columbus Day
 - Veterans Day, Thanksgiving, Christmas Day
 
-### 7. Utilities (`backend/utils.py`)
+### 7. Utilities and Database Helpers
 
 **Functions:**
 
 - `setup_logging()` - Configures application logging
-- `backup_database()` - Creates timestamped SQLite backups and prunes old files
 - `get_philadelphia_time()` - Returns the current configured local time
 - `get_effective_date()` - Applies the `DAY_RESET_HOUR` day-boundary logic
 - `wants_json_response()` - Detects JSON-oriented request/response flows
+- `backend.database.backups.backup_database()` - Creates timestamped SQLite
+  backups and prunes old files
 
 ### 8. Request Validation
 
@@ -509,16 +505,65 @@ Redirect with success message
 ### Environment Variables
 
 ```env
-# Required
+# Required / Core
 SECRET_KEY                    # Flask secret (CSRF, sessions)
-DATABASE_URL                  # SQLite database path
-USER_NAME                     # Current user identity
-ADMIN_USERS                   # Comma-separated admin list
+DATABASE_URL                  # Database connection string
+USER_NAME                     # Default user identity (CLI / fallback)
+AUTH_PROXY_USERNAME_HEADER    # Proxy-header auth header name
+ADMIN_USERS                   # Comma-separated admin usernames
+FIRST_CALL_ROLES              # First-call role names
+MOCK_USERS_ENABLED            # Dev user switcher (set to true for local dev)
+REPORT_VIEW_ALL_USERS         # Users allowed to view any resident's reports
 
-# Optional
+# SAML (optional)
+SAML_ENABLED                  # Enable first-party SAML SP
+SAML_SETTINGS_PATH            # Path to SAML SP settings JSON
+SAML_USERNAME_ATTRIBUTES      # SAML attribute names for username resolution
+SAML_USE_NAME_ID              # Fall back to NameID for username
+SAML_DEFAULT_NEXT_URL         # Post-login landing path
+
+# Session / Security
+SESSION_COOKIE_SECURE         # Secure flag on session cookie
+SESSION_COOKIE_HTTPONLY       # HttpOnly flag on session cookie
+SESSION_COOKIE_SAMESITE       # SameSite policy (Lax, Strict, None)
+PERMANENT_SESSION_LIFETIME    # Session lifetime in seconds
+CSP_POLICY                    # Content Security Policy header
+
+# Email (optional)
+RESEND_API_KEY                # Resend API key for report delivery
+DEFAULT_SENDER_EMAIL          # Sender address for report emails
+
+# Amion integration
+AMION_BASE_URL                # Amion API base URL
+AMION_SCHEDULE_CODE           # Institution schedule code
+
+# Anesthesia sync (optional)
+ANESTHESIA_SQL_CONNECTION_STRING
+ANESTHESIA_SQL_SOURCE_TABLE
+ANESTHESIA_SQL_PROVIDER_TYPE
+ANESTHESIA_SQL_TIMEOUT
+ANESTHESIA_FETCHER_ENABLED
+ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS
+ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS
+
+# Payroll export
+PAYROLL_PROGRAM
+PAYROLL_COMPANY
+PAYROLL_BATCH
+PAYROLL_PAY_CODE
+PAYROLL_DEPT
+PAYROLL_EXPENSE
+PAYROLL_ACCT_UNIT
+PAYROLL_LABEL_SUFFIX
+PAYROLL_ADMIN_USERS
+
+# Timezone / Scheduling
 TIMEZONE                      # Default: America/New_York
-PORT                         # Default: 5000
+DAY_RESET_HOUR                # Hour that day boundary rolls over (default: 8)
+FLASK_ENV                     # development or production
 ```
+
+See `.env.example` in the project root for the complete, annotated template.
 
 ### Instance Configuration
 
@@ -597,27 +642,15 @@ Configured in `instance_settings.json` (defaults to 17:30), editable via UI:
     - Environment-based admin list
     - Protected routes for sensitive operations
 
-### Not Implemented ❌
+### Not Implemented
 
-1. **Authentication**
-
-    - No user login system
-    - No password management
-    - Must use external auth (SSO, reverse proxy)
-
-2. **Rate Limiting**
-
+1. **Rate Limiting**
     - No request throttling
     - Vulnerable to abuse without external protection
 
-3. **HTTPS**
-
+2. **HTTPS**
     - HTTP only (local dev)
     - Must configure SSL/TLS in production
-
-4. **Session Management**
-    - No session tracking
-    - No user context persistence
 
 ## Deployment Architecture
 

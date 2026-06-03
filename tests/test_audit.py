@@ -145,10 +145,10 @@ class TestAuditRoute:
         response = client.get("/audit?entity_type=TimeEntry&action=CREATE&limit=50")
         assert response.status_code == 200
 
-    def test_audit_requires_admin(self, client, monkeypatch):
+    def test_audit_requires_admin(self, client, app, monkeypatch):
         """Test that audit page requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.get("/audit", follow_redirects=True)
         assert b"Admin privileges required" in response.data

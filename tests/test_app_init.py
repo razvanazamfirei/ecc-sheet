@@ -164,24 +164,24 @@ class TestContextProcessor:
         assert response.status_code == 200
         # The template should have access to is_admin
 
-    def test_inject_dev_disabled_when_mock_not_enabled(self, client, monkeypatch):
+    def test_inject_dev_disabled_when_mock_not_enabled(self, client, app, monkeypatch):
         """inject_dev returns mock_users_enabled=False when env var is unset."""
-        monkeypatch.delenv("MOCK_USERS_ENABLED", raising=False)
+        monkeypatch.setitem(app.config, "MOCK_USERS_ENABLED", False)
         response = client.get("/")
         assert response.status_code == 200
         assert b"switch-user" not in response.data
 
-    def test_inject_dev_with_payroll_admin_users(self, client, monkeypatch):
+    def test_inject_dev_with_payroll_admin_users(self, client, app, monkeypatch):
         """inject_dev includes a payroll persona when PAYROLL_ADMIN_USERS is set."""
-        monkeypatch.setenv("MOCK_USERS_ENABLED", "true")
-        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "Payroll Person")
+        monkeypatch.setitem(app.config, "MOCK_USERS_ENABLED", "true")
+        monkeypatch.setitem(app.config, "PAYROLL_ADMIN_USERS", "Payroll Person")
         response = client.get("/")
         assert response.status_code == 200
         assert b"Payroll Person" in response.data
 
-    def test_inject_dev_enabled_shows_switch_user_form(self, client, monkeypatch):
+    def test_inject_dev_enabled_shows_switch_user_form(self, client, app, monkeypatch):
         """inject_dev populates template context when MOCK_USERS_ENABLED=true."""
-        monkeypatch.setenv("MOCK_USERS_ENABLED", "true")
+        monkeypatch.setitem(app.config, "MOCK_USERS_ENABLED", "true")
         response = client.get("/")
         assert response.status_code == 200
         assert b"switch-user" in response.data
@@ -192,7 +192,7 @@ class TestContextProcessor:
         """inject_dev falls back to empty resident list when DB query fails."""
         from backend.models import Resident
 
-        monkeypatch.setenv("MOCK_USERS_ENABLED", "true")
+        monkeypatch.setitem(app.config, "MOCK_USERS_ENABLED", "true")
         with app.app_context(), patch.object(Resident, "query") as mock_query:
             mock_query.filter_by.side_effect = SQLAlchemyError("DB error")
             response = client.get("/")

@@ -8,7 +8,6 @@ from flask import Flask, jsonify, redirect, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy.exc import SQLAlchemyError
 
-from backend.config import env_str
 from backend.errors import SAMLConfigError
 from backend.models import Resident
 from backend.routes import dev as _dev_module
@@ -63,8 +62,8 @@ def _active_resident_names(app: Flask) -> list[str]:
     return [resident.name for resident in residents]
 
 
-def _validate_startup_security_config(app: Flask, csrf: CSRFProtect) -> None:
-    """Validate startup auth config and configure CSRF exemptions."""
+def configure_security(app: Flask, csrf: CSRFProtect) -> None:
+    """Configure auth startup checks, request guards, and template context."""
     csrf.exempt(_sso_module.bp)
 
     if saml_enabled(app.config):
@@ -77,7 +76,7 @@ def _validate_startup_security_config(app: Flask, csrf: CSRFProtect) -> None:
             ) from exc
 
     if mock_users_enabled():
-        if env_str("FLASK_ENV", "").lower() == "production":
+        if str(app.config.get("FLASK_ENV") or "").strip().lower() == "production":
             raise RuntimeError(
                 "MOCK_USERS_ENABLED is set in a production environment. "
                 "This enables unauthenticated user impersonation. Refusing to start."
@@ -88,11 +87,6 @@ def _validate_startup_security_config(app: Flask, csrf: CSRFProtect) -> None:
             stacklevel=1,
         )
         csrf.exempt(_dev_module.bp)
-
-
-def configure_security(app: Flask, csrf: CSRFProtect) -> None:
-    """Configure auth startup checks, request guards, and template context."""
-    _validate_startup_security_config(app, csrf)
 
     @app.before_request
     def require_authenticated_request():

@@ -265,20 +265,20 @@ uv run flask --app backend.app sync-anesthesia-stop-times \
 Use `--dry-run` to preview changes and `--overwrite-existing` to replace
 non-empty `anesthesia_stop_time` values instead of only filling blanks.
 
-### Resident Bootstrap CSV
+### Staff Bootstrap CSV
 
-To bootstrap or update residents from a managed CSV file:
+To bootstrap or update staff/resident records from a managed CSV file:
 
 ```bash
-uv run flask --app backend.app import-residents-csv \
-  --path docs/examples/residents.bootstrap.csv
+uv run flask --app backend.app import-staff-csv \
+  --path docs/examples/staff.bootstrap.csv
 ```
 
 For a one-step first boot:
 
 ```bash
 uv run flask --app backend.app bootstrap-application \
-  --residents-csv docs/examples/residents.bootstrap.csv
+  --staff-csv docs/examples/staff.bootstrap.csv
 ```
 
 Supported CSV columns: `name` (required), `epic_id`, `class_year`, `email`,
@@ -331,7 +331,7 @@ ecc-sheet/
 │   ├── cli.py              # Flask CLI command registration
 │   ├── config.py           # Environment and instance configuration
 │   ├── database/           # Session, schema, and bootstrap helpers
-│   ├── imports/            # Staff and resident CSV import workflows
+│   ├── imports/            # Staff import workflows
 │   ├── models.py           # Database models
 │   ├── reporting/          # Report generation and payroll helpers
 │   ├── routes/             # Route blueprints

@@ -10,7 +10,7 @@ from flask import Flask
 
 from backend.anesthesia_sync import AnesthesiaSyncError, sync_anesthesia_stop_times
 from backend.errors import APIError
-from backend.imports.residents_csv import import_residents_csv_file
+from backend.imports.staff_csv import import_staff_csv_file
 from backend.security import get_current_user
 
 
@@ -66,24 +66,24 @@ def register_cli_commands(
 
         click.echo(result.summary())
 
-    @app.cli.command("import-residents-csv")
+    @app.cli.command("import-staff-csv")
     @click.option(
         "--path",
         "csv_path",
         required=True,
         type=click.Path(exists=True, dir_okay=False, path_type=Path),
-        help="Path to the residents CSV bootstrap file.",
+        help="Path to the staff CSV bootstrap file.",
     )
     @click.option(
         "--dry-run",
         is_flag=True,
         help="Validate and preview resident changes without writing to the database.",
     )
-    def import_residents_csv_command(csv_path: Path, dry_run: bool) -> None:
-        """Import residents from a managed CSV file."""
+    def import_staff_csv_command(csv_path: Path, dry_run: bool) -> None:
+        """Import staff from a managed CSV file."""
         ensure_runtime_schema()
         try:
-            result = import_residents_csv_file(
+            result = import_staff_csv_file(
                 csv_path,
                 user=get_current_user(),
                 dry_run=dry_run,
@@ -95,21 +95,21 @@ def register_cli_commands(
 
     @app.cli.command("bootstrap-application")
     @click.option(
-        "--residents-csv",
+        "--staff-csv",
         type=click.Path(exists=True, dir_okay=False, path_type=Path),
-        help="Optional residents CSV file to import after schema/default bootstrap.",
+        help="Optional staff CSV file to import after schema/default bootstrap.",
     )
-    def bootstrap_application_command(residents_csv: Path | None) -> None:
-        """Bootstrap schema, defaults, and optionally residents from CSV."""
+    def bootstrap_application_command(staff_csv: Path | None) -> None:
+        """Bootstrap schema, defaults, and optionally staff from CSV."""
         init_db()
         click.echo("Schema and default data bootstrapped.")
 
-        if residents_csv is None:
+        if staff_csv is None:
             return
 
         try:
-            result = import_residents_csv_file(
-                residents_csv,
+            result = import_staff_csv_file(
+                staff_csv,
                 user=get_current_user(),
                 dry_run=False,
             )

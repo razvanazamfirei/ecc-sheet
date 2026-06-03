@@ -16,11 +16,12 @@ from __future__ import annotations
 import copy
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, overload
+from urllib.parse import urlsplit
 
 from dotenv import dotenv_values
 
@@ -71,14 +72,33 @@ def env_str(name: str, default: str | None = None) -> str | None:
     return stripped or default
 
 
+def _env_str_preserve_blank(name: str, default: str) -> str:
+    """Return a trimmed env string while preserving explicit blank values."""
+    if name not in os.environ:
+        return default
+    return str(os.getenv(name, "")).strip()
+
+
+def _csv_values(value: object, default: str | Sequence[str] = "") -> list[str]:
+    """Return strings from a CSV string or sequence-like config value."""
+    if value is None:
+        value = default
+    if isinstance(value, str):
+        items = value.split(",")
+    elif isinstance(value, Sequence):
+        items = value
+    else:
+        items = (str(value),)
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
 def env_csv(name: str, default: str = "") -> list[str]:
     """Return a comma-separated environment variable as trimmed values."""
-    return [
-        item.strip() for item in os.getenv(name, default).split(",") if item.strip()
-    ]
+    return _csv_values(os.getenv(name, default))
 
 
-_PROJECT_DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_DOTENV_PATH = _PROJECT_ROOT / ".env"
 if _PROJECT_DOTENV_PATH.is_file():
     for _key, _value in dotenv_values(_PROJECT_DOTENV_PATH, interpolate=False).items():
         if _value is not None:
@@ -109,6 +129,18 @@ _DEFAULT_SAML_USERNAME_ATTRIBUTES = (
     "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name,"
     "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress,"
     "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
+)
+
+SAML_SESSION_USER_KEY = "auth_user"
+SAML_SESSION_DATA_KEY = "saml_authn"
+SAML_LOGIN_REQUEST_ID_KEY = "saml_request_id"
+SAML_LOGOUT_REQUEST_ID_KEY = "saml_logout_request_id"
+SAML_REQUEST_TYPE_TO_KEY = {
+    "login": SAML_LOGIN_REQUEST_ID_KEY,
+    "logout": SAML_LOGOUT_REQUEST_ID_KEY,
+}
+SAML_PUBLIC_ENDPOINTS = frozenset(
+    {"auth.login", "auth.acs", "auth.sls", "auth.logout", "auth.metadata"}
 )
 
 
@@ -237,9 +269,13 @@ class Settings:
     FLASK_ENV: str
     USER_NAME: str
     AUTH_PROXY_USERNAME_HEADER: str
+    ADMIN_USERS: list[str]
+    FIRST_CALL_ROLES: list[str]
+    PAYROLL_ADMIN_USERS: list[str]
+    MOCK_USERS_ENABLED: bool
+    REPORT_VIEW_ALL_USERS: list[str]
     SAML_ENABLED: bool
     SAML_SETTINGS_PATH: str | None
-    SAML_SETTINGS_JSON: str | None
     SAML_USERNAME_ATTRIBUTES: list[str]
     SAML_USE_NAME_ID: bool
     SAML_DEFAULT_NEXT_URL: str
@@ -278,11 +314,15 @@ class Settings:
             SQLALCHEMY_DATABASE_URI=env_str("DATABASE_URL", "sqlite:///ecc_sheet.db"),
             SQLALCHEMY_TRACK_MODIFICATIONS=False,
             FLASK_ENV=flask_env,
-            USER_NAME=env_str("USER_NAME", "Admin"),
+            USER_NAME=_env_str_preserve_blank("USER_NAME", "Admin"),
             AUTH_PROXY_USERNAME_HEADER=env_str("AUTH_PROXY_USERNAME_HEADER", ""),
+            ADMIN_USERS=env_csv("ADMIN_USERS", "Admin"),
+            FIRST_CALL_ROLES=env_csv("FIRST_CALL_ROLES", "First Call"),
+            PAYROLL_ADMIN_USERS=env_csv("PAYROLL_ADMIN_USERS"),
+            MOCK_USERS_ENABLED=env_flag("MOCK_USERS_ENABLED"),
+            REPORT_VIEW_ALL_USERS=env_csv("REPORT_VIEW_ALL_USERS"),
             SAML_ENABLED=env_flag("SAML_ENABLED"),
             SAML_SETTINGS_PATH=env_str("SAML_SETTINGS_PATH"),
-            SAML_SETTINGS_JSON=env_str("SAML_SETTINGS_JSON"),
             SAML_USERNAME_ATTRIBUTES=env_csv(
                 "SAML_USERNAME_ATTRIBUTES",
                 _DEFAULT_SAML_USERNAME_ATTRIBUTES,
@@ -341,6 +381,76 @@ class Settings:
         return {f.name: getattr(self, f.name) for f in fields(self)}
 
 
+@dataclass(frozen=True)
+class AuthSettings:
+    """Runtime authentication settings parsed from Flask config."""
+
+    user_name: str
+    proxy_username_header: str
+    admin_users: list[str]
+    first_call_roles: list[str]
+    payroll_admin_users: list[str]
+    mock_users_enabled: bool
+    report_view_all_users: list[str]
+
+    @classmethod
+    def from_env(cls) -> AuthSettings:
+        return cls(
+            user_name=_env_str_preserve_blank("USER_NAME", "Admin"),
+            proxy_username_header=env_str("AUTH_PROXY_USERNAME_HEADER", ""),
+            admin_users=env_csv("ADMIN_USERS", "Admin"),
+            first_call_roles=env_csv("FIRST_CALL_ROLES", "First Call"),
+            payroll_admin_users=env_csv("PAYROLL_ADMIN_USERS"),
+            mock_users_enabled=env_flag("MOCK_USERS_ENABLED"),
+            report_view_all_users=env_csv("REPORT_VIEW_ALL_USERS"),
+        )
+
+    @classmethod
+    def from_mapping(cls, config: Mapping[str, object]) -> AuthSettings:
+        return cls(
+            user_name=_config_str(config, "USER_NAME", "Admin"),
+            proxy_username_header=_config_str(config, "AUTH_PROXY_USERNAME_HEADER", ""),
+            admin_users=_config_csv(config, "ADMIN_USERS", "Admin"),
+            first_call_roles=_config_csv(config, "FIRST_CALL_ROLES", "First Call"),
+            payroll_admin_users=_config_csv(config, "PAYROLL_ADMIN_USERS"),
+            mock_users_enabled=_config_bool(config, "MOCK_USERS_ENABLED"),
+            report_view_all_users=_config_csv(config, "REPORT_VIEW_ALL_USERS"),
+        )
+
+
+def _config_str(
+    config: Mapping[str, object],
+    key: str,
+    default: str,
+) -> str:
+    value = config.get(key, default)
+    if value is None:
+        return default
+    return str(value).strip()
+
+
+def _config_bool(
+    config: Mapping[str, object],
+    key: str,
+    *,
+    default: bool = False,
+) -> bool:
+    value = config.get(key, default)
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    return str(value).strip().lower() in _TRUTHY_ENV_VALUES
+
+
+def _config_csv(
+    config: Mapping[str, object],
+    key: str,
+    default: str | Sequence[str] = "",
+) -> list[str]:
+    return _csv_values(config.get(key), default)
+
+
 _SETTINGS = Settings.from_env()
 _INSTANCE_SETTINGS = InstanceSettings.from_mapping(_load_instance_settings_json())
 
@@ -361,6 +471,13 @@ def get_settings() -> Settings:
     return _SETTINGS
 
 
+def get_auth_settings(config: Mapping[str, object] | None = None) -> AuthSettings:
+    """Return auth settings from a mapping or from the loaded environment config."""
+    if config is None:
+        return AuthSettings.from_env()
+    return AuthSettings.from_mapping(config)
+
+
 def get_instance_settings() -> InstanceSettings:
     """Return parsed instance settings."""
     return _INSTANCE_SETTINGS
@@ -376,6 +493,89 @@ def get_flask_config() -> dict[str, object]:
     config = _SETTINGS.to_flask_config()
     config.update(_INSTANCE_SETTINGS.to_flask_config())
     return config
+
+
+def load_saml_settings(  # noqa: PLR0912
+    config: Mapping[str, object] | None = None,
+) -> tuple[dict[str, Any], str | None]:
+    """Load the configured OneLogin toolkit settings from app config."""
+    from backend.errors import (  # noqa: PLC0415
+        SAMLInvalidJSONError,
+        SAMLInvalidSettingsError,
+        SAMLSettingsNotFoundError,
+    )
+
+    if config is None:
+        config = _SETTINGS.to_flask_config()
+
+    settings_path_value = config.get("SAML_SETTINGS_PATH")
+
+    if not settings_path_value:
+        raise SAMLSettingsNotFoundError(
+            "SAML is enabled but no SAML settings were configured. "
+            "Set SAML_SETTINGS_PATH."
+        )
+
+    path = Path(str(settings_path_value))
+    if not path.is_absolute():
+        path = (_PROJECT_ROOT / path).resolve()
+    if not path.is_file():
+        raise SAMLSettingsNotFoundError(f"SAML settings file not found: {path}")
+
+    try:
+        settings = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SAMLInvalidJSONError(
+            f"SAML settings file is not valid JSON: {path}"
+        ) from exc
+
+    if not isinstance(settings, dict):
+        raise SAMLInvalidSettingsError(
+            f"SAML settings file must contain a JSON object: {path}"
+        )
+    base_path = str(path.parent)
+
+    idp = settings.get("idp")
+    if isinstance(idp, dict):
+        single_logout = idp.get("singleLogoutService")
+        if single_logout is None:
+            single_logout = {}
+            idp["singleLogoutService"] = single_logout
+
+        if isinstance(single_logout, dict):
+            single_sign_on = idp.get("singleSignOnService", {})
+            sso_url = (
+                str(single_sign_on.get("url") or "").strip()
+                if isinstance(single_sign_on, dict)
+                else ""
+            )
+            parsed_sso_url = urlsplit(sso_url)
+            sso_path_parts = [part for part in parsed_sso_url.path.split("/") if part]
+
+            if (
+                parsed_sso_url.scheme in {"http", "https"}
+                and parsed_sso_url.netloc
+                and len(sso_path_parts) == 2
+                and sso_path_parts[0] == "samlp"
+            ):
+                single_logout["url"] = parsed_sso_url._replace(
+                    path=f"/samlp/{sso_path_parts[1]}/logout",
+                    query="",
+                    fragment="",
+                ).geturl()
+            else:
+                logout_url = str(single_logout.get("url") or "").strip()
+                parsed_logout_url = urlsplit(logout_url)
+                if (
+                    logout_url
+                    and parsed_logout_url.scheme in {"http", "https"}
+                    and parsed_logout_url.netloc
+                ):
+                    single_logout["url"] = logout_url
+                else:
+                    single_logout.pop("url", None)
+
+    return settings, base_path
 
 
 Config = _SETTINGS

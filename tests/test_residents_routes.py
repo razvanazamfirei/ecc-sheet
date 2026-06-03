@@ -12,10 +12,10 @@ from backend.models import AuditLog, Resident, Role, TimeEntry, db
 class TestResidentsIndex:
     """Tests for residents index page."""
 
-    def test_residents_index_requires_admin(self, client, monkeypatch):
+    def test_residents_index_requires_admin(self, client, app, monkeypatch):
         """Test that residents index requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.get("/residents/", follow_redirects=True)
         assert response.status_code == 200
@@ -123,10 +123,10 @@ class TestAddResident:
             db.session.delete(resident)
             db.session.commit()
 
-    def test_add_resident_requires_admin(self, client, monkeypatch):
+    def test_add_resident_requires_admin(self, client, app, monkeypatch):
         """Test that adding resident requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.post(
             "/residents/add",
@@ -225,8 +225,8 @@ class TestToggleResident:
 
     def test_toggle_requires_admin(self, client, app, sample_resident, monkeypatch):
         """Test that toggle requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         with app.app_context():
             response = client.post(
@@ -239,10 +239,10 @@ class TestToggleResident:
 class TestImportStaff:
     """Tests for staff import endpoint."""
 
-    def test_import_staff_requires_admin(self, client, monkeypatch):
+    def test_import_staff_requires_admin(self, client, app, monkeypatch):
         """Test that staff import requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.post("/residents/import", follow_redirects=True)
         assert b"Admin privileges required" in response.data
@@ -359,8 +359,8 @@ class TestEditResident:
 
     def test_edit_requires_admin(self, client, app, sample_resident, monkeypatch):
         """Test that edit page requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         with app.app_context():
             response = client.get(
@@ -687,8 +687,8 @@ class TestResidentProfile:
         self, client, app, monkeypatch
     ):
         """Basic users can see contact info but not Lawson/EPIC identifiers."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         with app.app_context():
             resident = Resident(
@@ -753,8 +753,8 @@ class TestResidentProfile:
         self, client, app, sample_resident, monkeypatch
     ):
         """Test that profile page is accessible to non-admin users."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         with app.app_context():
             response = client.get(f"/residents/{sample_resident.id}/profile")
@@ -775,8 +775,8 @@ class TestResidentProfile:
         self, client, app, sample_resident, monkeypatch
     ):
         """Test that time history is hidden for regular non-first-call users."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         with app.app_context():
             response = client.get(f"/residents/{sample_resident.id}/profile")
@@ -904,8 +904,8 @@ class TestResidentProfile:
         self, client, app, sample_resident, monkeypatch
     ):
         """Test that audit section is hidden for non-admin users."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         with app.app_context():
             response = client.get(f"/residents/{sample_resident.id}/profile")

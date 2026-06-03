@@ -187,18 +187,18 @@ class TestRolesAPI:
 class TestAPIEndpointAccess:
     """Tests for API endpoint access control."""
 
-    def test_residents_api_no_auth_required(self, client, monkeypatch):
+    def test_residents_api_no_auth_required(self, client, app, monkeypatch):
         """Test that residents API doesn't require admin auth."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.get("/api/residents/active")
         assert response.status_code == 200
 
-    def test_roles_api_no_auth_required(self, client, monkeypatch):
+    def test_roles_api_no_auth_required(self, client, app, monkeypatch):
         """Test that roles API doesn't require admin auth."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.get("/api/roles")
         assert response.status_code == 200

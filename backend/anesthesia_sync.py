@@ -17,8 +17,9 @@ from sqlalchemy.orm import joinedload
 from backend.audit import log_import_strict, log_update_strict
 from backend.config import Config
 from backend.database.session import commit_or_rollback
+from backend.imports.staff_fields import staff_fields
 from backend.models import Resident, TimeEntry
-from backend.utils import name_match_keys, normalize_name_for_matching, parse_iso_date
+from backend.utils import parse_iso_date
 
 logger = logging.getLogger(__name__)
 
@@ -314,12 +315,12 @@ def _normalize_identifier(raw_value: str | None) -> str | None:
 
 def _normalize_name(raw_name: str) -> str:
     """Normalize whitespace and case in a resident/provider name."""
-    return normalize_name_for_matching(raw_name)
+    return staff_fields.normalized_name(raw_name)
 
 
 def _name_keys(raw_name: str) -> set[str]:
     """Return match keys for a resident/provider name."""
-    return name_match_keys(raw_name)
+    return staff_fields.name_match_keys(raw_name)
 
 
 def _resident_name_keys(resident: Resident) -> set[str]:

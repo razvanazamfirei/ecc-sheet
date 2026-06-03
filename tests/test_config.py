@@ -15,9 +15,13 @@ _CONFIG_ENV_KEYS = (
     "FLASK_ENV",
     "USER_NAME",
     "AUTH_PROXY_USERNAME_HEADER",
+    "ADMIN_USERS",
+    "FIRST_CALL_ROLES",
+    "PAYROLL_ADMIN_USERS",
+    "MOCK_USERS_ENABLED",
+    "REPORT_VIEW_ALL_USERS",
     "SAML_ENABLED",
     "SAML_SETTINGS_PATH",
-    "SAML_SETTINGS_JSON",
     "SAML_USERNAME_ATTRIBUTES",
     "SAML_USE_NAME_ID",
     "SAML_DEFAULT_NEXT_URL",
@@ -106,6 +110,22 @@ class TestConfig:
             monkeypatch, AUTH_PROXY_USERNAME_HEADER="X-Auth-User"
         ) as config:
             assert config.Config.AUTH_PROXY_USERNAME_HEADER == "X-Auth-User"
+
+    def test_auth_allowlists_from_env(self, monkeypatch):
+        """Test auth allowlists and mock-user flag are read through config."""
+        with _config_env(
+            monkeypatch,
+            ADMIN_USERS="Admin, Test Admin",
+            FIRST_CALL_ROLES="First Call, Backup Call",
+            PAYROLL_ADMIN_USERS="Payroll User",
+            MOCK_USERS_ENABLED="true",
+            REPORT_VIEW_ALL_USERS="Viewer, *",
+        ) as config:
+            assert config.Config.ADMIN_USERS == ["Admin", "Test Admin"]
+            assert config.Config.FIRST_CALL_ROLES == ["First Call", "Backup Call"]
+            assert config.Config.PAYROLL_ADMIN_USERS == ["Payroll User"]
+            assert config.Config.MOCK_USERS_ENABLED is True
+            assert config.Config.REPORT_VIEW_ALL_USERS == ["Viewer", "*"]
 
     def test_config_is_settings_singleton(self):
         """Test Config is the Settings singleton returned by get_settings()."""

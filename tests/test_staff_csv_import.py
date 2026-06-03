@@ -1,4 +1,4 @@
-"""Tests for resident CSV bootstrap/import."""
+"""Tests for staff CSV bootstrap/import."""
 
 import json
 from datetime import date
@@ -7,17 +7,17 @@ from unittest.mock import patch
 import pytest
 
 from backend.errors import ConflictError, ValidationError
-from backend.imports.residents_csv import (
-    ResidentCsvImportResult,
-    import_resident_csv_records,
-    import_residents_csv_file,
-    parse_resident_csv,
+from backend.imports.staff_csv import (
+    StaffCsvImportResult,
+    import_staff_csv_file,
+    import_staff_csv_records,
+    parse_staff_csv,
 )
 from backend.models import AuditLog, Resident, db
 
 
-class TestParseResidentCsv:
-    """Tests for resident CSV parsing."""
+class TestParseStaffCsv:
+    """Tests for staff CSV parsing."""
 
     def test_parse_valid_csv(self):
         csv_content = (
@@ -27,7 +27,7 @@ class TestParseResidentCsv:
             "2025-07-01,true\n"
         )
 
-        records = parse_resident_csv(csv_content)
+        records = parse_staff_csv(csv_content)
 
         assert len(records) == 1
         assert records[0].name == "Jane Doe"
@@ -39,39 +39,39 @@ class TestParseResidentCsv:
         assert records[0].active is True
 
     def test_parse_allows_missing_email_column(self):
-        records = parse_resident_csv("name,epic_id\nNo Email Resident,RCSVNOEMAIL\n")
+        records = parse_staff_csv("name,epic_id\nNo Email Resident,RCSVNOEMAIL\n")
 
         assert records[0].email is None
 
     def test_parse_allows_blank_email_value(self):
-        records = parse_resident_csv("name,email\nBlank Email Resident,   \n")
+        records = parse_staff_csv("name,email\nBlank Email Resident,   \n")
 
         assert records[0].email is None
 
     def test_parse_rejects_unknown_column(self):
         with pytest.raises(ValidationError, match="unsupported columns"):
-            parse_resident_csv("name,badge_number\nJane Doe,123\n")
+            parse_staff_csv("name,badge_number\nJane Doe,123\n")
 
     def test_parse_rejects_invalid_email(self):
         with pytest.raises(ValidationError, match="invalid email"):
-            parse_resident_csv("name,email\nJane Doe,not-an-email\n")
+            parse_staff_csv("name,email\nJane Doe,not-an-email\n")
 
 
-class TestImportResidentCsv:
-    """Tests for resident CSV database import."""
+class TestImportStaffCsv:
+    """Tests for staff CSV database import."""
 
     def test_import_creates_resident(self, app):
         with app.app_context():
-            records = parse_resident_csv(
+            records = parse_staff_csv(
                 "name,epic_id,class_year,email,lawson_id,hire_date\n"
                 "New Bootstrap Resident,RCSV001,CA1,new@example.com,4567,2024-07-01\n"
             )
 
-            result = import_resident_csv_records(records, user="test-user")
+            result = import_staff_csv_records(records, user="test-user")
 
             resident = Resident.get_by_epic_id("RCSV001")
             assert resident is not None
-            assert result == ResidentCsvImportResult(
+            assert result == StaffCsvImportResult(
                 total_records=1,
                 created=1,
                 updated=0,
@@ -97,12 +97,12 @@ class TestImportResidentCsv:
             db.session.add(resident)
             db.session.commit()
 
-            records = parse_resident_csv(
+            records = parse_staff_csv(
                 "name,epic_id,class_year,email,active\n"
                 "CSV Update Resident,RCSV002,CA3,updated@example.com,false\n"
             )
 
-            result = import_resident_csv_records(records, user="test-user")
+            result = import_staff_csv_records(records, user="test-user")
 
             refreshed = Resident.get_by_epic_id("RCSV002")
             assert refreshed is not None
@@ -122,37 +122,37 @@ class TestImportResidentCsv:
             db.session.add_all([first, second])
             db.session.commit()
 
-            records = parse_resident_csv("name,epic_id\nConflict Name,CONFLICT_B\n")
+            records = parse_staff_csv("name,epic_id\nConflict Name,CONFLICT_B\n")
 
             with pytest.raises(ConflictError, match="belongs to"):
-                import_resident_csv_records(records, user="test-user")
+                import_staff_csv_records(records, user="test-user")
 
             db.session.delete(first)
             db.session.delete(second)
             db.session.commit()
 
     def test_import_file_dry_run_does_not_commit(self, app, tmp_path):
-        csv_path = tmp_path / "residents.csv"
+        csv_path = tmp_path / "staff.csv"
         csv_path.write_text(
             "name,epic_id,class_year\nDry Run Resident,RCSVDRY,CA2\n",
             encoding="utf-8",
         )
 
         with app.app_context():
-            result = import_residents_csv_file(csv_path, user="test-user", dry_run=True)
+            result = import_staff_csv_file(csv_path, user="test-user", dry_run=True)
 
             assert result.dry_run is True
             assert Resident.get_by_epic_id("RCSVDRY") is None
 
     def test_import_persists_audit_logs_after_session_remove(self, app):
         with app.app_context():
-            records = parse_resident_csv(
+            records = parse_staff_csv(
                 "name,epic_id,class_year\nAudit Bootstrap Resident,RCSVAUDIT,CA1\n"
             )
 
-            result = import_resident_csv_records(
+            result = import_staff_csv_records(
                 records,
-                user="resident-csv-audit-test",
+                user="staff-csv-audit-test",
             )
 
             resident = Resident.get_by_epic_id("RCSVAUDIT")
@@ -169,8 +169,8 @@ class TestImportResidentCsv:
             ).first()
             import_log = AuditLog.query.filter_by(
                 action="IMPORT",
-                entity_type="resident_csv",
-                user="resident-csv-audit-test",
+                entity_type="staff_csv",
+                user="staff-csv-audit-test",
             ).first()
             assert create_log is not None
             assert import_log is not None
@@ -184,7 +184,7 @@ class TestImportResidentCsv:
 
     def test_import_uses_single_flush_and_commit_for_data_and_audit(self, app):
         with app.app_context():
-            records = parse_resident_csv(
+            records = parse_staff_csv(
                 "name,epic_id,class_year\nSingle Commit Resident,RCSVONE,CA2\n"
             )
 
@@ -196,7 +196,7 @@ class TestImportResidentCsv:
                     wraps=db.session.commit,
                 ) as mock_commit,
             ):
-                result = import_resident_csv_records(records, user="single-commit-test")
+                result = import_staff_csv_records(records, user="single-commit-test")
 
             assert result.created == 1
             mock_flush.assert_called_once_with()
@@ -211,7 +211,7 @@ class TestImportResidentCsv:
             ).first()
             import_log = AuditLog.query.filter_by(
                 action="IMPORT",
-                entity_type="resident_csv",
+                entity_type="staff_csv",
                 user="single-commit-test",
             ).first()
             assert create_log is not None
@@ -233,13 +233,13 @@ class TestImportResidentCsv:
             db.session.add(resident)
             db.session.commit()
 
-            records = parse_resident_csv(
+            records = parse_staff_csv(
                 "name,epic_id,class_year,email,lawson_id,hire_date\n"
                 "Update Audit Resident,RCSVUPD,CA3,updated-audit@example.com,"
                 "54321,2024-07-01\n"
             )
 
-            result = import_resident_csv_records(records, user="update-audit-test")
+            result = import_staff_csv_records(records, user="update-audit-test")
 
             assert result.updated == 1
             resident_id = resident.id
@@ -252,7 +252,7 @@ class TestImportResidentCsv:
             ).first()
             import_log = AuditLog.query.filter_by(
                 action="IMPORT",
-                entity_type="resident_csv",
+                entity_type="staff_csv",
                 user="update-audit-test",
             ).first()
             assert update_log is not None
@@ -271,13 +271,13 @@ class TestImportResidentCsv:
             db.session.commit()
 
 
-class TestResidentCsvCli:
-    """Tests for resident CSV CLI commands."""
+class TestStaffCsvCli:
+    """Tests for staff CSV CLI commands."""
 
     def test_cli_import_bootstraps_schema_before_import(
         self, runner, monkeypatch, tmp_path
     ):
-        csv_path = tmp_path / "residents.csv"
+        csv_path = tmp_path / "staff.csv"
         csv_path.write_text("name\nCLI Resident\n", encoding="utf-8")
         call_order: list[str] = []
 
@@ -289,7 +289,7 @@ class TestResidentCsvCli:
             assert csv_arg == csv_path
             assert user == "Admin"
             assert dry_run is False
-            return ResidentCsvImportResult(
+            return StaffCsvImportResult(
                 total_records=1,
                 created=1,
                 updated=0,
@@ -300,28 +300,28 @@ class TestResidentCsvCli:
         monkeypatch.setattr(
             "backend.app._ensure_runtime_schema", _fake_ensure_runtime_schema
         )
-        monkeypatch.setattr("backend.cli.import_residents_csv_file", _fake_import)
+        monkeypatch.setattr("backend.cli.import_staff_csv_file", _fake_import)
 
         result = runner.invoke(
-            args=["import-residents-csv", "--path", str(csv_path)],
+            args=["import-staff-csv", "--path", str(csv_path)],
         )
 
         assert result.exit_code == 0
         assert call_order == ["ensure_runtime_schema", "import"]
 
-    def test_cli_imports_residents_from_csv(self, runner, app, tmp_path):
-        csv_path = tmp_path / "residents.csv"
+    def test_cli_imports_staff_from_csv(self, runner, app, tmp_path):
+        csv_path = tmp_path / "staff.csv"
         csv_path.write_text(
             "name,epic_id,class_year,email\nCLI Resident,RCSVCLI,CA2,cli@example.com\n",
             encoding="utf-8",
         )
 
         result = runner.invoke(
-            args=["import-residents-csv", "--path", str(csv_path)],
+            args=["import-staff-csv", "--path", str(csv_path)],
         )
 
         assert result.exit_code == 0
-        assert "processed 1 resident records" in result.output.casefold()
+        assert "processed 1 staff records" in result.output.casefold()
 
         with app.app_context():
             resident = Resident.get_by_epic_id("RCSVCLI")
@@ -343,7 +343,7 @@ class TestResidentCsvCli:
             calls["csv_arg"] = csv_arg
             calls["user"] = user
             calls["dry_run"] = dry_run
-            return ResidentCsvImportResult(
+            return StaffCsvImportResult(
                 total_records=1,
                 created=1,
                 updated=0,
@@ -352,10 +352,10 @@ class TestResidentCsvCli:
             )
 
         monkeypatch.setattr("backend.app._bootstrap_database", _fake_init_db)
-        monkeypatch.setattr("backend.cli.import_residents_csv_file", _fake_import)
+        monkeypatch.setattr("backend.cli.import_staff_csv_file", _fake_import)
 
         result = runner.invoke(
-            args=["bootstrap-application", "--residents-csv", str(csv_path)],
+            args=["bootstrap-application", "--staff-csv", str(csv_path)],
         )
 
         assert result.exit_code == 0
