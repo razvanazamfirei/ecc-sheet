@@ -31,7 +31,13 @@ class StaffFields:
 
     def split_name(self, name: str) -> tuple[str | None, str | None]:
         """Split a full name into first and last components."""
-        parts = self.clean_text(name).rsplit(" ", 1)
+        cleaned = self.clean_text(name)
+        if not cleaned:
+            return None, None
+        if "," in cleaned:
+            last_name, first_name = (part.strip() for part in cleaned.split(",", 1))
+            return first_name or None, last_name or None
+        parts = cleaned.rsplit(" ", 1)
         if not parts or not parts[0]:
             return None, None
         first_name = parts[0].strip() or None

@@ -42,9 +42,9 @@ def _auto_sync_lookback_days(app: Flask) -> int:
 
 
 def _auto_sync_interval_seconds(app: Flask) -> int:
-    """Return the configured automatic sync interval, clamped to 30s minimum."""
+    """Return the configured automatic sync interval, clamped to 300s minimum."""
     return max(
-        30,
+        300,
         int(
             app.config.get(
                 "ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS",
@@ -86,8 +86,12 @@ def _auto_anesthesia_sync_loop(
     stop_event: threading.Event,
 ) -> None:
     """Run automatic anesthesia stop-time sync on a fixed interval."""
-    interval_seconds = _auto_sync_interval_seconds(app)
-    lookback_days = _auto_sync_lookback_days(app)
+    try:
+        interval_seconds = _auto_sync_interval_seconds(app)
+        lookback_days = _auto_sync_lookback_days(app)
+    except (TypeError, ValueError):
+        logger.exception("Invalid anesthesia auto-sync configuration")
+        return
     logger.info(
         "Automatic anesthesia stop-time sync started (interval=%ss, lookback_days=%s).",
         interval_seconds,
@@ -210,7 +214,7 @@ def start_background_services(
 def stop_background_services(app: Flask) -> bool:
     """Stop background services for the current process when running."""
     with _background_sync_lock:
-        existing_service = app.extensions.pop("anesthesia_auto_sync_service", None)
+        existing_service = app.extensions.get("anesthesia_auto_sync_service")
         if existing_service is None:
             return False
 
@@ -218,9 +222,10 @@ def stop_background_services(app: Flask) -> bool:
         worker = existing_service["thread"]
         lock_handle = existing_service.get("lock_handle")
         stop_event.set()
-        if worker.is_alive():
+        while worker.is_alive():
             worker.join(timeout=1)
         _release_background_service_process_lock(lock_handle)
+        app.extensions.pop("anesthesia_auto_sync_service", None)
         return True
 
 

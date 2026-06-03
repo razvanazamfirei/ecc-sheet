@@ -2,7 +2,7 @@
 
 import pathlib
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -71,17 +71,24 @@ class TestBackupDatabaseEdgeCases:
 class TestBackupDatabaseExceptionHandling:
     """Test backup_database exception handling."""
 
-    def test_backup_database_handles_copy_error(self, app, tmp_path, monkeypatch):
-        """Test backup handles shutil.copy2 errors gracefully."""
+    def test_backup_database_handles_backup_error(self, app, tmp_path, monkeypatch):
+        """Test backup handles SQLite backup errors gracefully."""
         with app.app_context():
             backup_dir = tmp_path / "backups"
             backup_dir.mkdir()
             db_path = app.config["SQLALCHEMY_DATABASE_URI"].replace("sqlite:///", "")
 
-            def mock_copy2(*_args):
-                raise OSError("Permission denied")
+            mock_source = MagicMock()
+            mock_source.backup = MagicMock(side_effect=OSError("Backup failed"))
 
-            monkeypatch.setattr("backend.database.backups.shutil.copy2", mock_copy2)
+            def mock_connect(*_args, **_kwargs):
+                conn = MagicMock()
+                conn.__enter__.return_value = mock_source
+                return conn
+
+            monkeypatch.setattr(
+                "backend.database.backups.sqlite3.connect", mock_connect
+            )
 
             result = backup_database(db_path, backup_dir)
 

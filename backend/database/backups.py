@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -25,13 +25,15 @@ def backup_database(
     timestamp = datetime.now(tz=tz).strftime("%Y%m%d_%H%M%S")
     try:
         backup_dir.mkdir(parents=True, exist_ok=True)
-        if not db_path.exists():
-            return False
-
-        shutil.copy2(db_path, backup_dir / f"ecc_sheet_{timestamp}.db")
+        backup_path = backup_dir / f"ecc_sheet_{timestamp}.db"
+        with (
+            sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True) as source,
+            sqlite3.connect(str(backup_path)) as dest,
+        ):
+            source.backup(dest)
         prune_database_backups(backup_dir)
         return True
-    except OSError:
+    except (OSError, sqlite3.OperationalError):
         logger.exception("Database backup failed")
         return False
 

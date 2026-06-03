@@ -19,13 +19,13 @@ from flask import (
     url_for,
 )
 
-from backend.config import get_auth_settings
+from backend.config import AuthSettings, get_auth_settings
 from backend.models import Resident, Role, TimeEntry
 from backend.security.saml import get_session_authenticated_user, saml_enabled
 from backend.utils import get_effective_date
 
 
-def _auth_settings():
+def _auth_settings() -> AuthSettings:
     """Return auth settings from the active Flask config when available."""
     if has_app_context():
         return get_auth_settings(current_app.config)

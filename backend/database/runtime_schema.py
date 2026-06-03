@@ -54,6 +54,12 @@ def ensure_time_entry_columns(logger: logging.Logger | None = None) -> None:
                     "skipping runtime schema backfill.",
                 )
             return
+        inspector = sqlalchemy_inspect(db.engine)
+        time_entry_columns = {
+            column["name"] for column in inspector.get_columns("time_entries")
+        }
+        if "anesthesia_stop_time" in time_entry_columns:
+            return
         raise
 
 

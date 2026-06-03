@@ -283,7 +283,7 @@ class TestBackgroundServices:
         monkeypatch.setitem(app.config, "ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS", 5)
 
         assert background_services._auto_sync_lookback_days(app) == 0
-        assert background_services._auto_sync_interval_seconds(app) == 30
+        assert background_services._auto_sync_interval_seconds(app) == 300
 
     def test_start_background_services_starts_once_when_fetcher_enabled(
         self, app, monkeypatch
