@@ -23,9 +23,10 @@ from backend.auth import (
     is_admin,
     mock_users_enabled,
 )
-from backend.config import Config
+from backend.config import Config, get_settings
 from backend.db_session import commit_or_rollback
 from backend.email_service import init_email_service
+from backend.env_utils import env_flag, env_str
 from backend.errors import APIError, SAMLConfigError
 from backend.holidays import get_federal_holidays
 from backend.instance_config import (
@@ -63,15 +64,14 @@ app: Flask = Flask(
     template_folder=str(project_root / "frontend" / "templates"),
     static_folder=str(project_root / "frontend" / "static"),
 )
-app.config.from_object(Config)
+settings = get_settings()
+app.config.from_mapping(settings.to_flask_config())
 
-if app.config.get("FLASK_ENV") == "production":
-    configured_secret_key = (os.getenv("SECRET_KEY") or "").strip()
-    if not configured_secret_key:
-        raise RuntimeError(
-            "A strong SECRET_KEY must be set in production. "
-            "Refusing to start without an explicit SECRET_KEY."
-        )
+if settings.FLASK_ENV == "production" and not env_str("SECRET_KEY"):
+    raise RuntimeError(
+        "A strong SECRET_KEY must be set in production. "
+        "Refusing to start without an explicit SECRET_KEY."
+    )
 
 db.init_app(app)
 init_email_service(app)
@@ -138,7 +138,7 @@ if saml_enabled(app.config):
         ) from exc
 
 if mock_users_enabled():
-    if os.getenv("FLASK_ENV", "").lower() == "production":
+    if env_str("FLASK_ENV", "").lower() == "production":
         raise RuntimeError(
             "MOCK_USERS_ENABLED is set in a production environment. "
             "This enables unauthenticated user impersonation. Refusing to start."
@@ -257,14 +257,36 @@ def _ensure_runtime_schema() -> None:
         app.extensions["runtime_schema_checked"] = True
 
 
+def _auto_sync_lookback_days() -> int:
+    """Return the configured automatic sync lookback, clamped non-negative."""
+    return max(
+        0,
+        int(
+            app.config.get(
+                "ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS",
+                Config.ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS,
+            )
+        ),
+    )
+
+
+def _auto_sync_interval_seconds() -> int:
+    """Return the configured automatic sync interval, clamped to 30s minimum."""
+    return max(
+        30,
+        int(
+            app.config.get(
+                "ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS",
+                Config.ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS,
+            )
+        ),
+    )
+
+
 def _auto_sync_window() -> tuple[date, date]:
     """Return the rolling date window for automatic anesthesia stop syncing."""
     effective_date = get_effective_date()
-    lookback_days = max(
-        0,
-        int(app.config.get("ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS", 1)),
-    )
-    return effective_date - timedelta(days=lookback_days), effective_date
+    return effective_date - timedelta(days=_auto_sync_lookback_days()), effective_date
 
 
 def _run_auto_anesthesia_sync_once() -> None:
@@ -284,14 +306,12 @@ def _run_auto_anesthesia_sync_once() -> None:
 
 def _auto_anesthesia_sync_loop(stop_event: threading.Event) -> None:
     """Run automatic anesthesia stop-time sync on a fixed interval."""
-    interval_seconds = max(
-        30,
-        int(app.config.get("ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS", 120)),
-    )
+    interval_seconds = _auto_sync_interval_seconds()
+    lookback_days = _auto_sync_lookback_days()
     logger.info(
         "Automatic anesthesia stop-time sync started (interval=%ss, lookback_days=%s).",
         interval_seconds,
-        app.config.get("ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS", 1),
+        lookback_days,
     )
     while not stop_event.is_set():
         try:
@@ -356,7 +376,7 @@ def start_background_services() -> bool:
         return False
     if not app.config.get("ANESTHESIA_FETCHER_ENABLED"):
         return False
-    if app.debug and os.getenv("WERKZEUG_RUN_MAIN") != "true":
+    if app.debug and env_str("WERKZEUG_RUN_MAIN") != "true":
         return False
 
     started = False
@@ -425,20 +445,15 @@ def _should_start_background_services_during_import() -> bool:
     if "pytest" in process_name:
         return False
 
-    if os.getenv("FLASK_RUN_FROM_CLI") != "true":
+    if env_str("FLASK_RUN_FROM_CLI") != "true":
         return True
 
     flask_args = [arg.casefold() for arg in sys.argv[1:]]
     if "run" not in flask_args:
         return False
 
-    debug_enabled = (os.getenv("FLASK_DEBUG") or "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    } or "--debug" in flask_args
-    return not (debug_enabled and os.getenv("WERKZEUG_RUN_MAIN") != "true")
+    debug_enabled = env_flag("FLASK_DEBUG") or "--debug" in flask_args
+    return not (debug_enabled and env_str("WERKZEUG_RUN_MAIN") != "true")
 
 
 @app.before_request

@@ -28,39 +28,41 @@ class APIError(Exception):
         return response
 
 
-class ValidationError(APIError):
+class _FixedStatusAPIError(APIError):
+    """API error with a subclass-defined status code."""
+
+    status_code = 400
+
+    def __init__(self, message, payload=None):
+        super().__init__(message, status_code=self.status_code, payload=payload)
+
+
+class ValidationError(_FixedStatusAPIError):
     """Validation error for invalid input"""
 
-    def __init__(self, message, payload=None):
-        super().__init__(message, status_code=400, payload=payload)
 
-
-class NotFoundError(APIError):
+class NotFoundError(_FixedStatusAPIError):
     """Resource not found error"""
 
-    def __init__(self, message, payload=None):
-        super().__init__(message, status_code=404, payload=payload)
+    status_code = 404
 
 
-class NotAllowedError(APIError):
+class NotAllowedError(_FixedStatusAPIError):
     """Permission denied error"""
 
-    def __init__(self, message, payload=None):
-        super().__init__(message, status_code=403, payload=payload)
+    status_code = 403
 
 
-class ConflictError(APIError):
+class ConflictError(_FixedStatusAPIError):
     """Resource conflict error"""
 
-    def __init__(self, message, payload=None):
-        super().__init__(message, status_code=409, payload=payload)
+    status_code = 409
 
 
-class DatabaseError(APIError):
+class DatabaseError(_FixedStatusAPIError):
     """Database operation error"""
 
-    def __init__(self, message, payload=None):
-        super().__init__(message, status_code=503, payload=payload)
+    status_code = 503
 
 
 class SAMLConfigError(RuntimeError):

@@ -6,6 +6,7 @@ import resend
 from email_validator import EmailNotValidError
 from flask import current_app
 
+from backend.config import Config
 from backend.utils import normalize_email
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,8 @@ def send_email(
 
     if from_email is None:
         from_email = (
-            current_app.config.get("DEFAULT_SENDER_EMAIL") or "onboarding@resend.dev"
+            current_app.config.get("DEFAULT_SENDER_EMAIL")
+            or Config.DEFAULT_SENDER_EMAIL
         )
 
     raw_recipients = [to] if isinstance(to, str) else to

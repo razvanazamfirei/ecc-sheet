@@ -146,23 +146,13 @@ class TestAuditRoute:
         response = client.get("/audit?entity_type=TimeEntry&action=CREATE&limit=50")
         assert response.status_code == 200
 
-    def test_audit_requires_admin(self, client):
+    def test_audit_requires_admin(self, client, monkeypatch):
         """Test that audit page requires admin privileges."""
-        import os
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        original_user = os.environ.get("USER_NAME")
-        original_admins = os.environ.get("ADMIN_USERS")
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            response = client.get("/audit", follow_redirects=True)
-            assert b"Admin privileges required" in response.data
-        finally:
-            if original_user:
-                os.environ["USER_NAME"] = original_user
-            if original_admins:
-                os.environ["ADMIN_USERS"] = original_admins
+        response = client.get("/audit", follow_redirects=True)
+        assert b"Admin privileges required" in response.data
 
     def test_audit_filter_by_entity_type_only(self, client, app):
         """Test filtering audit log by entity type only."""

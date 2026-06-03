@@ -98,13 +98,6 @@ def _file_response(content: str | bytes, mimetype: str, filename: str) -> Respon
     )
 
 
-def _require_extended_report_permission(message: str) -> Response | None:
-    """Return an error redirect when extended report access is unavailable."""
-    if can_view_all_reports():
-        return None
-    return flash_redirect("reports.index", message)
-
-
 def _exclude_zero_overtime_flag() -> bool:
     """Return True when the form requests zero-overtime residents be excluded."""
     return request.form.get("exclude_zero_overtime", "0") == "1"
@@ -166,17 +159,6 @@ def _run_file_report_action(
         log_message=log_message,
         error_message=error_message,
     )
-
-
-def _run_extended_file_report_action(
-    permission_message: str,
-    **file_action_kwargs,
-) -> Response:
-    """Run a file report action that requires extended report permissions."""
-    if resp := _require_extended_report_permission(permission_message):
-        return resp
-
-    return _run_file_report_action(**file_action_kwargs)
 
 
 def _run_report_action(
@@ -282,9 +264,14 @@ def export_csv():
 @bp.route("/api/report/export_payroll_xlsx", methods=["POST"])
 def export_payroll_xlsx():
     """Export payroll data as Lawson/UPHS formatted .xlsx file."""
+    if not can_view_all_reports():
+        return flash_redirect(
+            "reports.index",
+            "You do not have permission to export the payroll report.",
+        )
+
     suffix = "_excl_zero" if _exclude_zero_overtime_flag() else ""
-    return _run_extended_file_report_action(
-        "You do not have permission to export the payroll report.",
+    return _run_file_report_action(
         filename=f"payroll_{{start_date}}_{{end_date}}{suffix}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         content_builder=_payroll_xlsx_content,

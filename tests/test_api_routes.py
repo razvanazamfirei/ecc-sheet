@@ -187,38 +187,18 @@ class TestRolesAPI:
 class TestAPIEndpointAccess:
     """Tests for API endpoint access control."""
 
-    def test_residents_api_no_auth_required(self, client):
+    def test_residents_api_no_auth_required(self, client, monkeypatch):
         """Test that residents API doesn't require admin auth."""
-        import os
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        original_user = os.environ.get("USER_NAME")
-        original_admins = os.environ.get("ADMIN_USERS")
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
+        response = client.get("/api/residents/active")
+        assert response.status_code == 200
 
-            response = client.get("/api/residents/active")
-            assert response.status_code == 200
-        finally:
-            if original_user:
-                os.environ["USER_NAME"] = original_user
-            if original_admins:
-                os.environ["ADMIN_USERS"] = original_admins
-
-    def test_roles_api_no_auth_required(self, client):
+    def test_roles_api_no_auth_required(self, client, monkeypatch):
         """Test that roles API doesn't require admin auth."""
-        import os
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        original_user = os.environ.get("USER_NAME")
-        original_admins = os.environ.get("ADMIN_USERS")
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            response = client.get("/api/roles")
-            assert response.status_code == 200
-        finally:
-            if original_user:
-                os.environ["USER_NAME"] = original_user
-            if original_admins:
-                os.environ["ADMIN_USERS"] = original_admins
+        response = client.get("/api/roles")
+        assert response.status_code == 200

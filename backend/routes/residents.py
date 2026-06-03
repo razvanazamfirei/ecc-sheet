@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.audit import log_create, log_update
 from backend.auth import admin_required, get_current_user, is_admin, is_first_call
+from backend.config import Config
 from backend.models import AuditLog, Resident, TimeEntry, db
 from backend.payroll_audit import filter_payroll_resident_changes
 from backend.routes._forms import (
@@ -271,8 +272,9 @@ def profile(resident_id):
 def import_staff():
     """Import staff list from Amion to populate resident information."""
     try:
-        # Get schedule code from config
-        schedule_code = current_app.config.get("AMION_SCHEDULE_CODE", "upennane")
+        schedule_code = current_app.config.get(
+            "AMION_SCHEDULE_CODE", Config.AMION_SCHEDULE_CODE
+        )
 
         result = import_staff_list(schedule_code=schedule_code, user=get_current_user())
 

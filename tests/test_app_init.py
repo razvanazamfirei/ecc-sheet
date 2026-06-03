@@ -1,6 +1,5 @@
 """Tests for app initialization and init_db function."""
 
-import os
 from unittest.mock import MagicMock, patch
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -185,69 +184,39 @@ class TestContextProcessor:
         assert response.status_code == 200
         # The template should have access to is_admin
 
-    def test_inject_dev_disabled_when_mock_not_enabled(self, client):
+    def test_inject_dev_disabled_when_mock_not_enabled(self, client, monkeypatch):
         """inject_dev returns mock_users_enabled=False when env var is unset."""
-        original = os.environ.get("MOCK_USERS_ENABLED")
-        try:
-            os.environ.pop("MOCK_USERS_ENABLED", None)
-            response = client.get("/")
-            assert response.status_code == 200
-            # Dev dropdown must not appear when mock is disabled
-            assert b"switch-user" not in response.data
-        finally:
-            if original is not None:
-                os.environ["MOCK_USERS_ENABLED"] = original
+        monkeypatch.delenv("MOCK_USERS_ENABLED", raising=False)
+        response = client.get("/")
+        assert response.status_code == 200
+        assert b"switch-user" not in response.data
 
-    def test_inject_dev_with_payroll_admin_users(self, client):
+    def test_inject_dev_with_payroll_admin_users(self, client, monkeypatch):
         """inject_dev includes a payroll persona when PAYROLL_ADMIN_USERS is set."""
-        original_mock = os.environ.get("MOCK_USERS_ENABLED")
-        original_pa = os.environ.get("PAYROLL_ADMIN_USERS")
-        try:
-            os.environ["MOCK_USERS_ENABLED"] = "true"
-            os.environ["PAYROLL_ADMIN_USERS"] = "Payroll Person"
-            response = client.get("/")
-            assert response.status_code == 200
-            assert b"Payroll Person" in response.data
-        finally:
-            if original_mock is not None:
-                os.environ["MOCK_USERS_ENABLED"] = original_mock
-            else:
-                os.environ.pop("MOCK_USERS_ENABLED", None)
-            if original_pa is not None:
-                os.environ["PAYROLL_ADMIN_USERS"] = original_pa
-            else:
-                os.environ.pop("PAYROLL_ADMIN_USERS", None)
+        monkeypatch.setenv("MOCK_USERS_ENABLED", "true")
+        monkeypatch.setenv("PAYROLL_ADMIN_USERS", "Payroll Person")
+        response = client.get("/")
+        assert response.status_code == 200
+        assert b"Payroll Person" in response.data
 
-    def test_inject_dev_enabled_shows_switch_user_form(self, client):
+    def test_inject_dev_enabled_shows_switch_user_form(self, client, monkeypatch):
         """inject_dev populates template context when MOCK_USERS_ENABLED=true."""
-        original = os.environ.get("MOCK_USERS_ENABLED")
-        try:
-            os.environ["MOCK_USERS_ENABLED"] = "true"
-            response = client.get("/")
-            assert response.status_code == 200
-            assert b"switch-user" in response.data
-        finally:
-            if original is not None:
-                os.environ["MOCK_USERS_ENABLED"] = original
-            else:
-                os.environ.pop("MOCK_USERS_ENABLED", None)
+        monkeypatch.setenv("MOCK_USERS_ENABLED", "true")
+        response = client.get("/")
+        assert response.status_code == 200
+        assert b"switch-user" in response.data
 
-    def test_inject_dev_handles_resident_query_exception(self, client, app):
+    def test_inject_dev_handles_resident_query_exception(
+        self, client, app, monkeypatch
+    ):
         """inject_dev falls back to empty resident list when DB query fails."""
         from backend.models import Resident
 
-        original = os.environ.get("MOCK_USERS_ENABLED")
-        try:
-            os.environ["MOCK_USERS_ENABLED"] = "true"
-            with app.app_context(), patch.object(Resident, "query") as mock_query:
-                mock_query.filter_by.side_effect = SQLAlchemyError("DB error")
-                response = client.get("/")
-            assert response.status_code == 200
-        finally:
-            if original is not None:
-                os.environ["MOCK_USERS_ENABLED"] = original
-            else:
-                os.environ.pop("MOCK_USERS_ENABLED", None)
+        monkeypatch.setenv("MOCK_USERS_ENABLED", "true")
+        with app.app_context(), patch.object(Resident, "query") as mock_query:
+            mock_query.filter_by.side_effect = SQLAlchemyError("DB error")
+            response = client.get("/")
+        assert response.status_code == 200
 
 
 class TestBackgroundServices:
@@ -298,105 +267,94 @@ class TestBackgroundServices:
         assert response.status_code == 200
         mock_start.assert_not_called()
 
-    def test_should_start_background_services_during_wsgi_import(self):
+    def test_should_start_background_services_during_wsgi_import(self, monkeypatch):
         """WSGI-style imports should eagerly bootstrap background services."""
         import backend.app as app_module
 
+        monkeypatch.setenv("FLASK_RUN_FROM_CLI", "")
+        monkeypatch.setenv("FLASK_DEBUG", "")
+        monkeypatch.setenv("WERKZEUG_RUN_MAIN", "")
         with (
             patch.object(app_module, "__name__", "backend.app"),
             patch.object(app_module.sys, "argv", ["gunicorn"]),
-            patch.dict(
-                os.environ,
-                {
-                    "FLASK_RUN_FROM_CLI": "",
-                    "FLASK_DEBUG": "",
-                    "WERKZEUG_RUN_MAIN": "",
-                },
-                clear=False,
-            ),
         ):
             assert app_module._should_start_background_services_during_import() is True
 
-    def test_should_skip_eager_start_for_non_run_flask_cli(self):
+    def test_should_skip_eager_start_for_non_run_flask_cli(self, monkeypatch):
         """Non-server Flask CLI commands should not start background services."""
         import backend.app as app_module
 
+        monkeypatch.setenv("FLASK_RUN_FROM_CLI", "true")
         with (
             patch.object(app_module, "__name__", "backend.app"),
             patch.object(app_module.sys, "argv", ["flask", "db", "upgrade"]),
-            patch.dict(
-                os.environ,
-                {"FLASK_RUN_FROM_CLI": "true"},
-                clear=False,
-            ),
         ):
             assert app_module._should_start_background_services_during_import() is False
 
-    def test_start_background_services_starts_once_when_fetcher_enabled(self, app):
+    def test_auto_sync_config_helpers_clamp_values(self, app, monkeypatch):
+        """Automatic sync config helpers enforce safe lower bounds."""
+        import backend.app as app_module
+
+        monkeypatch.setitem(app.config, "ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS", -3)
+        monkeypatch.setitem(app.config, "ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS", 5)
+
+        assert app_module._auto_sync_lookback_days() == 0
+        assert app_module._auto_sync_interval_seconds() == 30
+
+    def test_start_background_services_starts_once_when_fetcher_enabled(
+        self, app, monkeypatch
+    ):
         """Background services should start once for the server process."""
         from backend.app import start_background_services, stop_background_services
 
-        original_testing = app.config["TESTING"]
-        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        monkeypatch.setitem(app.config, "TESTING", False)
+        monkeypatch.setitem(app.config, "ANESTHESIA_FETCHER_ENABLED", True)
         lock_handle = MagicMock()
-        try:
-            app.config["TESTING"] = False
-            app.config["ANESTHESIA_FETCHER_ENABLED"] = True
+        with (
+            patch("backend.app.threading.Thread") as mock_thread,
+            patch(
+                "backend.app._acquire_background_service_process_lock",
+                return_value=lock_handle,
+            ) as mock_acquire_lock,
+            patch(
+                "backend.app._release_background_service_process_lock"
+            ) as mock_release_lock,
+        ):
+            worker = mock_thread.return_value
+            worker.is_alive.return_value = False
 
-            with (
-                patch("backend.app.threading.Thread") as mock_thread,
-                patch(
-                    "backend.app._acquire_background_service_process_lock",
-                    return_value=lock_handle,
-                ) as mock_acquire_lock,
-                patch(
-                    "backend.app._release_background_service_process_lock"
-                ) as mock_release_lock,
-            ):
-                worker = mock_thread.return_value
-                worker.is_alive.return_value = False
+            try:
+                assert start_background_services() is True
+                assert start_background_services() is False
+                worker.start.assert_called_once()
+                mock_acquire_lock.assert_called_once_with()
+            finally:
+                stop_background_services()
 
-                try:
-                    assert start_background_services() is True
-                    assert start_background_services() is False
-                    worker.start.assert_called_once()
-                    mock_acquire_lock.assert_called_once_with()
-                finally:
-                    stop_background_services()
+            mock_release_lock.assert_called_once_with(lock_handle)
 
-                mock_release_lock.assert_called_once_with(lock_handle)
-        finally:
-            app.config["TESTING"] = original_testing
-            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
-
-    def test_start_background_services_requires_fetcher_flag(self, app):
+    def test_start_background_services_requires_fetcher_flag(self, app, monkeypatch):
         """Background services should not start without the fetcher flag."""
         from backend.app import start_background_services, stop_background_services
 
-        original_testing = app.config["TESTING"]
-        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        monkeypatch.setitem(app.config, "TESTING", False)
+        monkeypatch.setitem(app.config, "ANESTHESIA_FETCHER_ENABLED", False)
         try:
-            app.config["TESTING"] = False
-            app.config["ANESTHESIA_FETCHER_ENABLED"] = False
-
             with patch("backend.app.threading.Thread") as mock_thread:
                 assert start_background_services() is False
                 mock_thread.assert_not_called()
         finally:
             stop_background_services()
-            app.config["TESTING"] = original_testing
-            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
 
-    def test_start_background_services_skips_when_lock_owned_elsewhere(self, app):
+    def test_start_background_services_skips_when_lock_owned_elsewhere(
+        self, app, monkeypatch
+    ):
         """Only one worker process should bootstrap the auto-sync thread."""
         from backend.app import start_background_services, stop_background_services
 
-        original_testing = app.config["TESTING"]
-        original_enabled = app.config.get("ANESTHESIA_FETCHER_ENABLED")
+        monkeypatch.setitem(app.config, "TESTING", False)
+        monkeypatch.setitem(app.config, "ANESTHESIA_FETCHER_ENABLED", True)
         try:
-            app.config["TESTING"] = False
-            app.config["ANESTHESIA_FETCHER_ENABLED"] = True
-
             with (
                 patch("backend.app.threading.Thread") as mock_thread,
                 patch(
@@ -408,8 +366,6 @@ class TestBackgroundServices:
                 mock_thread.assert_not_called()
         finally:
             stop_background_services()
-            app.config["TESTING"] = original_testing
-            app.config["ANESTHESIA_FETCHER_ENABLED"] = original_enabled
 
     def test_ensure_time_entry_columns_ignores_duplicate_column_race(self, app):
         """Runtime schema backfill should ignore duplicate-column races."""

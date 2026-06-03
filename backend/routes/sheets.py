@@ -32,11 +32,6 @@ bp: Blueprint = Blueprint(
 logger = logging.getLogger(__name__)
 
 
-def _parse_sheet_date(date_str: str) -> date | None:
-    """Parse a sheet date or flash an error when invalid."""
-    return parse_iso_date_or_none(date_str)
-
-
 def _get_or_create_daily_sheet(sheet_date: date, *, commit: bool = True) -> DailySheet:
     """Return the sheet for a date, handling concurrent inserts safely."""
     daily_sheet = DailySheet.query.filter_by(date=sheet_date).first()
@@ -138,7 +133,7 @@ def index():
 @bp.route("/sheets/<date_str>")
 def view(date_str):
     """View sheet for a specific date."""
-    sheet_date = _parse_sheet_date(date_str)
+    sheet_date = parse_iso_date_or_none(date_str)
     if sheet_date is None:
         return redirect_to("sheets.index")
 
@@ -149,7 +144,7 @@ def view(date_str):
 @bp.route("/sheets/<date_str>/lock", methods=["POST"])
 def lock(date_str):
     """Lock/unlock a daily sheet."""
-    sheet_date = _parse_sheet_date(date_str)
+    sheet_date = parse_iso_date_or_none(date_str)
     if sheet_date is None:
         return redirect_to("sheets.index")
 

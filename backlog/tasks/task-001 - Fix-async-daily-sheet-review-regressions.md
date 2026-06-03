@@ -4,16 +4,15 @@ title: Fix async daily sheet review regressions
 status: Done
 assignee: []
 created_date: '2026-06-02 16:10'
-updated_date: '2026-06-02 16:21'
+updated_date: '2026-06-02 17:00'
 labels:
   - bugfix
   - review-feedback
 dependencies: []
 modified_files:
-  - frontend/static/js/daily-sheet.js
-  - frontend/static/js/__tests__/daily-sheet.test.js
+  - backend/app.py
   - frontend/templates/base.html
-  - frontend/templates/index.html
+  - tests/test_app_init.py
   - tests/test_auth.py
 priority: medium
 ordinal: 1000
@@ -51,10 +50,12 @@ Resolve the review-reported UI regressions in the async daily-sheet flows so nor
 Implemented review fixes in frontend/static/js/daily-sheet.js, frontend/templates/index.html, frontend/templates/base.html, and tests/test_auth.py. Verification passed: rtk vitest run; rtk run uv run pytest tests/test_auth.py tests/test_dev_routes.py; rtk run mise exec -- bun run format:check; rtk run mise exec -- bun run build.
 
 Additional final verification passed: rtk run uv run pytest (629 passed, 3 existing SQLAlchemy delete warnings in entry-delete tests).
+
+Follow-up fix: replaced the dev menu Become Admin gate from not is_admin to the dedicated can_escalate_to_admin context flag, sourced from auth.can_escalate_to_admin(). Added tests proving regular mock users do not see the action while the owner identity sees the POST form.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Fixed the async daily-sheet regressions by rendering edit controls while locked but hidden for async unlock, tracking page lock/weekend metadata, deferring async deletes to the existing confirmation flow before AJAX deletion, preserving weekend context for empty first inserts, and converting dev POST-only actions to POST forms. Added focused JS and route/template tests and verified frontend tests, targeted Python tests, formatter check, and production build.
+Follow-up: tightened the dev Become Admin menu so it uses the same can_escalate_to_admin capability as the POST route instead of showing the form to every non-admin. The global auth context now exposes can_escalate_to_admin, base.html gates the form on it, and tests cover both denied and allowed mock identities.
 <!-- SECTION:FINAL_SUMMARY:END -->

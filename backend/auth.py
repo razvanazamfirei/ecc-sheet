@@ -20,7 +20,7 @@ from flask import (
     url_for,
 )
 
-from backend.env_utils import env_csv, env_flag
+from backend.env_utils import env_csv, env_flag, env_str
 from backend.models import Resident, Role, TimeEntry
 from backend.saml import get_session_authenticated_user, saml_enabled
 from backend.utils import get_effective_date
@@ -30,7 +30,7 @@ def _proxy_header_name() -> str:
     """Return the configured proxy auth header name."""
     if has_app_context():
         return str(current_app.config.get("AUTH_PROXY_USERNAME_HEADER") or "").strip()
-    return os.getenv("AUTH_PROXY_USERNAME_HEADER", "").strip()
+    return env_str("AUTH_PROXY_USERNAME_HEADER", "")
 
 
 def get_current_user() -> str:

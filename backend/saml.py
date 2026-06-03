@@ -33,12 +33,22 @@ _PUBLIC_ENDPOINTS = frozenset(
 )
 
 
+def _active_config(
+    config: Mapping[str, object] | None = None,
+) -> Mapping[str, object] | None:
+    """Return the explicit config, current Flask config, or None."""
+    if config is not None:
+        return config
+    if has_app_context():
+        return current_app.config
+    return None
+
+
 def saml_enabled(config: Mapping[str, object] | None = None) -> bool:
     """Return True when first-party SAML SSO is enabled."""
-    if config is not None:
-        return bool(config.get("SAML_ENABLED"))
-    if has_app_context():
-        return bool(current_app.config.get("SAML_ENABLED"))
+    runtime_config = _active_config(config)
+    if runtime_config is not None:
+        return bool(runtime_config.get("SAML_ENABLED"))
     return env_flag("SAML_ENABLED")
 
 
@@ -150,12 +160,12 @@ def get_saml_username_attributes(
     config: Mapping[str, object] | None = None,
 ) -> list[str]:
     """Return the ordered attribute names used to resolve the app username."""
-    if config is not None:
-        raw_value = config.get("SAML_USERNAME_ATTRIBUTES", [])
-    elif has_app_context():
-        raw_value = current_app.config.get("SAML_USERNAME_ATTRIBUTES", [])
-    else:
-        raw_value = []
+    runtime_config = _active_config(config)
+    raw_value = (
+        runtime_config.get("SAML_USERNAME_ATTRIBUTES", [])
+        if runtime_config is not None
+        else []
+    )
 
     raw_items = raw_value.split(",") if isinstance(raw_value, str) else raw_value
     return [str(item).strip() for item in raw_items if str(item).strip()]
@@ -163,10 +173,9 @@ def get_saml_username_attributes(
 
 def saml_use_name_id(config: Mapping[str, object] | None = None) -> bool:
     """Return whether NameID can be used as a username fallback."""
-    if config is not None:
-        return bool(config.get("SAML_USE_NAME_ID", True))
-    if has_app_context():
-        return bool(current_app.config.get("SAML_USE_NAME_ID", True))
+    runtime_config = _active_config(config)
+    if runtime_config is not None:
+        return bool(runtime_config.get("SAML_USE_NAME_ID", True))
     return env_flag("SAML_USE_NAME_ID", default=True)
 
 
@@ -174,8 +183,7 @@ def load_saml_settings(  # noqa: PLR0912, PLR0915
     config: Mapping[str, object] | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     """Load the configured OneLogin toolkit settings."""
-    if config is None and has_app_context():
-        config = current_app.config
+    config = _active_config(config)
 
     settings_json = None
     settings_path_value = None

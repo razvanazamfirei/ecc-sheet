@@ -179,13 +179,16 @@ def _source_table() -> str:
 
 def _provider_type() -> str:
     """Return the provider type filter used by the MSSQL query."""
-    return str(_config_value("ANESTHESIA_SQL_PROVIDER_TYPE") or "Anes Resident")
+    return str(
+        _config_value("ANESTHESIA_SQL_PROVIDER_TYPE")
+        or Config.ANESTHESIA_SQL_PROVIDER_TYPE
+    )
 
 
 def _query_timeout() -> int:
     """Return the MSSQL connection timeout in seconds."""
     timeout = _config_value("ANESTHESIA_SQL_TIMEOUT")
-    return int(timeout) if timeout is not None else 30
+    return int(timeout) if timeout is not None else Config.ANESTHESIA_SQL_TIMEOUT
 
 
 def _build_stop_time_query() -> str:

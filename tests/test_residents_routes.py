@@ -1,7 +1,6 @@
 """Tests for resident routes."""
 
 import json
-import os
 from unittest.mock import patch
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -13,21 +12,14 @@ from backend.models import AuditLog, Resident, Role, TimeEntry, db
 class TestResidentsIndex:
     """Tests for residents index page."""
 
-    def test_residents_index_requires_admin(self, client):
+    def test_residents_index_requires_admin(self, client, monkeypatch):
         """Test that residents index requires admin privileges."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            response = client.get("/residents/", follow_redirects=True)
-            assert response.status_code == 200
-            assert b"Admin privileges required" in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        response = client.get("/residents/", follow_redirects=True)
+        assert response.status_code == 200
+        assert b"Admin privileges required" in response.data
 
     def test_residents_index_lists_all(self, client, app, sample_resident):
         """Test residents index displays all residents."""
@@ -131,24 +123,17 @@ class TestAddResident:
             db.session.delete(resident)
             db.session.commit()
 
-    def test_add_resident_requires_admin(self, client):
+    def test_add_resident_requires_admin(self, client, monkeypatch):
         """Test that adding resident requires admin privileges."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            response = client.post(
-                "/residents/add",
-                data={"name": "New Resident"},
-                follow_redirects=True,
-            )
-            assert b"Admin privileges required" in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        response = client.post(
+            "/residents/add",
+            data={"name": "New Resident"},
+            follow_redirects=True,
+        )
+        assert b"Admin privileges required" in response.data
 
 
 class TestToggleResident:
@@ -238,43 +223,29 @@ class TestToggleResident:
         response = client.post("/residents/99999/toggle")
         assert response.status_code == 404
 
-    def test_toggle_requires_admin(self, client, app, sample_resident):
+    def test_toggle_requires_admin(self, client, app, sample_resident, monkeypatch):
         """Test that toggle requires admin privileges."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            with app.app_context():
-                response = client.post(
-                    f"/residents/{sample_resident.id}/toggle",
-                    follow_redirects=True,
-                )
-                assert b"Admin privileges required" in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        with app.app_context():
+            response = client.post(
+                f"/residents/{sample_resident.id}/toggle",
+                follow_redirects=True,
+            )
+            assert b"Admin privileges required" in response.data
 
 
 class TestImportStaff:
     """Tests for staff import endpoint."""
 
-    def test_import_staff_requires_admin(self, client):
+    def test_import_staff_requires_admin(self, client, monkeypatch):
         """Test that staff import requires admin privileges."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            response = client.post("/residents/import", follow_redirects=True)
-            assert b"Admin privileges required" in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        response = client.post("/residents/import", follow_redirects=True)
+        assert b"Admin privileges required" in response.data
 
     def test_import_staff_success(self, client, app):
         """Test successful staff import."""
@@ -386,23 +357,16 @@ class TestEditResident:
         response = client.get("/residents/99999/edit")
         assert response.status_code == 404
 
-    def test_edit_requires_admin(self, client, app, sample_resident):
+    def test_edit_requires_admin(self, client, app, sample_resident, monkeypatch):
         """Test that edit page requires admin privileges."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            with app.app_context():
-                response = client.get(
-                    f"/residents/{sample_resident.id}/edit", follow_redirects=True
-                )
-                assert b"Admin privileges required" in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        with app.app_context():
+            response = client.get(
+                f"/residents/{sample_resident.id}/edit", follow_redirects=True
+            )
+            assert b"Admin privileges required" in response.data
 
     def test_edit_save_updates_fields(self, client, app):
         """Test that POST to edit_save updates resident fields."""
@@ -719,42 +683,41 @@ class TestResidentProfile:
             db.session.delete(db.session.get(Resident, resident_id))
             db.session.commit()
 
-    def test_profile_hides_sensitive_ids_for_regular_user(self, client, app):
+    def test_profile_hides_sensitive_ids_for_regular_user(
+        self, client, app, monkeypatch
+    ):
         """Basic users can see contact info but not Lawson/EPIC identifiers."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
+        with app.app_context():
+            resident = Resident(
+                name="Profile Privacy Test",
+                email="privacy@example.com",
+                phone="555-1212",
+                epic_id="R654321",
+                lawson_id=123456,
+                active=True,
+            )
+            db.session.add(resident)
+            db.session.commit()
+            resident_id = resident.id
 
-            with app.app_context():
-                resident = Resident(
-                    name="Profile Privacy Test",
-                    email="privacy@example.com",
-                    phone="555-1212",
-                    epic_id="R654321",
-                    lawson_id=123456,
-                    active=True,
-                )
-                db.session.add(resident)
-                db.session.commit()
-                resident_id = resident.id
-
+            try:
                 response = client.get(f"/residents/{resident_id}/profile")
+                response_data = response.data
                 assert response.status_code == 200
-                assert b"privacy@example.com" in response.data
-                assert b"555-1212" in response.data
-                assert b"Lawson ID" not in response.data
-                assert b"EPIC ID" not in response.data
-                assert b"R654321" not in response.data
-                assert b"123456" not in response.data
-
+                assert all(
+                    value in response_data
+                    for value in (b"privacy@example.com", b"555-1212")
+                )
+                assert all(
+                    value not in response_data
+                    for value in (b"Lawson ID", b"EPIC ID", b"R654321", b"123456")
+                )
+            finally:
                 db.session.delete(db.session.get(Resident, resident_id))
                 db.session.commit()
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
 
     def test_profile_shows_sensitive_ids_for_admin(self, client, app):
         """Admins still see Lawson and EPIC identifiers."""
@@ -786,23 +749,17 @@ class TestResidentProfile:
         response = client.get("/residents/99999/profile")
         assert response.status_code == 404
 
-    def test_profile_accessible_without_admin(self, client, app, sample_resident):
+    def test_profile_accessible_without_admin(
+        self, client, app, sample_resident, monkeypatch
+    ):
         """Test that profile page is accessible to non-admin users."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            with app.app_context():
-                response = client.get(f"/residents/{sample_resident.id}/profile")
-                assert response.status_code == 200
-                # Should NOT show admin-restricted message
-                assert b"Admin privileges required" not in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        with app.app_context():
+            response = client.get(f"/residents/{sample_resident.id}/profile")
+            assert response.status_code == 200
+            assert b"Admin privileges required" not in response.data
 
     def test_profile_shows_hours_for_admin(
         self, client, app, sample_time_entry, sample_resident
@@ -814,22 +771,17 @@ class TestResidentProfile:
             assert response.status_code == 200
             assert b"Recent Time Entries" in response.data
 
-    def test_profile_hides_hours_for_regular_user(self, client, app, sample_resident):
+    def test_profile_hides_hours_for_regular_user(
+        self, client, app, sample_resident, monkeypatch
+    ):
         """Test that time history is hidden for regular non-first-call users."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            with app.app_context():
-                response = client.get(f"/residents/{sample_resident.id}/profile")
-                assert response.status_code == 200
-                assert b"Recent Time Entries" not in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        with app.app_context():
+            response = client.get(f"/residents/{sample_resident.id}/profile")
+            assert response.status_code == 200
+            assert b"Recent Time Entries" not in response.data
 
     def test_profile_shows_audit_for_admin(self, client, app, sample_resident):
         """Test that audit section is shown for admin users."""
@@ -948,19 +900,14 @@ class TestResidentProfile:
                 db.session.delete(resident)
             db.session.commit()
 
-    def test_profile_hides_audit_for_regular_user(self, client, app, sample_resident):
+    def test_profile_hides_audit_for_regular_user(
+        self, client, app, sample_resident, monkeypatch
+    ):
         """Test that audit section is hidden for non-admin users."""
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            with app.app_context():
-                response = client.get(f"/residents/{sample_resident.id}/profile")
-                assert response.status_code == 200
-                assert b"Recent Audit Activity" not in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        with app.app_context():
+            response = client.get(f"/residents/{sample_resident.id}/profile")
+            assert response.status_code == 200
+            assert b"Recent Audit Activity" not in response.data

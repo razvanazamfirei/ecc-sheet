@@ -283,14 +283,9 @@ def _format_audit_value(value: Any) -> Any:
     return value
 
 
-def _name_matches(name: str) -> list[Resident]:
-    """Return residents with an exact matching display name."""
-    return Resident.query.filter_by(name=name).all()
-
-
 def _resolve_existing_resident(record: ResidentCsvRecord) -> Resident | None:
     """Resolve a CSV row to an existing resident or raise on conflicts."""
-    residents_by_name = _name_matches(record.name)
+    residents_by_name = Resident.query.filter_by(name=record.name).all()
     if len(residents_by_name) > 1:
         raise ConflictError(
             f"Row {record.row_number}: multiple residents already exist with "
