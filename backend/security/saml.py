@@ -2,34 +2,25 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from flask import current_app, has_app_context, request, session, url_for
 
-from backend.env_utils import env_flag, env_str
+from backend.config import (
+    SAML_LOGIN_REQUEST_ID_KEY,
+    SAML_LOGOUT_REQUEST_ID_KEY,
+    SAML_PUBLIC_ENDPOINTS,
+    SAML_REQUEST_TYPE_TO_KEY,
+    SAML_SESSION_DATA_KEY,
+    SAML_SESSION_USER_KEY,
+    get_settings,
+    load_saml_settings,
+)
 from backend.errors import (
-    SAMLInvalidJSONError,
-    SAMLInvalidSettingsError,
     SAMLMissingDependencyError,
     SAMLRequestTypeError,
-    SAMLSettingsNotFoundError,
-)
-
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_SESSION_USER_KEY = "auth_user"
-_SESSION_DATA_KEY = "saml_authn"
-_LOGIN_REQUEST_ID_KEY = "saml_request_id"
-_LOGOUT_REQUEST_ID_KEY = "saml_logout_request_id"
-_REQUEST_TYPE_TO_KEY = {
-    "login": _LOGIN_REQUEST_ID_KEY,
-    "logout": _LOGOUT_REQUEST_ID_KEY,
-}
-_PUBLIC_ENDPOINTS = frozenset(
-    {"auth.login", "auth.acs", "auth.sls", "auth.logout", "auth.metadata"}
 )
 
 
@@ -49,17 +40,17 @@ def saml_enabled(config: Mapping[str, object] | None = None) -> bool:
     runtime_config = _active_config(config)
     if runtime_config is not None:
         return bool(runtime_config.get("SAML_ENABLED"))
-    return env_flag("SAML_ENABLED")
+    return get_settings().SAML_ENABLED
 
 
 def saml_public_endpoint(endpoint: str | None) -> bool:
     """Return True when an endpoint must stay reachable pre-auth."""
-    return bool(endpoint) and endpoint in _PUBLIC_ENDPOINTS
+    return bool(endpoint) and endpoint in SAML_PUBLIC_ENDPOINTS
 
 
 def saml_logout_enabled(config: Mapping[str, object] | None = None) -> bool:
     """Return True when the loaded IdP config exposes a valid logout endpoint."""
-    settings, _ = load_saml_settings(config=config)
+    settings, _ = load_saml_settings(config=_active_config(config))
     try:
         single_logout = settings.get("idp", {}).get("singleLogoutService", {})
     except AttributeError:
@@ -70,7 +61,7 @@ def saml_logout_enabled(config: Mapping[str, object] | None = None) -> bool:
 def get_session_authenticated_user() -> str:
     """Return the authenticated SAML session user or an empty string."""
     try:
-        value = str(session.get(_SESSION_USER_KEY, "")).strip()
+        value = str(session.get(SAML_SESSION_USER_KEY, "")).strip()
     except RuntimeError:
         return ""
     return value
@@ -87,24 +78,24 @@ def set_session_authenticated_user(
     if not normalized_username:
         raise ValueError("username must be non-empty")
 
-    session[_SESSION_USER_KEY] = normalized_username
+    session[SAML_SESSION_USER_KEY] = normalized_username
 
     data: dict[str, Any] = {}
     if name_id:
         data["name_id"] = str(name_id).strip()
     if session_index:
         data["session_index"] = str(session_index).strip()
-    session[_SESSION_DATA_KEY] = data
+    session[SAML_SESSION_DATA_KEY] = data
     session.permanent = True
 
 
 def clear_session_authenticated_user() -> None:
     """Remove local SAML session state."""
     for key in (
-        _SESSION_USER_KEY,
-        _SESSION_DATA_KEY,
-        _LOGIN_REQUEST_ID_KEY,
-        _LOGOUT_REQUEST_ID_KEY,
+        SAML_SESSION_USER_KEY,
+        SAML_SESSION_DATA_KEY,
+        SAML_LOGIN_REQUEST_ID_KEY,
+        SAML_LOGOUT_REQUEST_ID_KEY,
     ):
         session.pop(key, None)
 
@@ -112,7 +103,7 @@ def clear_session_authenticated_user() -> None:
 def get_saml_name_id() -> str | None:
     """Return the stored SAML NameID, if any."""
     try:
-        data = session.get(_SESSION_DATA_KEY) or {}
+        data = session.get(SAML_SESSION_DATA_KEY) or {}
     except RuntimeError:
         return None
     value = str(data.get("name_id", "")).strip()
@@ -122,7 +113,7 @@ def get_saml_name_id() -> str | None:
 def get_saml_session_index() -> str | None:
     """Return the stored SAML SessionIndex, if any."""
     try:
-        data = session.get(_SESSION_DATA_KEY) or {}
+        data = session.get(SAML_SESSION_DATA_KEY) or {}
     except RuntimeError:
         return None
     value = str(data.get("session_index", "")).strip()
@@ -132,7 +123,7 @@ def get_saml_session_index() -> str | None:
 def _get_request_session_key(request_type: str) -> str:
     """Return the session key used for the given SAML request type."""
     try:
-        return _REQUEST_TYPE_TO_KEY[request_type]
+        return SAML_REQUEST_TYPE_TO_KEY[request_type]
     except KeyError as exc:
         raise SAMLRequestTypeError(
             f"Unsupported SAML request type: {request_type}"
@@ -164,7 +155,7 @@ def get_saml_username_attributes(
     raw_value = (
         runtime_config.get("SAML_USERNAME_ATTRIBUTES", [])
         if runtime_config is not None
-        else []
+        else get_settings().SAML_USERNAME_ATTRIBUTES
     )
 
     raw_items = raw_value.split(",") if isinstance(raw_value, str) else raw_value
@@ -176,103 +167,7 @@ def saml_use_name_id(config: Mapping[str, object] | None = None) -> bool:
     runtime_config = _active_config(config)
     if runtime_config is not None:
         return bool(runtime_config.get("SAML_USE_NAME_ID", True))
-    return env_flag("SAML_USE_NAME_ID", default=True)
-
-
-def load_saml_settings(  # noqa: PLR0912, PLR0915
-    config: Mapping[str, object] | None = None,
-) -> tuple[dict[str, Any], str | None]:
-    """Load the configured OneLogin toolkit settings."""
-    config = _active_config(config)
-
-    settings_json = None
-    settings_path_value = None
-    if config is not None:
-        settings_json = config.get("SAML_SETTINGS_JSON")
-        settings_path_value = config.get("SAML_SETTINGS_PATH")
-    else:
-        settings_json = env_str("SAML_SETTINGS_JSON")
-        settings_path_value = env_str("SAML_SETTINGS_PATH")
-
-    base_path = None
-    if settings_json:
-        try:
-            settings = json.loads(str(settings_json))
-        except json.JSONDecodeError as exc:
-            raise SAMLInvalidJSONError("SAML_SETTINGS_JSON is not valid JSON.") from exc
-        if not isinstance(settings, dict):
-            raise SAMLInvalidSettingsError(
-                "SAML_SETTINGS_JSON must decode to a JSON object."
-            )
-    else:
-        if not settings_path_value:
-            raise SAMLSettingsNotFoundError(
-                "SAML is enabled but no SAML settings were configured. "
-                "Set SAML_SETTINGS_PATH or SAML_SETTINGS_JSON."
-            )
-
-        path = Path(str(settings_path_value))
-        if not path.is_absolute():
-            path = (_PROJECT_ROOT / path).resolve()
-        if not path.is_file():
-            raise SAMLSettingsNotFoundError(f"SAML settings file not found: {path}")
-
-        try:
-            settings = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise SAMLInvalidJSONError(
-                f"SAML settings file is not valid JSON: {path}"
-            ) from exc
-
-        if not isinstance(settings, dict):
-            raise SAMLInvalidSettingsError(
-                f"SAML settings file must contain a JSON object: {path}"
-            )
-        base_path = str(path.parent)
-
-    idp = settings.get("idp")
-    if isinstance(idp, dict):
-        single_logout = idp.get("singleLogoutService")
-        if single_logout is None:
-            single_logout = {}
-            idp["singleLogoutService"] = single_logout
-
-        if isinstance(single_logout, dict):
-            single_sign_on = idp.get("singleSignOnService", {})
-            sso_url = (
-                str(single_sign_on.get("url") or "").strip()
-                if isinstance(single_sign_on, dict)
-                else ""
-            )
-            parsed_sso_url = urlsplit(sso_url)
-            sso_path_parts = [part for part in parsed_sso_url.path.split("/") if part]
-
-            # Auth0 SSO URLs follow /samlp/{tenant}; derive the logout URL as
-            # /samlp/{tenant}/logout when no valid SLO URL is configured.
-            if (
-                parsed_sso_url.scheme in {"http", "https"}
-                and parsed_sso_url.netloc
-                and len(sso_path_parts) == 2
-                and sso_path_parts[0] == "samlp"
-            ):
-                single_logout["url"] = parsed_sso_url._replace(
-                    path=f"/samlp/{sso_path_parts[1]}/logout",
-                    query="",
-                    fragment="",
-                ).geturl()
-            else:
-                logout_url = str(single_logout.get("url") or "").strip()
-                parsed_logout_url = urlsplit(logout_url)
-                if (
-                    logout_url
-                    and parsed_logout_url.scheme in {"http", "https"}
-                    and parsed_logout_url.netloc
-                ):
-                    single_logout["url"] = logout_url
-                else:
-                    single_logout.pop("url", None)
-
-    return settings, base_path
+    return get_settings().SAML_USE_NAME_ID
 
 
 def validate_saml_configuration(
@@ -285,13 +180,13 @@ def validate_saml_configuration(
     request to /auth/login or /auth/metadata.
     """
     _import_saml_toolkit()
-    load_saml_settings(config=config)
+    load_saml_settings(config=_active_config(config))
 
 
 def build_saml_auth(flask_request):
     """Construct a OneLogin auth object for the current Flask request."""
     auth_class, _ = _import_saml_toolkit()
-    settings, base_path = load_saml_settings()
+    settings, base_path = load_saml_settings(config=_active_config())
     return auth_class(
         prepare_saml_request(flask_request),
         old_settings=settings,
@@ -302,7 +197,7 @@ def build_saml_auth(flask_request):
 def build_saml_settings():
     """Construct a OneLogin settings object for metadata generation."""
     _, settings_class = _import_saml_toolkit()
-    settings, base_path = load_saml_settings()
+    settings, base_path = load_saml_settings(config=_active_config())
     return settings_class(
         settings=settings,
         custom_base_path=base_path,

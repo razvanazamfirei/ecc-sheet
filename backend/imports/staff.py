@@ -19,15 +19,11 @@ from flask import current_app, has_app_context
 from backend.audit import log_create, log_import, log_update
 from backend.config import Config
 from backend.errors import ValidationError
+from backend.imports.staff_fields import staff_fields
 from backend.models import Resident, db
-from backend.payroll_audit import (
+from backend.reporting.payroll import (
     filter_payroll_resident_changes,
     payroll_resident_details,
-)
-from backend.resident_normalization import (
-    canonicalize_class_year,
-    clean_text,
-    split_name,
 )
 from backend.type_defs import ImportResult, StaffList, StaffRecord
 from backend.utils import normalize_email
@@ -56,7 +52,7 @@ def _staff_import_result(
 
 def _epic_id_from_row(row: dict[str, str | None]) -> str | None:
     """Return the EPIC ID from a parsed row, if present."""
-    unique_id = clean_text(row.get("Unique ID"))
+    unique_id = staff_fields.clean_text(row.get("Unique ID"))
     if not unique_id.startswith("EPICID:"):
         return None
     epic_id = unique_id.removeprefix("EPICID:")
@@ -78,7 +74,11 @@ def _normalized_email(raw_email: str, *, name: str) -> str | None:
 
 def _phone_from_row(row: dict[str, str | None]) -> str | None:
     """Return the preferred phone number from a parsed row, or None."""
-    return clean_text(row.get("Pager")) or clean_text(row.get("Tel.")) or None
+    return (
+        staff_fields.clean_text(row.get("Pager"))
+        or staff_fields.clean_text(row.get("Tel."))
+        or None
+    )
 
 
 def _get_amion_base_url() -> str:
@@ -144,7 +144,7 @@ def parse_staff_list(csv_content: str) -> StaffList:
 
     for row in csv_reader:
         # Skip empty rows or placeholders
-        name = clean_text(row.get("Name"))
+        name = staff_fields.clean_text(row.get("Name"))
         if not name:
             continue
 
@@ -159,14 +159,14 @@ def parse_staff_list(csv_content: str) -> StaffList:
                 name,
             )
             continue
-        raw_email = clean_text(row.get("Email"))
+        raw_email = staff_fields.clean_text(row.get("Email"))
         staff_list.append(
             StaffRecord(
                 name=name,
                 epic_id=epic_id,
-                class_year=clean_text(row.get("Staff type")),
-                backup_id=clean_text(row.get("Backup ID")),
-                abbreviation=clean_text(row.get("Abbreviation")),
+                class_year=staff_fields.clean_text(row.get("Staff type")),
+                backup_id=staff_fields.clean_text(row.get("Backup ID")),
+                abbreviation=staff_fields.clean_text(row.get("Abbreviation")),
                 phone=_phone_from_row(row),
                 email=_normalized_email(raw_email, name=name),
             )
@@ -264,9 +264,9 @@ def import_staff_to_database(
 
     for staff in staff_list:
         epic_id = staff["epic_id"]
-        normalized_class_year = canonicalize_class_year(staff["class_year"]) or ""
+        normalized_class_year = staff_fields.class_year(staff["class_year"]) or ""
 
-        first_name, last_name = split_name(staff["name"])
+        first_name, last_name = staff_fields.split_name(staff["name"])
 
         resident = Resident.get_by_epic_id(epic_id)
 

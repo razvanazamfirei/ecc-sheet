@@ -6,8 +6,8 @@ import pytest
 class TestDevRoutesDisabled:
     """Dev routes return 404 when MOCK_USERS_ENABLED is not set."""
 
-    def test_switch_user_returns_404_when_disabled(self, client, monkeypatch):
-        monkeypatch.delenv("MOCK_USERS_ENABLED", raising=False)
+    def test_switch_user_returns_404_when_disabled(self, client, app, monkeypatch):
+        monkeypatch.setitem(app.config, "MOCK_USERS_ENABLED", False)
         response = client.post("/dev/switch-user", data={"user": "Admin"})
         assert response.status_code == 404
 
@@ -16,8 +16,8 @@ class TestDevRoutesEnabled:
     """Dev routes work when MOCK_USERS_ENABLED=true."""
 
     @pytest.fixture(autouse=True)
-    def enable_mock(self, monkeypatch):
-        monkeypatch.setenv("MOCK_USERS_ENABLED", "true")
+    def enable_mock(self, app, monkeypatch):
+        monkeypatch.setitem(app.config, "MOCK_USERS_ENABLED", "true")
 
     def test_switch_user_sets_session(self, client):
         with client.session_transaction() as sess:
@@ -62,12 +62,12 @@ class TestDevRoutesEnabled:
 
     def test_get_current_user_falls_back_to_env(self, client, app, monkeypatch):
         """Without a session override, get_current_user() uses USER_NAME env."""
-        from backend.auth import get_current_user
+        from backend.security import get_current_user
 
         with client.session_transaction() as sess:
             sess.pop("dev_user", None)
 
-        monkeypatch.setenv("USER_NAME", "EnvUser")
+        monkeypatch.setitem(app.config, "USER_NAME", "EnvUser")
         with app.test_request_context():
             assert get_current_user() == "EnvUser"
 

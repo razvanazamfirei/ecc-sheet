@@ -9,17 +9,9 @@ from flask import Blueprint, render_template, request
 from werkzeug.wrappers import Response
 
 from backend.audit import log_update
-from backend.auth import (
-    admin_required,
-    can_filter_reports_by_resident,
-    can_view_all_reports,
-    get_current_resident_id,
-    is_payroll_admin,
-    payroll_admin_required,
-)
 from backend.errors import ValidationError
 from backend.models import PayrollSettings, TimeEntry
-from backend.report_utils import (
+from backend.reporting.reports import (
     aggregate_entries_by_resident,
     build_entries_query,
     generate_csv_content,
@@ -33,6 +25,14 @@ from backend.routes._helpers import (
     flash_redirect,
     parse_iso_date,
     rollback_flash_redirect,
+)
+from backend.security import (
+    admin_required,
+    can_filter_reports_by_resident,
+    can_view_all_reports,
+    get_current_resident_id,
+    is_payroll_admin,
+    payroll_admin_required,
 )
 from backend.type_defs import ResidentData
 

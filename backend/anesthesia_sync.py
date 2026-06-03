@@ -16,7 +16,8 @@ from sqlalchemy.orm import joinedload
 
 from backend.audit import log_import_strict, log_update_strict
 from backend.config import Config
-from backend.db_session import commit_or_rollback
+from backend.database.session import commit_or_rollback
+from backend.imports.staff_fields import staff_fields
 from backend.models import Resident, TimeEntry
 from backend.utils import parse_iso_date
 
@@ -314,32 +315,12 @@ def _normalize_identifier(raw_value: str | None) -> str | None:
 
 def _normalize_name(raw_name: str) -> str:
     """Normalize whitespace and case in a resident/provider name."""
-    return " ".join(raw_name.split()).casefold()
+    return staff_fields.normalized_name(raw_name)
 
 
 def _name_keys(raw_name: str) -> set[str]:
     """Return match keys for a resident/provider name."""
-    normalized = _normalize_name(raw_name)
-    if not normalized:
-        return set()
-
-    keys = {normalized}
-    if "," in normalized:
-        last_name, remainder = (part.strip() for part in normalized.split(",", 1))
-        first_tokens = remainder.split()
-        if first_tokens:
-            first_name = first_tokens[0]
-            keys.add(f"{last_name}, {first_name}")
-            keys.add(f"{first_name} {last_name}")
-        return keys
-
-    name_parts = normalized.split()
-    if len(name_parts) >= 2:
-        first_name = name_parts[0]
-        last_name = name_parts[-1]
-        keys.add(f"{first_name} {last_name}")
-        keys.add(f"{last_name}, {first_name}")
-    return keys
+    return staff_fields.name_match_keys(raw_name)
 
 
 def _resident_name_keys(resident: Resident) -> set[str]:

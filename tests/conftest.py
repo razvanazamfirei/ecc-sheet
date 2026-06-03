@@ -29,7 +29,7 @@ _TEST_ENV.setenv("SAML_ENABLED", "false")
 
 
 from backend.app import app as flask_app
-from backend.app import init_db
+from backend.database.bootstrap import init_db
 from backend.models import DailySheet, Resident, Role, TimeEntry, db
 from backend.utils import get_effective_date
 
@@ -56,7 +56,7 @@ def app() -> Iterator[Flask]:
 
     with flask_app.app_context():
         db.drop_all()
-        init_db()
+        init_db(flask_app)
 
     yield flask_app
 

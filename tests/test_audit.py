@@ -10,7 +10,6 @@ from backend.audit import (
     get_client_ip,
     get_entity_history,
     log_action,
-    log_action_strict,
     log_create,
     log_delete,
     log_import,
@@ -146,10 +145,10 @@ class TestAuditRoute:
         response = client.get("/audit?entity_type=TimeEntry&action=CREATE&limit=50")
         assert response.status_code == 200
 
-    def test_audit_requires_admin(self, client, monkeypatch):
+    def test_audit_requires_admin(self, client, app, monkeypatch):
         """Test that audit page requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.get("/audit", follow_redirects=True)
         assert b"Admin privileges required" in response.data
@@ -353,11 +352,12 @@ class TestLogActionExceptionHandling:
             mock_execute.side_effect = SQLAlchemyError("Database error")
 
             with pytest.raises(SQLAlchemyError) as excinfo:
-                log_action_strict(
+                log_action(
                     "TEST",
                     "TestEntity",
                     entity_id=1,
                     details={},
+                    strict=True,
                 )
             assert "Database error" in str(excinfo.value)
 

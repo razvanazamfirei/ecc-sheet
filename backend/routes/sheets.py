@@ -8,8 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from backend.audit import log_lock
-from backend.auth import get_current_user, is_admin, is_first_call
-from backend.db_session import commit_or_rollback
+from backend.database.session import commit_or_rollback
 from backend.holidays import is_weekend_or_holiday
 from backend.models import DailySheet, Role, TimeEntry, db
 from backend.routes._helpers import (
@@ -19,10 +18,11 @@ from backend.routes._helpers import (
     redirect_to,
     rollback_flash_redirect,
 )
+from backend.security import get_current_user, is_admin, is_first_call
 from backend.utils import (
-    _wants_json_response,
     get_effective_date,
     get_philadelphia_time,
+    wants_json_response,
 )
 
 bp: Blueprint = Blueprint(
@@ -182,7 +182,7 @@ def lock(date_str):
 
         return f"Sheet {'locked' if daily_sheet.locked else 'unlocked'} successfully"
 
-    if _wants_json_response():
+    if wants_json_response():
         try:
             message = commit_or_rollback(_toggle_lock)
         except Exception:

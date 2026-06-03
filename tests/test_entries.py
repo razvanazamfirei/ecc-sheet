@@ -829,9 +829,9 @@ class TestEntryPermissions:
     """Tests that non-first-call, non-admin users cannot modify entries."""
 
     @pytest.fixture(autouse=True)
-    def _restrict_user(self, monkeypatch):
-        monkeypatch.setenv("USER_NAME", "Regular Viewer")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+    def _restrict_user(self, app, monkeypatch):
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular Viewer")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
     def test_add_blocked_for_non_first_call(
         self, client, app, sample_resident, sample_role

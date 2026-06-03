@@ -13,10 +13,10 @@ from backend.utils import get_effective_date
 class TestHolidaysIndex:
     """Tests for holidays index page."""
 
-    def test_holidays_index_requires_admin(self, client, monkeypatch):
+    def test_holidays_index_requires_admin(self, client, app, monkeypatch):
         """Test that holidays index requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.get("/holidays", follow_redirects=True)
         assert b"Admin privileges required" in response.data
@@ -163,10 +163,10 @@ class TestAddHoliday:
             db.session.delete(holiday)
             db.session.commit()
 
-    def test_add_holiday_requires_admin(self, client, monkeypatch):
+    def test_add_holiday_requires_admin(self, client, app, monkeypatch):
         """Test that adding holiday requires admin."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.post(
             "/holidays/add",
@@ -264,8 +264,8 @@ class TestDeleteHoliday:
             db.session.commit()
             holiday_id = holiday.id
 
-            monkeypatch.setenv("USER_NAME", "Regular User")
-            monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+            monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+            monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
             try:
                 response = client.post(
                     f"/holidays/{holiday_id}/delete",
@@ -301,10 +301,10 @@ class TestRefreshFederalHolidays:
             assert response.status_code == 200
             assert b"already present" in response.data
 
-    def test_refresh_federal_holidays_requires_admin(self, client, monkeypatch):
+    def test_refresh_federal_holidays_requires_admin(self, client, app, monkeypatch):
         """Test that refreshing requires admin."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.post("/holidays/refresh", follow_redirects=True)
         assert b"Admin privileges required" in response.data

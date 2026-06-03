@@ -7,8 +7,7 @@ from math import isclose
 
 import pytest
 
-from backend.app import db
-from backend.models import DailySheet, Resident, Role, TimeEntry
+from backend.models import DailySheet, Resident, Role, TimeEntry, db
 from backend.utils import get_effective_date
 
 

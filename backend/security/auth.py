@@ -1,9 +1,8 @@
 """
 Simple authorization for ECC Sheet
-Uses username from environment variable to determine admin status
+Uses configured username sources to determine admin status
 """
 
-import os
 from collections.abc import Callable
 from datetime import date
 from functools import wraps
@@ -20,17 +19,17 @@ from flask import (
     url_for,
 )
 
-from backend.env_utils import env_csv, env_flag, env_str
+from backend.config import AuthSettings, get_auth_settings
 from backend.models import Resident, Role, TimeEntry
-from backend.saml import get_session_authenticated_user, saml_enabled
+from backend.security.saml import get_session_authenticated_user, saml_enabled
 from backend.utils import get_effective_date
 
 
-def _proxy_header_name() -> str:
-    """Return the configured proxy auth header name."""
+def _auth_settings() -> AuthSettings:
+    """Return auth settings from the active Flask config when available."""
     if has_app_context():
-        return str(current_app.config.get("AUTH_PROXY_USERNAME_HEADER") or "").strip()
-    return env_str("AUTH_PROXY_USERNAME_HEADER", "")
+        return get_auth_settings(current_app.config)
+    return get_auth_settings()
 
 
 def get_current_user() -> str:
@@ -49,7 +48,7 @@ def get_current_user() -> str:
         if has_request_context():
             return ""
 
-    proxy_header = _proxy_header_name()
+    proxy_header = _auth_settings().proxy_username_header
     if proxy_header:
         try:
             proxy_user = request.headers.get(proxy_header, "").strip()
@@ -60,7 +59,7 @@ def get_current_user() -> str:
         if has_request_context():
             return ""
 
-    return os.getenv("USER_NAME", "Admin")
+    return _auth_settings().user_name
 
 
 def is_admin() -> bool:
@@ -70,7 +69,7 @@ def is_admin() -> bool:
 
 def get_admin_users() -> list[str]:
     """Return the configured admin usernames."""
-    return env_csv("ADMIN_USERS", "Admin")
+    return list(_auth_settings().admin_users)
 
 
 def get_current_resident_id() -> int | None:
@@ -126,17 +125,17 @@ def is_payroll_admin() -> bool:
 
 def get_first_call_role_names() -> list[str]:
     """Return configured first-call role names."""
-    return env_csv("FIRST_CALL_ROLES", "First Call")
+    return list(_auth_settings().first_call_roles)
 
 
 def get_payroll_admin_users() -> list[str]:
     """Return the configured payroll admin usernames."""
-    return env_csv("PAYROLL_ADMIN_USERS")
+    return list(_auth_settings().payroll_admin_users)
 
 
 def mock_users_enabled() -> bool:
     """Return True when dev mock-user switching is enabled."""
-    return env_flag("MOCK_USERS_ENABLED")
+    return _auth_settings().mock_users_enabled
 
 
 def can_view_all_reports() -> bool:
@@ -149,14 +148,8 @@ def can_filter_reports_by_resident() -> bool:
     if can_view_all_reports():
         return True
 
-    allowed_users = env_csv("REPORT_VIEW_ALL_USERS")
+    allowed_users = _auth_settings().report_view_all_users
     return "*" in allowed_users or get_current_user() in allowed_users
-
-
-def _access_denied_redirect(endpoint: str, message: str) -> Any:
-    """Flash an authorization error and redirect to a safe endpoint."""
-    flash(message, "error")
-    return redirect(url_for(endpoint))
 
 
 def _require_access(
@@ -171,7 +164,8 @@ def _require_access(
         @wraps(f)
         def decorated_function(*args: Any, **kwargs: Any) -> Any:
             if not check():
-                return _access_denied_redirect(endpoint, message)
+                flash(message, "error")
+                return redirect(url_for(endpoint))
             return f(*args, **kwargs)
 
         return decorated_function

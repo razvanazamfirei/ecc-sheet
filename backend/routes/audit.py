@@ -3,7 +3,7 @@
 from flask import Blueprint, render_template, request
 
 from backend.audit import get_audit_trail
-from backend.auth import admin_required
+from backend.security import admin_required
 
 bp = Blueprint("audit", __name__)
 

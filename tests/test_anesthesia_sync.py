@@ -777,7 +777,7 @@ class TestAnesthesiaSyncHelpers:
                 "log_update_strict",
                 side_effect=RuntimeError("audit failed"),
             ),
-            patch("backend.db_session.db.session.rollback") as mock_rollback,
+            patch("backend.database.session.db.session.rollback") as mock_rollback,
             pytest.raises(RuntimeError, match="audit failed"),
         ):
             sync_module._persist_updates(
@@ -1085,7 +1085,7 @@ class TestAnesthesiaSyncCli:
             )
 
         monkeypatch.setattr(
-            "backend.app.sync_anesthesia_stop_times",
+            "backend.cli.sync_anesthesia_stop_times",
             _fake_sync,
         )
 

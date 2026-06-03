@@ -10,7 +10,7 @@ from typing import Any
 from flask import flash, redirect, url_for
 from werkzeug.wrappers import Response
 
-from backend.db_session import commit_or_rollback
+from backend.database.session import commit_or_rollback
 from backend.models import db
 from backend.utils import parse_iso_date
 

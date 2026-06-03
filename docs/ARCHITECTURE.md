@@ -52,18 +52,20 @@ comprehensive audit logging.
 ```
 ecc-sheet/
 ├── backend/
-│   ├── app.py                  # Flask app initialization, DB setup
-│   ├── instance_config.py      # Loader for instance settings
+│   ├── app.py                  # Flask app construction and top-level wiring
+│   ├── background_services.py  # Optional background worker lifecycle
+│   ├── cli.py                  # Flask CLI command registration
+│   ├── config.py               # Environment and instance configuration
 │   ├── instance_settings.json  # Configurable role definitions and cutoffs
 │   ├── models.py               # Database models (Resident, Role, TimeEntry, DailySheet, AuditLog, Holiday)
-│   ├── config.py               # Environment configuration
-│   ├── auth.py                 # Authorization (@admin_required)
 │   ├── audit.py                # Audit logging utilities
+│   ├── database/               # Session, backups, runtime schema, and bootstrap helpers
+│   ├── imports/                # Staff import workflows
+│   ├── reporting/              # Report generation and payroll export helpers
+│   ├── security/               # Authorization, SAML, and Flask auth hooks
 │   ├── errors.py               # Custom exception classes
-│   ├── utils.py                # Logging, backups, timezone helpers
+│   ├── utils.py                # Logging, timezone, response, and email helpers
 │   ├── holidays.py             # Holiday utilities
-│   ├── report_utils.py         # Report generation and CSV export
-│   ├── staff_import.py         # Amion staff list parsing
 │   └── routes/                 # Route blueprints (modular organization)
 │       ├── __init__.py
 │       ├── _registry.py        # Blueprint registration
@@ -304,11 +306,11 @@ Modular route organization for better code structure:
 **Models:**
 
 - `Resident` - Medical resident information
-  - Methods: `get_active()`, `get_by_epic_id()`, `get_or_create()`, `to_dict()`
+    - Methods: `get_active()`, `get_by_epic_id()`, `get_or_create()`, `to_dict()`
 - `Role` - Shift roles (ECC 1-5, ECA, backup roles, etc.)
-  - 18 default roles configured
+    - 18 default roles configured
 - `TimeEntry` - Individual shift records
-  - Property: `entry.overtime_hours`
+    - Property: `entry.overtime_hours`
 - `DailySheet` - Sheet metadata (locked, submitted)
 - `AuditLog` - Change tracking
 - `Holiday` - Custom and federal holidays
@@ -320,55 +322,60 @@ Modular route organization for better code structure:
 - `Resident.get_or_create()` - Finds or creates resident by EPIC ID
 - `Holiday` utilities for federal and custom holidays
 
-### 4. Authentication & Authorization (`backend/auth.py`)
+### 4. Authentication & Authorization (`backend/security/`)
 
-**No Login System:**
+The security module supports two authentication modes configured via
+environment variables:
 
-- Authentication handled externally (SSO, reverse proxy)
-- User identity from `USER_NAME` environment variable
+**Proxy-Header Auth** (`AUTH_PROXY_USERNAME_HEADER`):
+
+- The username is read from a configurable HTTP request header injected by a
+  trusted reverse proxy. No local session or login page is involved.
+
+**SAML Auth** (`SAML_ENABLED=true`):
+
+- The app acts as a SAML Service Provider. Login, logout, ACS, SLS, and
+  metadata endpoints are served at `/auth/login`, `/auth/logout`, `/auth/acs`,
+  `/auth/sls`, and `/auth/metadata`.
+- Authenticated user identity is stored in the Flask session using config keys
+  defined in `backend.config` (`SAML_SESSION_USER_KEY`, `SAML_SESSION_DATA_KEY`,
+  `SAML_LOGIN_REQUEST_ID_KEY`, `SAML_LOGOUT_REQUEST_ID_KEY`).
 
 **Authorization:**
 
-```python
-def get_current_user() -> str:
-    """Get current user from environment."""
-    return os.getenv('USER_NAME', 'Unknown')
-
-def is_admin() -> bool:
-    """Check if current user is admin."""
-    admin_users = os.getenv('ADMIN_USERS', '').split(',')
-    return get_current_user() in admin_users
-
-def admin_required(f):
-    """Decorator to restrict route to admins."""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not is_admin():
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated_function
-```
+- Admin users, payroll admins, and report viewers are configured via
+  comma-separated environment lists (`ADMIN_USERS`, `PAYROLL_ADMIN_USERS`,
+  `REPORT_VIEW_ALL_USERS`).
+- Route protection uses decorators and view-level checks against the current
+  user identity from `backend/security.saml` or the proxy header.
+- `MOCK_USERS_ENABLED=true` enables a dev-only user switcher.
 
 ### 5. Audit Logging (`backend/audit.py`)
 
 **Helper Functions:**
 
 ```python
-def log_action(action, entity_type, entity_id, details, user=None):
+def log_action(action, entity_type, entity_id, details, user=None, strict=False):
     """Log an action to the audit trail."""
     # Captures user, IP, timestamp automatically
+    # When strict=True, audit write failures are re-raised.
+
 
 def log_create(entity_type, entity_id, details):
     """Log CREATE action."""
 
+
 def log_update(entity_type, entity_id, changes):
     """Log UPDATE action with change details."""
+
 
 def log_delete(entity_type, entity_id, details):
     """Log DELETE action."""
 
+
 def log_lock(date, locked):
     """Log sheet LOCK/UNLOCK."""
+
 
 def log_import(date, entries_count):
     """Log schedule IMPORT."""
@@ -396,15 +403,16 @@ def log_import(date, entries_count):
 - Independence Day, Labor Day, Columbus Day
 - Veterans Day, Thanksgiving, Christmas Day
 
-### 7. Utilities (`backend/utils.py`)
+### 7. Utilities and Database Helpers
 
 **Functions:**
 
 - `setup_logging()` - Configures application logging
-- `backup_database()` - Creates timestamped SQLite backups and prunes old files
 - `get_philadelphia_time()` - Returns the current configured local time
 - `get_effective_date()` - Applies the `DAY_RESET_HOUR` day-boundary logic
-- `_wants_json_response()` - Detects JSON-oriented request/response flows
+- `wants_json_response()` - Detects JSON-oriented request/response flows
+- `backend.database.backups.backup_database()` - Creates timestamped SQLite
+  backups and prunes old files
 
 ### 8. Request Validation
 
@@ -497,16 +505,65 @@ Redirect with success message
 ### Environment Variables
 
 ```env
-# Required
+# Required / Core
 SECRET_KEY                    # Flask secret (CSRF, sessions)
-DATABASE_URL                  # SQLite database path
-USER_NAME                     # Current user identity
-ADMIN_USERS                   # Comma-separated admin list
+DATABASE_URL                  # Database connection string
+USER_NAME                     # Default user identity (CLI / fallback)
+AUTH_PROXY_USERNAME_HEADER    # Proxy-header auth header name
+ADMIN_USERS                   # Comma-separated admin usernames
+FIRST_CALL_ROLES              # First-call role names
+MOCK_USERS_ENABLED            # Dev user switcher (set to true for local dev)
+REPORT_VIEW_ALL_USERS         # Users allowed to view any resident's reports
 
-# Optional
+# SAML (optional)
+SAML_ENABLED                  # Enable first-party SAML SP
+SAML_SETTINGS_PATH            # Path to SAML SP settings JSON
+SAML_USERNAME_ATTRIBUTES      # SAML attribute names for username resolution
+SAML_USE_NAME_ID              # Fall back to NameID for username
+SAML_DEFAULT_NEXT_URL         # Post-login landing path
+
+# Session / Security
+SESSION_COOKIE_SECURE         # Secure flag on session cookie
+SESSION_COOKIE_HTTPONLY       # HttpOnly flag on session cookie
+SESSION_COOKIE_SAMESITE       # SameSite policy (Lax, Strict, None)
+PERMANENT_SESSION_LIFETIME    # Session lifetime in seconds
+CSP_POLICY                    # Content Security Policy header
+
+# Email (optional)
+RESEND_API_KEY                # Resend API key for report delivery
+DEFAULT_SENDER_EMAIL          # Sender address for report emails
+
+# Amion integration
+AMION_BASE_URL                # Amion API base URL
+AMION_SCHEDULE_CODE           # Institution schedule code
+
+# Anesthesia sync (optional)
+ANESTHESIA_SQL_CONNECTION_STRING
+ANESTHESIA_SQL_SOURCE_TABLE
+ANESTHESIA_SQL_PROVIDER_TYPE
+ANESTHESIA_SQL_TIMEOUT
+ANESTHESIA_FETCHER_ENABLED
+ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS
+ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS
+
+# Payroll export
+PAYROLL_PROGRAM
+PAYROLL_COMPANY
+PAYROLL_BATCH
+PAYROLL_PAY_CODE
+PAYROLL_DEPT
+PAYROLL_EXPENSE
+PAYROLL_ACCT_UNIT
+PAYROLL_LABEL_SUFFIX
+PAYROLL_ADMIN_USERS
+
+# Timezone / Scheduling
 TIMEZONE                      # Default: America/New_York
-PORT                         # Default: 5000
+DAY_RESET_HOUR                # Hour that day boundary rolls over (default: 8)
+FLASK_ENV                     # development or production
 ```
+
+See `.env.example` in the project root for the complete, annotated template.
 
 ### Instance Configuration
 
@@ -518,6 +575,17 @@ via `backend/instance_settings.json`. Examples of configurations included are:
 - A list of `roles`, each specifying its visibility (`is_schedule_importable`,
   `display_order`), and features like `is_backup`, `is_call_team`,
   `is_late_role`, etc.
+
+`backend.config` loads both environment settings and `instance_settings.json`.
+The Flask app uses `get_flask_config()` so those sources are merged into
+`app.config` consistently.
+
+Optional automatic anesthesia stop-time syncing lives in
+`backend.background_services` and only starts when
+`ANESTHESIA_FETCHER_ENABLED=true`.
+
+Flask CLI commands are registered from `backend.cli`; schema/default-data
+bootstrap helpers live in `backend.database`.
 
 ### Role-Specific Cutoffs
 
@@ -535,66 +603,54 @@ Configured in `instance_settings.json` (defaults to 17:30), editable via UI:
 
 1. **CSRF Protection**
 
-   - Flask-WTF CSRFProtect enabled
-   - All POST requests require token
-   - Tokens in all templates
+    - Flask-WTF CSRFProtect enabled
+    - All POST requests require token
+    - Tokens in all templates
 
 2. **Input Validation**
 
-   - Route-level parsing and model validation
-   - Type coercion (strings → dates/times)
-   - Length limits enforced
+    - Route-level parsing and model validation
+    - Type coercion (strings → dates/times)
+    - Length limits enforced
 
 3. **SQL Injection Prevention**
 
-   - SQLAlchemy ORM (parameterized queries)
-   - No raw SQL execution
-   - Use of `db.session.get()` for safe queries
+    - SQLAlchemy ORM (parameterized queries)
+    - No raw SQL execution
+    - Use of `db.session.get()` for safe queries
 
 4. **XSS Prevention**
 
-   - Jinja2 auto-escaping enabled
-   - All user input escaped
+    - Jinja2 auto-escaping enabled
+    - All user input escaped
 
 5. **Error Handling**
 
-   - Custom exception classes
-   - Try-catch blocks on all DB operations
-   - Graceful degradation
-   - Error logging
+    - Custom exception classes
+    - Try-catch blocks on all DB operations
+    - Graceful degradation
+    - Error logging
 
 6. **Logging**
 
-   - Application logging configured
-   - All errors logged
-   - Audit trail for all actions
+    - Application logging configured
+    - All errors logged
+    - Audit trail for all actions
 
 7. **Authorization**
-   - `@admin_required` decorator
-   - Environment-based admin list
-   - Protected routes for sensitive operations
+    - `@admin_required` decorator
+    - Environment-based admin list
+    - Protected routes for sensitive operations
 
-### Not Implemented ❌
+### Not Implemented
 
-1. **Authentication**
+1. **Rate Limiting**
+    - No request throttling
+    - Vulnerable to abuse without external protection
 
-   - No user login system
-   - No password management
-   - Must use external auth (SSO, reverse proxy)
-
-2. **Rate Limiting**
-
-   - No request throttling
-   - Vulnerable to abuse without external protection
-
-3. **HTTPS**
-
-   - HTTP only (local dev)
-   - Must configure SSL/TLS in production
-
-4. **Session Management**
-   - No session tracking
-   - No user context persistence
+2. **HTTPS**
+    - HTTP only (local dev)
+    - Must configure SSL/TLS in production
 
 ## Deployment Architecture
 

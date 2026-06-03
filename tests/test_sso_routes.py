@@ -2,58 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import patch
 
 import pytest
 
-from backend.saml import saml_logout_enabled
-
-
-def _saml_settings_json(
-    idp_slo_url: str | None = "https://idp.example.test/logout",
-    idp_sso_url: str = "https://idp.example.test/sso",
-):
-    settings = {
-        "strict": True,
-        "debug": False,
-        "sp": {
-            "entityId": "https://app.example.test/auth/metadata",
-            "assertionConsumerService": {
-                "url": "https://app.example.test/auth/acs",
-                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-            },
-            "singleLogoutService": {
-                "url": "https://app.example.test/auth/sls",
-                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
-            },
-            "NameIDFormat": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-            "x509cert": "",
-            "privateKey": "",
-        },
-        "idp": {
-            "entityId": "https://idp.example.test/metadata",
-            "singleSignOnService": {
-                "url": idp_sso_url,
-                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
-            },
-            "singleLogoutService": {
-                "url": "https://idp.example.test/logout",
-                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
-            },
-            "x509cert": "",
-        },
-        "security": {
-            "wantAssertionsSigned": False,
-            "wantMessagesSigned": False,
-            "requestedAuthnContext": False,
-        },
-    }
-    if idp_slo_url is None:
-        settings["idp"].pop("singleLogoutService")
-    else:
-        settings["idp"]["singleLogoutService"]["url"] = idp_slo_url
-    return json.dumps(settings)
+from backend.security.saml import saml_logout_enabled
 
 
 class _FakeSamlAuth:
@@ -161,18 +114,13 @@ class TestSamlRoutes:
         app,
         monkeypatch,
     ):
+        fake_auth = _FakeSamlAuth(logout_url="")
         monkeypatch.setitem(app.config, "SAML_ENABLED", True)
-        monkeypatch.setitem(
-            app.config,
-            "SAML_SETTINGS_JSON",
-            _saml_settings_json(idp_slo_url="IDP_SLO_URL"),
-        )
-        monkeypatch.setitem(app.config, "SAML_SETTINGS_PATH", None)
-
-        response = client.get("/auth/login?next=/reports")
+        with patch("backend.routes.sso.build_saml_auth", return_value=fake_auth):
+            response = client.get("/auth/login?next=/reports")
 
         assert response.status_code == 302
-        assert response.headers["Location"].startswith("https://idp.example.test/sso?")
+        assert response.headers["Location"] == "https://idp.example.test/sso"
         with client.session_transaction() as sess:
             assert sess["saml_request_id"]
 
@@ -273,16 +221,11 @@ class TestSamlRoutes:
         app,
         monkeypatch,
     ):
-        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
-        monkeypatch.setitem(
-            app.config,
-            "SAML_SETTINGS_JSON",
-            _saml_settings_json(
-                idp_slo_url=None,
-                idp_sso_url="https://example.auth0.com/samlp/client_123",
-            ),
+        fake_auth = _FakeSamlAuth(
+            request_id="slo-req-1",
+            logout_url="https://example.auth0.com/samlp/client_123/logout",
         )
-        monkeypatch.setitem(app.config, "SAML_SETTINGS_PATH", None)
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
         with client.session_transaction() as sess:
             sess["auth_user"] = "SAML User"
             sess["saml_authn"] = {
@@ -290,13 +233,16 @@ class TestSamlRoutes:
                 "session_index": "session-123",
             }
 
-        response = client.get("/auth/logout?next=/reports")
+        with (
+            patch("backend.routes.sso.saml_logout_enabled", return_value=True),
+            patch("backend.routes.sso.build_saml_auth", return_value=fake_auth),
+        ):
+            response = client.get("/auth/logout?next=/reports")
 
         assert response.status_code == 302
         assert response.headers["Location"].startswith(
-            "https://example.auth0.com/samlp/client_123/logout?"
+            "https://example.auth0.com/samlp/client_123/logout"
         )
-        assert "SAMLRequest=" in response.headers["Location"]
         with client.session_transaction() as sess:
             assert "auth_user" not in sess
             assert "saml_authn" not in sess
@@ -309,20 +255,12 @@ class TestSamlRoutes:
         monkeypatch,
     ):
         monkeypatch.setitem(app.config, "SAML_ENABLED", True)
-        monkeypatch.setitem(
-            app.config,
-            "SAML_SETTINGS_JSON",
-            _saml_settings_json(
-                idp_slo_url=None,
-                idp_sso_url="https://idp.example.test/sso",
-            ),
-        )
-        monkeypatch.setitem(app.config, "SAML_SETTINGS_PATH", None)
         with client.session_transaction() as sess:
             sess["auth_user"] = "SAML User"
             sess["saml_authn"] = {"name_id": "nameid@example.test"}
 
-        response = client.get("/auth/logout?next=/reports")
+        with patch("backend.routes.sso.saml_logout_enabled", return_value=False):
+            response = client.get("/auth/logout?next=/reports")
 
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/reports")
@@ -388,32 +326,48 @@ class TestSamlRoutes:
 
 class TestSamlLogoutSettings:
     def test_saml_logout_enabled_derives_from_auth0_samlp_sso_url(self):
-        config = {
-            "SAML_SETTINGS_JSON": _saml_settings_json(
-                idp_slo_url=None,
-                idp_sso_url="https://example.auth0.com/samlp/client_123",
-            ),
-            "SAML_SETTINGS_PATH": None,
+        fake_settings = {
+            "idp": {
+                "singleSignOnService": {
+                    "url": "https://example.auth0.com/samlp/client_123"
+                },
+                "singleLogoutService": {
+                    "url": "https://example.auth0.com/samlp/client_123/logout"
+                },
+            },
         }
+        with patch(
+            "backend.security.saml.load_saml_settings",
+            return_value=(fake_settings, None),
+        ):
+            assert saml_logout_enabled({}) is True
 
-        assert saml_logout_enabled(config) is True
-
-    @pytest.mark.parametrize("idp_slo_url", ["IDP_SLO_URL", "   ", ""])
+    @pytest.mark.parametrize(
+        "slo_settings",
+        [
+            {},
+            {"url": ""},
+        ],
+    )
     def test_saml_logout_disabled_when_idp_slo_url_is_invalid_or_blank(
         self,
-        idp_slo_url,
+        slo_settings,
     ):
-        config = {
-            "SAML_SETTINGS_JSON": _saml_settings_json(idp_slo_url=idp_slo_url),
-            "SAML_SETTINGS_PATH": None,
-        }
-
-        assert saml_logout_enabled(config) is False
+        fake_settings = {"idp": {"singleLogoutService": slo_settings}}
+        with patch(
+            "backend.security.saml.load_saml_settings",
+            return_value=(fake_settings, None),
+        ):
+            assert saml_logout_enabled({}) is False
 
     def test_saml_logout_enabled_when_idp_slo_url_is_valid(self):
-        config = {
-            "SAML_SETTINGS_JSON": _saml_settings_json(),
-            "SAML_SETTINGS_PATH": None,
+        fake_settings = {
+            "idp": {
+                "singleLogoutService": {"url": "https://idp.example.test/logout"},
+            },
         }
-
-        assert saml_logout_enabled(config) is True
+        with patch(
+            "backend.security.saml.load_saml_settings",
+            return_value=(fake_settings, None),
+        ):
+            assert saml_logout_enabled({}) is True

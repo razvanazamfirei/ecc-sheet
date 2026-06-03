@@ -8,10 +8,10 @@ from backend.models import AuditLog, Role, db
 class TestRolesIndex:
     """Tests for the roles index page."""
 
-    def test_roles_index_requires_admin(self, client, monkeypatch):
+    def test_roles_index_requires_admin(self, client, app, monkeypatch):
         """Test that roles index requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         response = client.get("/roles/", follow_redirects=True)
         assert response.status_code == 200
@@ -233,8 +233,8 @@ class TestRolesUpdate:
 
     def test_update_role_requires_admin(self, client, app, sample_role, monkeypatch):
         """Test that update requires admin privileges."""
-        monkeypatch.setenv("USER_NAME", "Regular User")
-        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
+        monkeypatch.setitem(app.config, "USER_NAME", "Regular User")
+        monkeypatch.setitem(app.config, "ADMIN_USERS", "Admin Only")
 
         with app.app_context():
             response = client.post(

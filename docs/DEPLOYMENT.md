@@ -185,19 +185,19 @@ sudo -u eccsheet bash -lc '
 '
 ```
 
-If you have a resident source-of-truth CSV, import it explicitly:
+If you have a staff source-of-truth CSV, import it explicitly:
 
 ```bash
 sudo -u eccsheet bash -lc '
   cd /opt/ecc-sheet
   export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
-  .venv/bin/flask --app backend.app import-residents-csv \
-    --path docs/examples/residents.bootstrap.csv
+  .venv/bin/flask --app backend.app import-staff-csv \
+    --path docs/examples/staff.bootstrap.csv
 '
 ```
 
 The example file at
-[examples/residents.bootstrap.csv](./examples/residents.bootstrap.csv) documents
+[examples/staff.bootstrap.csv](./examples/staff.bootstrap.csv) documents
 the supported columns. Replace it with your real dataset before importing.
 
 ## Install the systemd Service

@@ -1,4 +1,4 @@
-"""Resident bootstrap/import from a managed CSV file."""
+"""Staff bootstrap/import from a managed CSV file."""
 
 from __future__ import annotations
 
@@ -14,18 +14,13 @@ from typing import Any
 from email_validator import EmailNotValidError
 
 from backend.audit import log_create, log_import, log_update
-from backend.db_session import commit_or_rollback
+from backend.database.session import commit_or_rollback
 from backend.errors import ConflictError, ValidationError
+from backend.imports.staff_fields import staff_fields
 from backend.models import Resident, db
-from backend.payroll_audit import (
+from backend.reporting.payroll import (
     filter_payroll_resident_changes,
     payroll_resident_details,
-)
-from backend.resident_normalization import (
-    CLASS_YEAR_ALIASES,
-    canonicalize_class_year,
-    clean_text,
-    split_name,
 )
 from backend.utils import normalize_email, parse_iso_date
 
@@ -45,15 +40,15 @@ _HEADER_ALIASES: dict[str, str] = {
     "lawson_id": "lawson_id",
     "name": "name",
     "phone": "phone",
-    "resident_name": "name",
+    "staff_name": "name",
 }
 _TRUE_VALUES = frozenset({"1", "true", "yes", "y", "on"})
 _FALSE_VALUES = frozenset({"0", "false", "no", "n", "off"})
 
 
 @dataclass(frozen=True, slots=True)
-class ResidentCsvRecord:
-    """Normalized resident data parsed from one CSV row."""
+class StaffCsvRecord:
+    """Normalized staff data parsed from one CSV row."""
 
     row_number: int
     name: str
@@ -71,8 +66,8 @@ class ResidentCsvRecord:
 
 
 @dataclass(frozen=True, slots=True)
-class ResidentCsvImportResult:
-    """Summary of a resident CSV import run."""
+class StaffCsvImportResult:
+    """Summary of a staff CSV import run."""
 
     total_records: int
     created: int
@@ -85,7 +80,7 @@ class ResidentCsvImportResult:
         action = "Would create" if self.dry_run else "Created"
         update_action = "would update" if self.dry_run else "updated"
         return (
-            f"Processed {self.total_records} resident records; "
+            f"Processed {self.total_records} staff records; "
             f"{action.lower()} {self.created}; {update_action} {self.updated}; "
             f"skipped {self.skipped}."
         )
@@ -95,7 +90,7 @@ def _canonical_headers(fieldnames: Sequence[str | None]) -> list[str]:
     """Return canonical CSV headers or raise when unsupported."""
     if not fieldnames:
         raise ValidationError(
-            "Resident CSV is missing a header row.",
+            "Staff CSV is missing a header row.",
             payload={"supported_columns": sorted(set(_HEADER_ALIASES.values()))},
         )
 
@@ -105,28 +100,28 @@ def _canonical_headers(fieldnames: Sequence[str | None]) -> list[str]:
     for raw_header in fieldnames:
         header = str(raw_header or "").strip()
         if not header:
-            raise ValidationError("Resident CSV contains a blank header cell.")
+            raise ValidationError("Staff CSV contains a blank header cell.")
         canonical = _HEADER_ALIASES.get(header.strip().lower().replace(" ", "_"))
         if canonical is None:
             unknown_headers.append(header)
             continue
         if canonical in seen_headers:
             raise ValidationError(
-                f"Resident CSV contains duplicate column: {canonical}.",
+                f"Staff CSV contains duplicate column: {canonical}.",
             )
         seen_headers.add(canonical)
         canonical_headers.append(canonical)
 
     if unknown_headers:
         raise ValidationError(
-            "Resident CSV contains unsupported columns.",
+            "Staff CSV contains unsupported columns.",
             payload={
                 "unsupported_columns": unknown_headers,
                 "supported_columns": sorted(set(_HEADER_ALIASES.values())),
             },
         )
     if "name" not in seen_headers:
-        raise ValidationError("Resident CSV must include a name column.")
+        raise ValidationError("Staff CSV must include a name column.")
 
     return canonical_headers
 
@@ -145,7 +140,7 @@ def _normalized_email(value: str, *, row_number: int) -> str | None:
 
 def _normalized_class_year(value: str, *, row_number: int) -> str | None:
     """Normalize a class-year value or raise when unsupported."""
-    canonical = canonicalize_class_year(value, CLASS_YEAR_ALIASES)
+    canonical = staff_fields.class_year(value)
     if canonical is None:
         return None
     if canonical not in Resident.CLASS_YEARS:
@@ -197,12 +192,12 @@ def _optional_bool(value: str, *, row_number: int, field_name: str) -> bool | No
     )
 
 
-def parse_resident_csv(csv_content: str) -> list[ResidentCsvRecord]:
-    """Parse a resident bootstrap CSV into normalized records."""
+def parse_staff_csv(csv_content: str) -> list[StaffCsvRecord]:
+    """Parse a staff bootstrap CSV into normalized records."""
     csv_reader = csv.DictReader(StringIO(csv_content))
     csv_reader.fieldnames = _canonical_headers(csv_reader.fieldnames or [])
 
-    records: list[ResidentCsvRecord] = []
+    records: list[StaffCsvRecord] = []
     seen_keys: set[str] = set()
     for row_number, raw_row in enumerate(csv_reader, start=2):
         row = {
@@ -213,52 +208,52 @@ def parse_resident_csv(csv_content: str) -> list[ResidentCsvRecord]:
         if not any(value.strip() for value in row.values()):
             continue
 
-        name = clean_text(row.get("name"))
+        name = staff_fields.clean_text(row.get("name"))
         if not name:
             raise ValidationError(f"Row {row_number}: name is required.")
 
-        first_name = clean_text(row.get("first_name")) or None
-        last_name = clean_text(row.get("last_name")) or None
+        first_name = staff_fields.clean_text(row.get("first_name")) or None
+        last_name = staff_fields.clean_text(row.get("last_name")) or None
         if first_name is None and last_name is None:
-            first_name, last_name = split_name(name)
+            first_name, last_name = staff_fields.split_name(name)
 
-        epic_id = clean_text(row.get("epic_id")) or None
+        epic_id = staff_fields.clean_text(row.get("epic_id")) or None
         file_identity = epic_id or name.casefold()
         if file_identity in seen_keys:
             raise ValidationError(
-                f"Row {row_number}: duplicate resident entry for {name!r}."
+                f"Row {row_number}: duplicate staff entry for {name!r}."
             )
         seen_keys.add(file_identity)
 
-        record = ResidentCsvRecord(
+        record = StaffCsvRecord(
             row_number=row_number,
             name=name,
             first_name=first_name,
             last_name=last_name,
             epic_id=epic_id,
             class_year=_normalized_class_year(
-                clean_text(row.get("class_year")),
+                staff_fields.clean_text(row.get("class_year")),
                 row_number=row_number,
             ),
             email=_normalized_email(
-                clean_text(row.get("email")),
+                staff_fields.clean_text(row.get("email")),
                 row_number=row_number,
             ),
-            phone=clean_text(row.get("phone")) or None,
-            abbreviation=clean_text(row.get("abbreviation")) or None,
-            backup_id=clean_text(row.get("backup_id")) or None,
+            phone=staff_fields.clean_text(row.get("phone")) or None,
+            abbreviation=staff_fields.clean_text(row.get("abbreviation")) or None,
+            backup_id=staff_fields.clean_text(row.get("backup_id")) or None,
             lawson_id=_optional_int(
-                clean_text(row.get("lawson_id")),
+                staff_fields.clean_text(row.get("lawson_id")),
                 row_number=row_number,
                 field_name="lawson_id",
             ),
             hire_date=_optional_date(
-                clean_text(row.get("hire_date")),
+                staff_fields.clean_text(row.get("hire_date")),
                 row_number=row_number,
                 field_name="hire_date",
             ),
             active=_optional_bool(
-                clean_text(row.get("active")),
+                staff_fields.clean_text(row.get("active")),
                 row_number=row_number,
                 field_name="active",
             ),
@@ -266,14 +261,14 @@ def parse_resident_csv(csv_content: str) -> list[ResidentCsvRecord]:
         records.append(record)
 
     if not records:
-        raise ValidationError("Resident CSV did not contain any resident rows.")
+        raise ValidationError("Staff CSV did not contain any staff rows.")
     return records
 
 
-def load_resident_csv(csv_path: str | Path) -> list[ResidentCsvRecord]:
-    """Load and parse a resident CSV file from disk."""
+def load_staff_csv(csv_path: str | Path) -> list[StaffCsvRecord]:
+    """Load and parse a staff CSV file from disk."""
     path = Path(csv_path)
-    return parse_resident_csv(path.read_text(encoding="utf-8-sig"))
+    return parse_staff_csv(path.read_text(encoding="utf-8-sig"))
 
 
 def _format_audit_value(value: Any) -> Any:
@@ -283,7 +278,7 @@ def _format_audit_value(value: Any) -> Any:
     return value
 
 
-def _resolve_existing_resident(record: ResidentCsvRecord) -> Resident | None:
+def _resolve_existing_resident(record: StaffCsvRecord) -> Resident | None:
     """Resolve a CSV row to an existing resident or raise on conflicts."""
     residents_by_name = Resident.query.filter_by(name=record.name).all()
     if len(residents_by_name) > 1:
@@ -329,7 +324,7 @@ def _update_field(
 
 def _apply_record_to_resident(
     resident: Resident,
-    record: ResidentCsvRecord,
+    record: StaffCsvRecord,
 ) -> dict[str, dict[str, Any]]:
     """Apply a CSV record to an existing resident and return the change set."""
     changes: dict[str, dict[str, Any]] = {}
@@ -357,12 +352,12 @@ def _apply_record_to_resident(
     return changes
 
 
-def import_resident_csv_records(
-    records: Sequence[ResidentCsvRecord],
+def import_staff_csv_records(
+    records: Sequence[StaffCsvRecord],
     *,
     user: str | None = None,
     dry_run: bool = False,
-) -> ResidentCsvImportResult:
+) -> StaffCsvImportResult:
     """Create/update residents from parsed CSV records."""
     created = 0
     updated = 0
@@ -401,7 +396,7 @@ def import_resident_csv_records(
 
     if dry_run:
         db.session.rollback()
-        return ResidentCsvImportResult(
+        return StaffCsvImportResult(
             total_records=len(records),
             created=created,
             updated=updated,
@@ -409,24 +404,24 @@ def import_resident_csv_records(
             dry_run=True,
         )
 
-    def _persist() -> ResidentCsvImportResult:
+    def _persist() -> StaffCsvImportResult:
         db.session.flush()
 
         for resident in created_residents:
             log_create(
                 "Resident",
                 resident.id,
-                payroll_resident_details(resident, source="resident_csv_import"),
+                payroll_resident_details(resident, source="staff_csv_import"),
             )
         for resident, changes in updated_residents:
             if payroll_changes := filter_payroll_resident_changes(changes):
                 log_update("Resident", resident.id, changes=payroll_changes)
         log_import(
-            "resident_csv",
+            "staff_csv",
             f"Created: {created}, Updated: {updated}, Skipped: {skipped}",
             user=user,
         )
-        return ResidentCsvImportResult(
+        return StaffCsvImportResult(
             total_records=len(records),
             created=created,
             updated=updated,
@@ -437,7 +432,7 @@ def import_resident_csv_records(
     result = commit_or_rollback(_persist)
 
     logger.info(
-        "Resident CSV import completed. created=%s updated=%s skipped=%s",
+        "Staff CSV import completed. created=%s updated=%s skipped=%s",
         created,
         updated,
         skipped,
@@ -445,12 +440,12 @@ def import_resident_csv_records(
     return result
 
 
-def import_residents_csv_file(
+def import_staff_csv_file(
     csv_path: str | Path,
     *,
     user: str | None = None,
     dry_run: bool = False,
-) -> ResidentCsvImportResult:
-    """Load, validate, and apply a resident CSV file."""
-    records = load_resident_csv(csv_path)
-    return import_resident_csv_records(records, user=user, dry_run=dry_run)
+) -> StaffCsvImportResult:
+    """Load, validate, and apply a staff CSV file."""
+    records = load_staff_csv(csv_path)
+    return import_staff_csv_records(records, user=user, dry_run=dry_run)

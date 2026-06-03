@@ -6,9 +6,9 @@ All routes return 404 in production.
 
 from flask import Blueprint, abort, redirect, request, session
 
-from backend.auth import mock_users_enabled
 from backend.routes._forms import form_text
 from backend.routes._helpers import redirect_to
+from backend.security import mock_users_enabled
 
 bp = Blueprint("dev", __name__, url_prefix="/dev")
 

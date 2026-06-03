@@ -28,9 +28,8 @@ from sqlalchemy.orm import (
     validates,
 )
 
-from backend.config import Config
+from backend.config import DEFAULT_CUTOFF_HOUR, DEFAULT_CUTOFF_MINUTE, Config
 from backend.holidays import is_weekend_or_holiday
-from backend.instance_config import DEFAULT_CUTOFF_HOUR, DEFAULT_CUTOFF_MINUTE
 from backend.type_defs import ResidentDict, ResidentTimeEntryDict
 
 logger = logging.getLogger(__name__)
