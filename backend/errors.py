@@ -33,7 +33,7 @@ class _FixedStatusAPIError(APIError):
 
     status_code = 400
 
-    def __init__(self, message, payload=None):
+    def __init__(self, message, payload=None) -> None:
         super().__init__(message, status_code=self.status_code, payload=payload)
 
 

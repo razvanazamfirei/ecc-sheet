@@ -1,50 +1,35 @@
 [project]
-name = "ecc-sheet"
-version = "1.0.0"
-description = "ECC Sheet automation with Flask"
-requires-python = ">=3.13"
-dependencies = [
-    "flask>=3.1.2",
+  dependencies = [
+    "email-validator>=2.3.0",
+    "flask-migrate>=4.1.0",
     "flask-sqlalchemy>=3.1.1",
     "flask-wtf>=1.2.2",
-    "wtforms>=3.2.1",
-    "python-dotenv>=1.2.1",
-    "email-validator>=2.3.0",
-    "pytz>=2025.2",
-    "requests>=2.32.5",
-    "flask-migrate>=4.1.0",
-    "urllib3>=2.6.3",
+    "flask>=3.1.2",
     "holidays>=0.89",
     "openpyxl>=3.1.5",
-    "resend>=2.6.1",
-]
-
-[project.optional-dependencies]
-mssql = [
     "pyodbc>=5.2.0",
-]
-saml = [
+    "python-dotenv>=1.2.1",
     "python3-saml>=1.16.0",
-]
+    "pytz>=2025.2",
+    "requests>=2.32.5",
+    "resend>=2.6.1",
+    "urllib3>=2.6.3",
+    "wtforms>=3.2.1",
+  ]
+  description = "ECC Sheet automation with Flask"
+  name = "ecc-sheet"
+  requires-python = ">=3.13"
+  version = "1.0.0"
 
 [dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-    "pytest-cov>=7.0.0",
-    "ruff>=0.15.2",
-    "ty>=0.0.18",
-]
+  dev = ["pytest>=9.0.3", "pytest-cov>=7.0.0", "ruff>=0.15.2", "ty>=0.0.18"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+  build-backend = "hatchling.build"
+  requires      = ["hatchling"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["backend"]
+  packages = ["backend"]
 
 [tool.ty.src]
-exclude = [
-    ".claude/*",
-    ".claude/**",
-    "tests/*",
-]
+  exclude = [".claude/*", ".claude/**", "tests/*"]

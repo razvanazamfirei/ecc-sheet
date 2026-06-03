@@ -75,7 +75,7 @@ def _update_details(
     return merged_details or None
 
 
-def _lock_action(locked: bool) -> str:
+def _lock_action(*, locked: bool) -> str:
     """Return the audit action for a sheet lock state."""
     return "LOCK" if locked else "UNLOCK"
 
@@ -177,12 +177,14 @@ def log_delete_strict(
 
 def log_lock(sheet_date: str, *, locked: bool) -> None:
     """Log a lock/unlock action"""
-    log_action(_lock_action(locked), "DailySheet", details={"date": sheet_date})
+    log_action(_lock_action(locked=locked), "DailySheet", details={"date": sheet_date})
 
 
 def log_lock_strict(sheet_date: str, *, locked: bool) -> None:
     """Log a lock/unlock action and re-raise failures."""
-    log_action_strict(_lock_action(locked), "DailySheet", details={"date": sheet_date})
+    log_action_strict(
+        _lock_action(locked=locked), "DailySheet", details={"date": sheet_date}
+    )
 
 
 def log_import(
