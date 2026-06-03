@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 from flask import current_app, has_app_context, request, session, url_for
 
-from backend.env_utils import env_flag, env_str
+from backend.config import env_flag, env_str
 from backend.errors import (
     SAMLInvalidJSONError,
     SAMLInvalidSettingsError,
@@ -19,7 +19,7 @@ from backend.errors import (
     SAMLSettingsNotFoundError,
 )
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _SESSION_USER_KEY = "auth_user"
 _SESSION_DATA_KEY = "saml_authn"
 _LOGIN_REQUEST_ID_KEY = "saml_request_id"

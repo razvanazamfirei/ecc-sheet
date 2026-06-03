@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Response, abort, current_app, redirect, request
 
-from backend.saml import (
+from backend.security.saml import (
     build_saml_auth,
     build_saml_settings,
     clear_session_authenticated_user,

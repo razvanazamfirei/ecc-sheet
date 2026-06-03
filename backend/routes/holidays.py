@@ -7,7 +7,6 @@ from logging import Logger
 from flask import Blueprint, abort, render_template
 
 from backend.audit import log_create_strict, log_delete_strict, log_import_strict
-from backend.auth import admin_required
 from backend.holidays import get_federal_holidays
 from backend.models import Holiday, db
 from backend.routes._forms import form_text
@@ -18,6 +17,7 @@ from backend.routes._helpers import (
     parse_iso_date_or_none,
     redirect_to,
 )
+from backend.security import admin_required
 from backend.utils import get_effective_date
 
 bp: Blueprint = Blueprint("holidays", __name__)

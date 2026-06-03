@@ -10,7 +10,6 @@ from backend.audit import (
     get_client_ip,
     get_entity_history,
     log_action,
-    log_action_strict,
     log_create,
     log_delete,
     log_import,
@@ -353,11 +352,12 @@ class TestLogActionExceptionHandling:
             mock_execute.side_effect = SQLAlchemyError("Database error")
 
             with pytest.raises(SQLAlchemyError) as excinfo:
-                log_action_strict(
+                log_action(
                     "TEST",
                     "TestEntity",
                     entity_id=1,
                     details={},
+                    strict=True,
                 )
             assert "Database error" in str(excinfo.value)
 

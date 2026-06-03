@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from backend.saml import saml_logout_enabled
+from backend.security.saml import saml_logout_enabled
 
 
 def _saml_settings_json(

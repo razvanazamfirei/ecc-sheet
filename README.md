@@ -250,7 +250,9 @@ ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS=1
 ```
 
 That runs a background sync every two minutes across the current effective sheet
-date plus one prior day.
+date plus one prior day. The worker lifecycle is isolated in
+`backend/background_services.py` and remains disabled unless
+`ANESTHESIA_FETCHER_ENABLED=true`.
 
 Run the sync with:
 
@@ -324,15 +326,19 @@ bun run lint:css
 ```
 ecc-sheet/
 ├── backend/                 # Python backend
-│   ├── app.py              # Main Flask application
+│   ├── app.py              # Flask app construction and top-level wiring
+│   ├── background_services.py # Optional background worker lifecycle
+│   ├── cli.py              # Flask CLI command registration
+│   ├── config.py           # Environment and instance configuration
+│   ├── database/           # Session, schema, and bootstrap helpers
+│   ├── imports/            # Staff and resident CSV import workflows
 │   ├── models.py           # Database models
-│   ├── routes/             # Route blueprints (9 modules)
+│   ├── reporting/          # Report generation and payroll helpers
+│   ├── routes/             # Route blueprints
+│   ├── security/           # Auth, SAML, and Flask auth hooks
 │   ├── audit.py            # Audit logging
-│   ├── auth.py             # Authorization utilities
-│   ├── config.py           # Configuration
 │   ├── holidays.py         # Holiday utilities
-│   ├── report_utils.py     # Report generation utilities
-│   └── staff_import.py     # Amion staff parsing
+│   └── utils.py            # Shared utility helpers
 ├── frontend/                # Frontend templates and assets
 │   ├── templates/          # Jinja2 templates
 │   └── static/

@@ -7,13 +7,13 @@ from unittest.mock import patch
 import pytest
 
 from backend.errors import ConflictError, ValidationError
-from backend.models import AuditLog, Resident, db
-from backend.resident_csv_import import (
+from backend.imports.residents_csv import (
     ResidentCsvImportResult,
     import_resident_csv_records,
     import_residents_csv_file,
     parse_resident_csv,
 )
+from backend.models import AuditLog, Resident, db
 
 
 class TestParseResidentCsv:
@@ -300,7 +300,7 @@ class TestResidentCsvCli:
         monkeypatch.setattr(
             "backend.app._ensure_runtime_schema", _fake_ensure_runtime_schema
         )
-        monkeypatch.setattr("backend.app.import_residents_csv_file", _fake_import)
+        monkeypatch.setattr("backend.cli.import_residents_csv_file", _fake_import)
 
         result = runner.invoke(
             args=["import-residents-csv", "--path", str(csv_path)],
@@ -351,8 +351,8 @@ class TestResidentCsvCli:
                 dry_run=False,
             )
 
-        monkeypatch.setattr("backend.app.init_db", _fake_init_db)
-        monkeypatch.setattr("backend.app.import_residents_csv_file", _fake_import)
+        monkeypatch.setattr("backend.app._bootstrap_database", _fake_init_db)
+        monkeypatch.setattr("backend.cli.import_residents_csv_file", _fake_import)
 
         result = runner.invoke(
             args=["bootstrap-application", "--residents-csv", str(csv_path)],

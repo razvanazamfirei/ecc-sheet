@@ -15,12 +15,12 @@ from sqlalchemy.orm import joinedload
 from werkzeug.wrappers import Response
 
 from backend.audit import log_create_strict, log_delete, log_update_strict
-from backend.auth import is_admin, is_first_call
 from backend.errors import ValidationError
 from backend.models import DailySheet, TimeEntry, db
 from backend.routes._forms import form_text
 from backend.routes._helpers import flash_redirect, flash_sheet_redirect, parse_iso_date
-from backend.utils import _wants_json_response
+from backend.security import is_admin, is_first_call
+from backend.utils import wants_json_response
 
 bp = Blueprint("entries", __name__, url_prefix="/entries")
 logger = logging.getLogger(__name__)
@@ -178,7 +178,7 @@ def _entry_error_response(
     force_json: bool = False,
 ) -> Response | tuple[Response, int]:
     """Return a JSON error or flash+redirect response for sheet entry actions."""
-    if force_json or _wants_json_response():
+    if force_json or wants_json_response():
         return _json_error(message, status_code)
 
     return flash_sheet_redirect(date_str, flash_message or message, "error")
@@ -188,7 +188,7 @@ def _entry_success_response(
     entry: "TimeEntry", date_str: str, message: str
 ) -> Response:
     """Return a JSON success payload or flash+redirect response."""
-    if _wants_json_response():
+    if wants_json_response():
         return jsonify(
             {
                 "success": True,
@@ -458,7 +458,7 @@ def update(entry_id):
     """Update an existing time entry."""
     entry = db.session.get(TimeEntry, entry_id)
     if entry is None:
-        if _wants_json_response():
+        if wants_json_response():
             return _json_error("Entry not found.", 404)
         abort(404)
 
@@ -545,7 +545,7 @@ def delete(entry_id):
                 saved_entry_id,
                 exc_info=True,
             )
-        if _wants_json_response():
+        if wants_json_response():
             return jsonify({"success": True, "message": "Entry deleted successfully"})
         return flash_sheet_redirect(
             sheet_date_str,

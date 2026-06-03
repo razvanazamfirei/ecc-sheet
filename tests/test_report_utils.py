@@ -6,7 +6,7 @@ from datetime import date, time
 import openpyxl
 
 from backend.models import PayrollSettings, Resident, Role, TimeEntry, db
-from backend.report_utils import (
+from backend.reporting.reports import (
     aggregate_entries_by_resident,
     build_entries_query,
     generate_csv_content,

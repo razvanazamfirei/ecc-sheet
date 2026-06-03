@@ -11,8 +11,8 @@ from typing import Any
 from flask import has_request_context, request
 from sqlalchemy import insert
 
-from backend.auth import get_current_user
 from backend.models import AuditLog, db
+from backend.security import get_current_user
 from backend.type_defs import AuditLogs
 
 logger = logging.getLogger(__name__)
@@ -80,28 +80,19 @@ def _lock_action(*, locked: bool) -> str:
     return "LOCK" if locked else "UNLOCK"
 
 
-def log_action(
+def log_action(  # noqa: PLR0913 - public audit API has several optional fields.
     action: str,
     entity_type: str,
     entity_id: int | None = None,
     details: Mapping[str, Any] | None = None,
     user: str | None = None,
+    *,
+    strict: bool = False,
 ) -> None:
-    """Log an action to the audit trail without interrupting the caller."""
-    _write_audit_log(_build_audit_values(action, entity_type, entity_id, details, user))
-
-
-def log_action_strict(
-    action: str,
-    entity_type: str,
-    entity_id: int | None = None,
-    details: Mapping[str, Any] | None = None,
-    user: str | None = None,
-) -> None:
-    """Log an action and re-raise failures so the caller can roll back."""
+    """Log an action to the audit trail, optionally re-raising failures."""
     _write_audit_log(
         _build_audit_values(action, entity_type, entity_id, details, user),
-        strict=True,
+        strict=strict,
     )
 
 
@@ -120,7 +111,7 @@ def log_create_strict(
     details: Mapping[str, Any] | None = None,
 ) -> None:
     """Log a CREATE action and re-raise failures."""
-    log_action_strict("CREATE", entity_type, entity_id, details)
+    log_action("CREATE", entity_type, entity_id, details, strict=True)
 
 
 def log_update(
@@ -148,12 +139,13 @@ def log_update_strict(
     user: str | None = None,
 ) -> None:
     """Log an UPDATE action and re-raise failures."""
-    log_action_strict(
+    log_action(
         "UPDATE",
         entity_type,
         entity_id,
         _update_details(changes, details),
         user=user,
+        strict=True,
     )
 
 
@@ -172,7 +164,7 @@ def log_delete_strict(
     details: Mapping[str, Any] | None = None,
 ) -> None:
     """Log a DELETE action and re-raise failures."""
-    log_action_strict("DELETE", entity_type, entity_id, details)
+    log_action("DELETE", entity_type, entity_id, details, strict=True)
 
 
 def log_lock(sheet_date: str, *, locked: bool) -> None:
@@ -182,8 +174,11 @@ def log_lock(sheet_date: str, *, locked: bool) -> None:
 
 def log_lock_strict(sheet_date: str, *, locked: bool) -> None:
     """Log a lock/unlock action and re-raise failures."""
-    log_action_strict(
-        _lock_action(locked=locked), "DailySheet", details={"date": sheet_date}
+    log_action(
+        _lock_action(locked=locked),
+        "DailySheet",
+        details={"date": sheet_date},
+        strict=True,
     )
 
 
@@ -218,12 +213,13 @@ def log_import_strict(
     entity_id: int | None = None,
 ) -> None:
     """Log an import action and re-raise failures."""
-    log_action_strict(
+    log_action(
         "IMPORT",
         import_type,
         entity_id=entity_id,
         details={"info": details_str},
         user=user,
+        strict=True,
     )
 
 

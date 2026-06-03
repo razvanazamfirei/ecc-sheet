@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from backend.database.bootstrap import init_db
 from backend.models import Holiday, Role, db
 
 
@@ -18,9 +19,7 @@ class TestInitDb:
             db.session.commit()
 
             # Import and call init_db
-            from backend.app import init_db
-
-            init_db()
+            init_db(app)
 
             # Check that roles were created
             roles = Role.query.all()
@@ -49,10 +48,7 @@ class TestInitDb:
                 )
                 db.session.add(backup_role)
                 db.session.commit()
-
-            from backend.app import init_db
-
-            init_db()
+            init_db(app)
 
             # Check that is_backup is now True
             backup_role = Role.query.filter_by(name="Backup").first()
@@ -77,10 +73,7 @@ class TestInitDb:
                 )
                 db.session.add(cardiac_backup)
                 db.session.commit()
-
-            from backend.app import init_db
-
-            init_db()
+            init_db(app)
 
             # Check that is_backup is now True
             cardiac_backup = Role.query.filter_by(name="Cardiac Backup").first()
@@ -93,10 +86,7 @@ class TestInitDb:
             # Delete all federal holidays first
             Holiday.query.filter_by(is_federal=True).delete()
             db.session.commit()
-
-            from backend.app import init_db
-
-            init_db()
+            init_db(app)
 
             # Check that some federal holidays were created
             federal_holidays = Holiday.query.filter_by(is_federal=True).all()
@@ -105,13 +95,11 @@ class TestInitDb:
     def test_init_db_does_not_duplicate_roles(self, app):
         """Test that init_db doesn't create duplicate roles."""
         with app.app_context():
-            from backend.app import init_db
-
             # Call init_db twice
-            init_db()
+            init_db(app)
             count_after_first = Role.query.count()
 
-            init_db()
+            init_db(app)
             count_after_second = Role.query.count()
 
             # Count should be the same
@@ -120,12 +108,10 @@ class TestInitDb:
     def test_init_db_does_not_duplicate_holidays(self, app):
         """Test that init_db doesn't create duplicate holidays."""
         with app.app_context():
-            from backend.app import init_db
-
-            init_db()
+            init_db(app)
             count_after_first = Holiday.query.count()
 
-            init_db()
+            init_db(app)
             count_after_second = Holiday.query.count()
 
             # Count should be the same
@@ -139,10 +125,7 @@ class TestInitDb:
             original_order = role.display_order
             role.display_order = None
             db.session.commit()
-
-            from backend.app import init_db
-
-            init_db()
+            init_db(app)
 
             role = Role.query.filter_by(name="ECA 1").first()
             assert role.display_order is not None
@@ -156,10 +139,7 @@ class TestInitDb:
             if role:
                 db.session.delete(role)
                 db.session.commit()
-
-            from backend.app import init_db
-
-            init_db()
+            init_db(app)
 
             # Late Late 1 should have specific cutoff from config
             role = Role.query.filter_by(name="Late Late 1").first()
@@ -261,7 +241,7 @@ class TestBackgroundServices:
 
     def test_requests_do_not_attempt_to_start_background_services(self, client):
         """Requests should not rerun background-service startup checks."""
-        with patch("backend.app.start_background_services") as mock_start:
+        with patch("backend.app._start_background_services") as mock_start:
             response = client.get("/")
 
         assert response.status_code == 200
@@ -269,107 +249,120 @@ class TestBackgroundServices:
 
     def test_should_start_background_services_during_wsgi_import(self, monkeypatch):
         """WSGI-style imports should eagerly bootstrap background services."""
-        import backend.app as app_module
+        from backend import background_services
 
         monkeypatch.setenv("FLASK_RUN_FROM_CLI", "")
         monkeypatch.setenv("FLASK_DEBUG", "")
         monkeypatch.setenv("WERKZEUG_RUN_MAIN", "")
-        with (
-            patch.object(app_module, "__name__", "backend.app"),
-            patch.object(app_module.sys, "argv", ["gunicorn"]),
-        ):
-            assert app_module._should_start_background_services_during_import() is True
+        assert (
+            background_services.should_start_background_services_during_import(
+                module_name="backend.app",
+                argv=["gunicorn"],
+            )
+            is True
+        )
 
     def test_should_skip_eager_start_for_non_run_flask_cli(self, monkeypatch):
         """Non-server Flask CLI commands should not start background services."""
-        import backend.app as app_module
+        from backend import background_services
 
         monkeypatch.setenv("FLASK_RUN_FROM_CLI", "true")
-        with (
-            patch.object(app_module, "__name__", "backend.app"),
-            patch.object(app_module.sys, "argv", ["flask", "db", "upgrade"]),
-        ):
-            assert app_module._should_start_background_services_during_import() is False
+        assert (
+            background_services.should_start_background_services_during_import(
+                module_name="backend.app",
+                argv=["flask", "db", "upgrade"],
+            )
+            is False
+        )
 
     def test_auto_sync_config_helpers_clamp_values(self, app, monkeypatch):
         """Automatic sync config helpers enforce safe lower bounds."""
-        import backend.app as app_module
+        from backend import background_services
 
         monkeypatch.setitem(app.config, "ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS", -3)
         monkeypatch.setitem(app.config, "ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS", 5)
 
-        assert app_module._auto_sync_lookback_days() == 0
-        assert app_module._auto_sync_interval_seconds() == 30
+        assert background_services._auto_sync_lookback_days(app) == 0
+        assert background_services._auto_sync_interval_seconds(app) == 30
 
     def test_start_background_services_starts_once_when_fetcher_enabled(
         self, app, monkeypatch
     ):
         """Background services should start once for the server process."""
-        from backend.app import start_background_services, stop_background_services
+        from backend.background_services import (
+            start_background_services,
+            stop_background_services,
+        )
 
         monkeypatch.setitem(app.config, "TESTING", False)
         monkeypatch.setitem(app.config, "ANESTHESIA_FETCHER_ENABLED", True)
         lock_handle = MagicMock()
         with (
-            patch("backend.app.threading.Thread") as mock_thread,
+            patch("backend.background_services.threading.Thread") as mock_thread,
             patch(
-                "backend.app._acquire_background_service_process_lock",
+                "backend.background_services._acquire_background_service_process_lock",
                 return_value=lock_handle,
             ) as mock_acquire_lock,
             patch(
-                "backend.app._release_background_service_process_lock"
+                "backend.background_services._release_background_service_process_lock"
             ) as mock_release_lock,
         ):
             worker = mock_thread.return_value
             worker.is_alive.return_value = False
 
             try:
-                assert start_background_services() is True
-                assert start_background_services() is False
+                assert start_background_services(app, lambda: None) is True
+                assert start_background_services(app, lambda: None) is False
                 worker.start.assert_called_once()
-                mock_acquire_lock.assert_called_once_with()
+                mock_acquire_lock.assert_called_once_with(app)
             finally:
-                stop_background_services()
+                stop_background_services(app)
 
             mock_release_lock.assert_called_once_with(lock_handle)
 
     def test_start_background_services_requires_fetcher_flag(self, app, monkeypatch):
         """Background services should not start without the fetcher flag."""
-        from backend.app import start_background_services, stop_background_services
+        from backend.background_services import (
+            start_background_services,
+            stop_background_services,
+        )
 
         monkeypatch.setitem(app.config, "TESTING", False)
         monkeypatch.setitem(app.config, "ANESTHESIA_FETCHER_ENABLED", False)
         try:
-            with patch("backend.app.threading.Thread") as mock_thread:
-                assert start_background_services() is False
+            with patch("backend.background_services.threading.Thread") as mock_thread:
+                assert start_background_services(app, lambda: None) is False
                 mock_thread.assert_not_called()
         finally:
-            stop_background_services()
+            stop_background_services(app)
 
     def test_start_background_services_skips_when_lock_owned_elsewhere(
         self, app, monkeypatch
     ):
         """Only one worker process should bootstrap the auto-sync thread."""
-        from backend.app import start_background_services, stop_background_services
+        from backend.background_services import (
+            start_background_services,
+            stop_background_services,
+        )
 
         monkeypatch.setitem(app.config, "TESTING", False)
         monkeypatch.setitem(app.config, "ANESTHESIA_FETCHER_ENABLED", True)
         try:
             with (
-                patch("backend.app.threading.Thread") as mock_thread,
+                patch("backend.background_services.threading.Thread") as mock_thread,
                 patch(
-                    "backend.app._acquire_background_service_process_lock",
+                    "backend.background_services._acquire_background_service_process_lock",
                     return_value=None,
                 ),
             ):
-                assert start_background_services() is False
+                assert start_background_services(app, lambda: None) is False
                 mock_thread.assert_not_called()
         finally:
-            stop_background_services()
+            stop_background_services(app)
 
     def test_ensure_time_entry_columns_ignores_duplicate_column_race(self, app):
         """Runtime schema backfill should ignore duplicate-column races."""
-        import backend.app as app_module
+        from backend.database import runtime_schema
 
         class _Inspector:
             @staticmethod
@@ -379,21 +372,21 @@ class TestBackgroundServices:
         with (
             app.app_context(),
             patch.object(
-                app_module,
+                runtime_schema,
                 "sqlalchemy_inspect",
                 return_value=_Inspector(),
             ),
             patch.object(
-                app_module.db.session,
+                runtime_schema.db.session,
                 "execute",
                 side_effect=SQLAlchemyError(
                     "duplicate column name: anesthesia_stop_time",
                 ),
             ) as mock_execute,
-            patch.object(app_module.db.session, "commit") as mock_commit,
-            patch.object(app_module.db.session, "rollback") as mock_rollback,
+            patch.object(runtime_schema.db.session, "commit") as mock_commit,
+            patch.object(runtime_schema.db.session, "rollback") as mock_rollback,
         ):
-            app_module._ensure_time_entry_columns()
+            runtime_schema.ensure_time_entry_columns()
 
         mock_execute.assert_called_once()
         mock_commit.assert_not_called()
@@ -401,15 +394,17 @@ class TestBackgroundServices:
 
     def test_background_service_lock_helpers_allow_missing_fcntl(self, app):
         """Lock helpers should remain usable when fcntl is unavailable."""
-        import backend.app as app_module
+        from backend import background_services
 
-        with app.app_context(), patch.object(app_module, "fcntl", None):
-            lock_path = app_module._background_service_lock_path()
-            lock_handle = app_module._acquire_background_service_process_lock()
+        with app.app_context(), patch.object(background_services, "fcntl", None):
+            lock_path = background_services._background_service_lock_path(app)
+            lock_handle = background_services._acquire_background_service_process_lock(
+                app
+            )
             assert lock_handle is not None
             assert lock_handle.closed is False
 
-            app_module._release_background_service_process_lock(lock_handle)
+            background_services._release_background_service_process_lock(lock_handle)
             assert lock_handle.closed is True
 
         lock_path.unlink(missing_ok=True)

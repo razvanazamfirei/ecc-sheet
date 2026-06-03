@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from backend.auth import (
+from backend.models import Resident, db
+from backend.security import (
     can_filter_reports_by_resident,
     get_current_resident_id,
     get_current_user,
@@ -13,7 +14,6 @@ from backend.auth import (
     is_first_call,
     is_payroll_admin,
 )
-from backend.models import Resident, db
 from backend.utils import get_effective_date
 
 
@@ -76,7 +76,7 @@ class TestGetCurrentUser:
         monkeypatch.delenv("MOCK_USERS_ENABLED", raising=False)
         with (
             patch("backend.app._ensure_runtime_schema") as mock_schema,
-            patch("backend.app.start_background_services") as mock_start,
+            patch("backend.app._start_background_services") as mock_start,
         ):
             response = client.get("/")
 
@@ -134,7 +134,7 @@ class TestGetCurrentResidentId:
             try:
                 with pytest.MonkeyPatch.context() as monkeypatch:
                     monkeypatch.setattr(
-                        "backend.auth.get_current_user", lambda: "AzamfirR"
+                        "backend.security.auth.get_current_user", lambda: "AzamfirR"
                     )
                     assert get_current_resident_id() == resident.id
             finally:
@@ -155,7 +155,7 @@ class TestGetCurrentResidentId:
             try:
                 with pytest.MonkeyPatch.context() as monkeypatch:
                     monkeypatch.setattr(
-                        "backend.auth.get_current_user",
+                        "backend.security.auth.get_current_user",
                         lambda: "azamfirr@pennmedicine.upenn.edu",
                     )
                     assert get_current_resident_id() == resident.id
@@ -177,7 +177,7 @@ class TestGetCurrentResidentId:
             try:
                 with pytest.MonkeyPatch.context() as monkeypatch:
                     monkeypatch.setattr(
-                        "backend.auth.get_current_user",
+                        "backend.security.auth.get_current_user",
                         lambda: "not-the-current-user@pennmedicine.upenn.edu",
                     )
                     assert get_current_resident_id() == resident.id
@@ -189,11 +189,11 @@ class TestGetCurrentResidentId:
         """Test get_current_resident_id returns None when user is empty/whitespace."""
         with app.app_context(), pytest.MonkeyPatch.context() as monkeypatch:
             # Monkeypatch get_current_user to an empty string
-            monkeypatch.setattr("backend.auth.get_current_user", lambda: "")
+            monkeypatch.setattr("backend.security.auth.get_current_user", lambda: "")
             assert get_current_resident_id() is None
 
             # Monkeypatch get_current_user to whitespace
-            monkeypatch.setattr("backend.auth.get_current_user", lambda: "   ")
+            monkeypatch.setattr("backend.security.auth.get_current_user", lambda: "   ")
             assert get_current_resident_id() is None
 
     def test_returns_none_when_no_match(self, app):
@@ -213,7 +213,7 @@ class TestGetCurrentResidentId:
                 with pytest.MonkeyPatch.context() as monkeypatch:
                     # Monkeypatch get_current_user to a value that matches NOTHING
                     monkeypatch.setattr(
-                        "backend.auth.get_current_user",
+                        "backend.security.auth.get_current_user",
                         lambda: "Different Person entirely",
                     )
                     assert get_current_resident_id() is None

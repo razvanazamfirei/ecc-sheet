@@ -6,7 +6,6 @@ from logging import Logger
 from flask import Blueprint, abort, render_template, request
 
 from backend.audit import log_update_strict
-from backend.auth import admin_required
 from backend.models import Role, db
 from backend.routes._forms import form_text
 from backend.routes._helpers import (
@@ -14,6 +13,7 @@ from backend.routes._helpers import (
     diff_snapshots,
     flash_redirect,
 )
+from backend.security import admin_required
 
 bp: Blueprint = Blueprint("roles", __name__, url_prefix="/roles")
 logger: Logger = logging.getLogger(__name__)

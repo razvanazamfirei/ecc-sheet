@@ -1,4 +1,4 @@
-from backend.env_utils import env_csv, env_flag, env_int, env_str
+from backend.config import env_csv, env_flag, env_int, env_str
 
 
 def test_env_flag_parses_truthy_values_and_defaults(monkeypatch) -> None:

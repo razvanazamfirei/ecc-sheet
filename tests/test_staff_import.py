@@ -6,13 +6,13 @@ import pytest
 import requests
 
 from backend.errors import ValidationError
-from backend.models import AuditLog, Resident, db
-from backend.staff_import import (
+from backend.imports.staff import (
     fetch_staff_list,
     import_staff_list,
     import_staff_to_database,
     parse_staff_list,
 )
+from backend.models import AuditLog, Resident, db
 from backend.type_defs import StaffRecord
 
 
@@ -20,7 +20,7 @@ from backend.type_defs import StaffRecord
 class TestFetchStaffList:
     """Tests for fetch_staff_list function."""
 
-    @patch("backend.staff_import.requests.get")
+    @patch("backend.imports.staff.requests.get")
     def test_fetch_success(self, mock_get, app):
         """Test successful staff list fetch."""
         mock_response = MagicMock()
@@ -37,7 +37,7 @@ class TestFetchStaffList:
             "https://www.amion.com/cgi-bin/ocs?Lo=testcode&Rpt=706", timeout=30
         )
 
-    @patch("backend.staff_import.requests.get")
+    @patch("backend.imports.staff.requests.get")
     def test_fetch_with_custom_schedule_code(self, mock_get, app):
         """Test fetch with custom schedule code."""
         mock_response = MagicMock()
@@ -53,7 +53,7 @@ class TestFetchStaffList:
         assert "Lo=custom" in call_url
         assert "Rpt=706" in call_url
 
-    @patch("backend.staff_import.requests.get")
+    @patch("backend.imports.staff.requests.get")
     def test_fetch_network_error(self, mock_get, app):
         """Test network error handling."""
         mock_get.side_effect = requests.RequestException("Network error")
@@ -64,7 +64,7 @@ class TestFetchStaffList:
         ):
             fetch_staff_list("testcode")
 
-    @patch("backend.staff_import.requests.get")
+    @patch("backend.imports.staff.requests.get")
     def test_fetch_http_error(self, mock_get, app):
         """Test HTTP error handling via raise_for_status."""
         mock_response = MagicMock()
@@ -77,7 +77,7 @@ class TestFetchStaffList:
         ):
             fetch_staff_list("testcode")
 
-    @patch("backend.staff_import.requests.get")
+    @patch("backend.imports.staff.requests.get")
     def test_fetch_uses_runtime_app_config_base_url(self, mock_get, app):
         """Test fetch reads the Amion base URL from app config at runtime."""
         mock_response = MagicMock()
@@ -101,7 +101,7 @@ class TestFetchStaffList:
             "https://amion.example.test/custom?Lo=testcode&Rpt=706", timeout=30
         )
 
-    @patch("backend.staff_import.requests.get")
+    @patch("backend.imports.staff.requests.get")
     def test_fetch_uses_config_base_url_without_app_context(self, mock_get):
         """Test fetch uses Settings.AMION_BASE_URL outside a Flask app context."""
         from backend.config import get_settings
@@ -565,7 +565,7 @@ class TestImportStaffToDatabase:
 class TestImportStaffList:
     """Tests for import_staff_list complete workflow function."""
 
-    @patch("backend.staff_import.fetch_staff_list")
+    @patch("backend.imports.staff.fetch_staff_list")
     def test_success_flow(self, mock_fetch, app):
         """Test successful complete import workflow."""
         with app.app_context():
@@ -590,7 +590,7 @@ CA1\tFlow Test\tEPICID:TEST_FLOW_001\t\tFT\t1\t\t\tflow@test.com
             Resident.query.filter(Resident.epic_id.like("TEST_FLOW_%")).delete()
             db.session.commit()
 
-    @patch("backend.staff_import.fetch_staff_list")
+    @patch("backend.imports.staff.fetch_staff_list")
     def test_empty_staff_list(self, mock_fetch, app):
         """Test import with no valid staff records."""
         with app.app_context():
@@ -609,7 +609,7 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
             assert result["skipped"] == 0
             assert result["total_records"] == 0
 
-    @patch("backend.staff_import.fetch_staff_list")
+    @patch("backend.imports.staff.fetch_staff_list")
     def test_network_error(self, mock_fetch, app):
         """Test import with network error."""
         with app.app_context():
@@ -622,7 +622,7 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
             assert result["created"] == 0
             assert result["total_records"] == 0
 
-    @patch("backend.staff_import.fetch_staff_list")
+    @patch("backend.imports.staff.fetch_staff_list")
     def test_parse_error(self, mock_fetch, app):
         """Test import with parse error (no header)."""
         with app.app_context():
@@ -635,7 +635,7 @@ CA2\t\tEPICID:R00002\t\tEM\t2\t\t\t
             assert result["created"] == 0
             assert result["total_records"] == 0
 
-    @patch("backend.staff_import.fetch_staff_list")
+    @patch("backend.imports.staff.fetch_staff_list")
     def test_custom_schedule_code(self, mock_fetch, app):
         """Test import with custom schedule code."""
         with app.app_context():
@@ -655,8 +655,8 @@ CA1\tCustom Test\tEPICID:TEST_CUSTOM_001
             Resident.query.filter(Resident.epic_id.like("TEST_CUSTOM_%")).delete()
             db.session.commit()
 
-    @patch("backend.staff_import.fetch_staff_list")
-    @patch("backend.staff_import.import_staff_to_database")
+    @patch("backend.imports.staff.fetch_staff_list")
+    @patch("backend.imports.staff.import_staff_to_database")
     def test_database_error(self, mock_import_db, mock_fetch, app):
         """Test import with database error."""
         with app.app_context():
@@ -675,7 +675,7 @@ CA1\tTest Person\tEPICID:R12345
 class TestImportStaffRoute:
     """Tests for staff import route."""
 
-    @patch("backend.staff_import.fetch_staff_list")
+    @patch("backend.imports.staff.fetch_staff_list")
     def test_import_staff_success(self, mock_fetch, client, app):
         """Test successful staff import via route."""
         with app.app_context():
@@ -694,7 +694,7 @@ CA1\tRoute Test Person\tEPICID:ROUTE_TEST_001\t\tRTP\t1\t\t\troute@test.com
             Resident.query.filter(Resident.epic_id.like("ROUTE_TEST_%")).delete()
             db.session.commit()
 
-    @patch("backend.staff_import.fetch_staff_list")
+    @patch("backend.imports.staff.fetch_staff_list")
     def test_import_staff_network_error(self, mock_fetch, client, app):
         """Test staff import with network error via route."""
         with app.app_context():

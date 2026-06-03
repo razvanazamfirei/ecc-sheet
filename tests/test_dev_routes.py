@@ -62,7 +62,7 @@ class TestDevRoutesEnabled:
 
     def test_get_current_user_falls_back_to_env(self, client, app, monkeypatch):
         """Without a session override, get_current_user() uses USER_NAME env."""
-        from backend.auth import get_current_user
+        from backend.security import get_current_user
 
         with client.session_transaction() as sess:
             sess.pop("dev_user", None)

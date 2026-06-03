@@ -14,20 +14,21 @@ from typing import Any
 from email_validator import EmailNotValidError
 
 from backend.audit import log_create, log_import, log_update
-from backend.db_session import commit_or_rollback
+from backend.database.session import commit_or_rollback
 from backend.errors import ConflictError, ValidationError
 from backend.models import Resident, db
-from backend.payroll_audit import (
+from backend.reporting.payroll import (
     filter_payroll_resident_changes,
     payroll_resident_details,
 )
-from backend.resident_normalization import (
+from backend.utils import (
     CLASS_YEAR_ALIASES,
     canonicalize_class_year,
     clean_text,
+    normalize_email,
+    parse_iso_date,
     split_name,
 )
-from backend.utils import normalize_email, parse_iso_date
 
 logger = logging.getLogger(__name__)
 

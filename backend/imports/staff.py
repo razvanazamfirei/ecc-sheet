@@ -20,17 +20,17 @@ from backend.audit import log_create, log_import, log_update
 from backend.config import Config
 from backend.errors import ValidationError
 from backend.models import Resident, db
-from backend.payroll_audit import (
+from backend.reporting.payroll import (
     filter_payroll_resident_changes,
     payroll_resident_details,
 )
-from backend.resident_normalization import (
+from backend.type_defs import ImportResult, StaffList, StaffRecord
+from backend.utils import (
     canonicalize_class_year,
     clean_text,
+    normalize_email,
     split_name,
 )
-from backend.type_defs import ImportResult, StaffList, StaffRecord
-from backend.utils import normalize_email
 
 logger = logging.getLogger(__name__)
 
