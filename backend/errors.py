@@ -1,5 +1,7 @@
 """Error handling for the ECC Sheet application"""
 
+from typing import ClassVar
+
 from flask import jsonify
 
 from backend.utils import setup_logging
@@ -31,7 +33,7 @@ class APIError(Exception):
 class _FixedStatusAPIError(APIError):
     """API error with a subclass-defined status code."""
 
-    status_code = 400
+    status_code: ClassVar[int]
 
     def __init__(self, message, payload=None) -> None:
         super().__init__(message, status_code=self.status_code, payload=payload)
@@ -39,6 +41,8 @@ class _FixedStatusAPIError(APIError):
 
 class ValidationError(_FixedStatusAPIError):
     """Validation error for invalid input"""
+
+    status_code = 400
 
 
 class NotFoundError(_FixedStatusAPIError):

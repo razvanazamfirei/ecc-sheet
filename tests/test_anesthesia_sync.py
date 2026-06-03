@@ -131,17 +131,12 @@ class TestAnesthesiaSyncHelpers:
         ):
             sync_module._source_table()
 
-    def test_provider_type_and_timeout_use_explicit_config_without_app_context(self):
-        with (
-            patch.object(
-                sync_module.Config,
-                "ANESTHESIA_SQL_PROVIDER_TYPE",
-                "Override",
-            ),
-            patch.object(sync_module.Config, "ANESTHESIA_SQL_TIMEOUT", 45),
-        ):
-            assert sync_module._provider_type() == "Override"
-            assert sync_module._query_timeout() == 45
+    def test_provider_type_and_timeout_use_settings_fallback_without_app_context(self):
+        from backend.config import get_settings
+
+        settings = get_settings()
+        assert sync_module._provider_type() == settings.ANESTHESIA_SQL_PROVIDER_TYPE
+        assert sync_module._query_timeout() == settings.ANESTHESIA_SQL_TIMEOUT
 
     def test_build_stop_time_query_uses_validated_source_table(self):
         with patch.object(sync_module, "_source_table", return_value="dbo.StopView"):

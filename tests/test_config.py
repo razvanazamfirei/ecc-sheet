@@ -107,11 +107,10 @@ class TestConfig:
         ) as config:
             assert config.Config.AUTH_PROXY_USERNAME_HEADER == "X-Auth-User"
 
-    def test_get_settings_matches_config_compatibility_class(self):
-        """Test Settings remains the source for the Config compatibility class."""
+    def test_config_is_settings_singleton(self):
+        """Test Config is the Settings singleton returned by get_settings()."""
         settings = backend.config.get_settings()
-
-        assert settings.SECRET_KEY == backend.config.Config.SECRET_KEY
+        assert backend.config.Config is settings
         assert (
             settings.SQLALCHEMY_DATABASE_URI
             == backend.config.Config.SQLALCHEMY_DATABASE_URI

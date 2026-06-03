@@ -110,6 +110,17 @@ function getEntryRows() {
 }
 
 /**
+ * Sets the display style for an element when present
+ * @param {HTMLElement|null} element - Element to update
+ * @param {string} display - CSS display value
+ */
+function setElementDisplay(element, display) {
+  if (element?.style) {
+    element.style.display = display;
+  }
+}
+
+/**
  * Updates the inline editor visibility for a single entry row
  * @param {string|number} entryId - The entry ID
  * @param {boolean} editing - Whether the row is in edit mode
@@ -117,24 +128,16 @@ function getEntryRows() {
  */
 function setEntryEditingState(entryId, editing) {
   const elements = getEntryElements(entryId);
-  if (elements.display?.style) {
-    elements.display.style.display = editing ? "none" : "inline";
-  }
-  if (elements.form?.style) {
-    elements.form.style.display = editing ? "inline" : "none";
-  }
-  if (elements.actionButtons?.style) {
-    elements.actionButtons.style.display = editing ? "none" : "inline-flex";
-  }
-  if (elements.editControls?.style) {
-    elements.editControls.style.display = editing ? "inline-flex" : "none";
-  }
+  setElementDisplay(elements.display, editing ? "none" : "inline");
+  setElementDisplay(elements.form, editing ? "inline" : "none");
+  setElementDisplay(elements.actionButtons, editing ? "none" : "inline-flex");
+  setElementDisplay(elements.editControls, editing ? "inline-flex" : "none");
 
   if (elements.startInput) {
-    elements.startInput.style.display = editing ? "inline" : "none";
+    setElementDisplay(elements.startInput, editing ? "inline" : "none");
   }
   if (elements.startDisplay) {
-    elements.startDisplay.style.display = editing ? "none" : "inline";
+    setElementDisplay(elements.startDisplay, editing ? "none" : "inline");
   }
 
   return elements;

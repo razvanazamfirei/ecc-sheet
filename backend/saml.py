@@ -247,6 +247,8 @@ def load_saml_settings(  # noqa: PLR0912, PLR0915
             parsed_sso_url = urlsplit(sso_url)
             sso_path_parts = [part for part in parsed_sso_url.path.split("/") if part]
 
+            # Auth0 SSO URLs follow /samlp/{tenant}; derive the logout URL as
+            # /samlp/{tenant}/logout when no valid SLO URL is configured.
             if (
                 parsed_sso_url.scheme in {"http", "https"}
                 and parsed_sso_url.netloc

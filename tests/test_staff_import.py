@@ -103,22 +103,19 @@ class TestFetchStaffList:
 
     @patch("backend.staff_import.requests.get")
     def test_fetch_uses_config_base_url_without_app_context(self, mock_get):
-        """Test fetch falls back to Config outside a Flask app context."""
+        """Test fetch uses Settings.AMION_BASE_URL outside a Flask app context."""
+        from backend.config import get_settings
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = "data"
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        with patch(
-            "backend.staff_import.Config.AMION_BASE_URL",
-            "https://amion.example.test/fallback",
-        ):
-            fetch_staff_list("testcode")
+        fetch_staff_list("testcode")
 
-        mock_get.assert_called_once_with(
-            "https://amion.example.test/fallback?Lo=testcode&Rpt=706", timeout=30
-        )
+        expected_url = f"{get_settings().AMION_BASE_URL}?Lo=testcode&Rpt=706"
+        mock_get.assert_called_once_with(expected_url, timeout=30)
 
 
 @pytest.mark.unit

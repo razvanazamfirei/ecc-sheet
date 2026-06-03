@@ -1,8 +1,7 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import timedelta
 from pathlib import Path
-from typing import ClassVar
 
 from dotenv import dotenv_values
 
@@ -151,7 +150,7 @@ class Settings:
         )
 
     def to_flask_config(self) -> dict[str, object]:
-        return self.__dict__.copy()
+        return {f.name: getattr(self, f.name) for f in fields(self)}
 
 
 _SETTINGS = Settings.from_env()
@@ -161,54 +160,4 @@ def get_settings() -> Settings:
     return _SETTINGS
 
 
-class Config:
-    SECRET_KEY: ClassVar[str] = _SETTINGS.SECRET_KEY
-    SQLALCHEMY_DATABASE_URI: ClassVar[str] = _SETTINGS.SQLALCHEMY_DATABASE_URI
-    SQLALCHEMY_TRACK_MODIFICATIONS: ClassVar[bool] = (
-        _SETTINGS.SQLALCHEMY_TRACK_MODIFICATIONS
-    )
-    FLASK_ENV: ClassVar[str] = _SETTINGS.FLASK_ENV
-    USER_NAME: ClassVar[str] = _SETTINGS.USER_NAME
-    AUTH_PROXY_USERNAME_HEADER: ClassVar[str] = _SETTINGS.AUTH_PROXY_USERNAME_HEADER
-    SAML_ENABLED: ClassVar[bool] = _SETTINGS.SAML_ENABLED
-    SAML_SETTINGS_PATH: ClassVar[str | None] = _SETTINGS.SAML_SETTINGS_PATH
-    SAML_SETTINGS_JSON: ClassVar[str | None] = _SETTINGS.SAML_SETTINGS_JSON
-    SAML_USERNAME_ATTRIBUTES: ClassVar[list[str]] = _SETTINGS.SAML_USERNAME_ATTRIBUTES
-    SAML_USE_NAME_ID: ClassVar[bool] = _SETTINGS.SAML_USE_NAME_ID
-    SAML_DEFAULT_NEXT_URL: ClassVar[str] = _SETTINGS.SAML_DEFAULT_NEXT_URL
-    RESEND_API_KEY: ClassVar[str | None] = _SETTINGS.RESEND_API_KEY
-    DEFAULT_SENDER_EMAIL: ClassVar[str] = _SETTINGS.DEFAULT_SENDER_EMAIL
-    SESSION_COOKIE_SECURE: ClassVar[bool] = _SETTINGS.SESSION_COOKIE_SECURE
-    SESSION_COOKIE_HTTPONLY: ClassVar[bool] = _SETTINGS.SESSION_COOKIE_HTTPONLY
-    SESSION_COOKIE_SAMESITE: ClassVar[str | None] = _SETTINGS.SESSION_COOKIE_SAMESITE
-    PERMANENT_SESSION_LIFETIME: ClassVar[timedelta] = (
-        _SETTINGS.PERMANENT_SESSION_LIFETIME
-    )
-    CSP_POLICY: ClassVar[str | None] = _SETTINGS.CSP_POLICY
-    AMION_BASE_URL: ClassVar[str] = _SETTINGS.AMION_BASE_URL
-    AMION_SCHEDULE_CODE: ClassVar[str] = _SETTINGS.AMION_SCHEDULE_CODE
-    ANESTHESIA_SQL_CONNECTION_STRING: ClassVar[str | None] = (
-        _SETTINGS.ANESTHESIA_SQL_CONNECTION_STRING
-    )
-    ANESTHESIA_SQL_SOURCE_TABLE: ClassVar[str | None] = (
-        _SETTINGS.ANESTHESIA_SQL_SOURCE_TABLE
-    )
-    ANESTHESIA_SQL_PROVIDER_TYPE: ClassVar[str] = _SETTINGS.ANESTHESIA_SQL_PROVIDER_TYPE
-    ANESTHESIA_SQL_TIMEOUT: ClassVar[int] = _SETTINGS.ANESTHESIA_SQL_TIMEOUT
-    ANESTHESIA_FETCHER_ENABLED: ClassVar[bool] = _SETTINGS.ANESTHESIA_FETCHER_ENABLED
-    ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS: ClassVar[int] = (
-        _SETTINGS.ANESTHESIA_AUTO_SYNC_INTERVAL_SECONDS
-    )
-    ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS: ClassVar[int] = (
-        _SETTINGS.ANESTHESIA_AUTO_SYNC_LOOKBACK_DAYS
-    )
-    PAYROLL_PROGRAM: ClassVar[str | None] = _SETTINGS.PAYROLL_PROGRAM
-    PAYROLL_COMPANY: ClassVar[str | None] = _SETTINGS.PAYROLL_COMPANY
-    PAYROLL_BATCH: ClassVar[int | None] = _SETTINGS.PAYROLL_BATCH
-    PAYROLL_PAY_CODE: ClassVar[int | None] = _SETTINGS.PAYROLL_PAY_CODE
-    PAYROLL_DEPT: ClassVar[int | None] = _SETTINGS.PAYROLL_DEPT
-    PAYROLL_EXPENSE: ClassVar[int | None] = _SETTINGS.PAYROLL_EXPENSE
-    PAYROLL_ACCT_UNIT: ClassVar[int | None] = _SETTINGS.PAYROLL_ACCT_UNIT
-    PAYROLL_LABEL_SUFFIX: ClassVar[str | None] = _SETTINGS.PAYROLL_LABEL_SUFFIX
-    TIMEZONE: ClassVar[str] = _SETTINGS.TIMEZONE
-    DAY_RESET_HOUR: ClassVar[int] = _SETTINGS.DAY_RESET_HOUR
+Config = _SETTINGS
