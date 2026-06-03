@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .models import db
+from backend.models import db
 
 
 def commit_or_rollback[T](operation: Callable[[], T]) -> T:

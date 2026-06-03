@@ -1,31 +1,23 @@
 """Tests for development mock user switching."""
 
-import os
-
 import pytest
 
 
 class TestDevRoutesDisabled:
     """Dev routes return 404 when MOCK_USERS_ENABLED is not set."""
 
-    def test_switch_user_returns_404_when_disabled(self, client):
-        original = os.environ.pop("MOCK_USERS_ENABLED", None)
-        try:
-            response = client.post("/dev/switch-user", data={"user": "Admin"})
-            assert response.status_code == 404
-        finally:
-            if original is not None:
-                os.environ["MOCK_USERS_ENABLED"] = original
+    def test_switch_user_returns_404_when_disabled(self, client, monkeypatch):
+        monkeypatch.delenv("MOCK_USERS_ENABLED", raising=False)
+        response = client.post("/dev/switch-user", data={"user": "Admin"})
+        assert response.status_code == 404
 
 
 class TestDevRoutesEnabled:
     """Dev routes work when MOCK_USERS_ENABLED=true."""
 
     @pytest.fixture(autouse=True)
-    def enable_mock(self):
-        os.environ["MOCK_USERS_ENABLED"] = "true"
-        yield
-        os.environ.pop("MOCK_USERS_ENABLED", None)
+    def enable_mock(self, monkeypatch):
+        monkeypatch.setenv("MOCK_USERS_ENABLED", "true")
 
     def test_switch_user_sets_session(self, client):
         with client.session_transaction() as sess:
@@ -68,23 +60,16 @@ class TestDevRoutesEnabled:
         assert response.status_code == 200
         assert b"Mocked User" in response.data
 
-    def test_get_current_user_falls_back_to_env(self, client, app):
+    def test_get_current_user_falls_back_to_env(self, client, app, monkeypatch):
         """Without a session override, get_current_user() uses USER_NAME env."""
         from backend.auth import get_current_user
 
         with client.session_transaction() as sess:
             sess.pop("dev_user", None)
 
-        original_username = os.environ.get("USER_NAME")
-        os.environ["USER_NAME"] = "EnvUser"
-        try:
-            with app.test_request_context():
-                assert get_current_user() == "EnvUser"
-        finally:
-            if original_username is not None:
-                os.environ["USER_NAME"] = original_username
-            else:
-                os.environ.pop("USER_NAME", None)
+        monkeypatch.setenv("USER_NAME", "EnvUser")
+        with app.test_request_context():
+            assert get_current_user() == "EnvUser"
 
     def test_dev_nav_visible_in_template(self, client):
         """Dev persona dropdown should appear in HTML when MOCK_USERS_ENABLED."""

@@ -1,6 +1,5 @@
 """Tests for holiday management routes."""
 
-import os
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -14,25 +13,13 @@ from backend.utils import get_effective_date
 class TestHolidaysIndex:
     """Tests for holidays index page."""
 
-    def test_holidays_index_requires_admin(self, client):
+    def test_holidays_index_requires_admin(self, client, monkeypatch):
         """Test that holidays index requires admin privileges."""
-        original_user = os.environ.get("USER_NAME")
-        original_admins = os.environ.get("ADMIN_USERS")
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-            response = client.get("/holidays", follow_redirects=True)
-            assert b"Admin privileges required" in response.data
-        finally:
-            if original_user is not None:
-                os.environ["USER_NAME"] = original_user
-            else:
-                os.environ.pop("USER_NAME", None)
-            if original_admins is not None:
-                os.environ["ADMIN_USERS"] = original_admins
-            else:
-                os.environ.pop("ADMIN_USERS", None)
+        response = client.get("/holidays", follow_redirects=True)
+        assert b"Admin privileges required" in response.data
 
     def test_holidays_index_loads(self, client):
         """Test that holidays index page loads."""
@@ -176,29 +163,17 @@ class TestAddHoliday:
             db.session.delete(holiday)
             db.session.commit()
 
-    def test_add_holiday_requires_admin(self, client):
+    def test_add_holiday_requires_admin(self, client, monkeypatch):
         """Test that adding holiday requires admin."""
-        original_user = os.environ.get("USER_NAME")
-        original_admins = os.environ.get("ADMIN_USERS")
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-            response = client.post(
-                "/holidays/add",
-                data={"date": "2025-12-25", "name": "Test"},
-                follow_redirects=True,
-            )
-            assert b"Admin privileges required" in response.data
-        finally:
-            if original_user is not None:
-                os.environ["USER_NAME"] = original_user
-            else:
-                os.environ.pop("USER_NAME", None)
-            if original_admins is not None:
-                os.environ["ADMIN_USERS"] = original_admins
-            else:
-                os.environ.pop("ADMIN_USERS", None)
+        response = client.post(
+            "/holidays/add",
+            data={"date": "2025-12-25", "name": "Test"},
+            follow_redirects=True,
+        )
+        assert b"Admin privileges required" in response.data
 
     def test_add_holiday_exception_handling(self, client, app):
         """Test that exceptions during add are handled."""
@@ -277,7 +252,7 @@ class TestDeleteHoliday:
         response = client.post("/holidays/99999/delete")
         assert response.status_code == 404
 
-    def test_delete_holiday_requires_admin(self, client, app):
+    def test_delete_holiday_requires_admin(self, client, app, monkeypatch):
         """Test that deleting holiday requires admin."""
         with app.app_context():
             holiday = Holiday(
@@ -289,31 +264,18 @@ class TestDeleteHoliday:
             db.session.commit()
             holiday_id = holiday.id
 
-            original_user = os.environ.get("USER_NAME")
-            original_admins = os.environ.get("ADMIN_USERS")
+            monkeypatch.setenv("USER_NAME", "Regular User")
+            monkeypatch.setenv("ADMIN_USERS", "Admin Only")
             try:
-                os.environ["USER_NAME"] = "Regular User"
-                os.environ["ADMIN_USERS"] = "Admin Only"
-
                 response = client.post(
                     f"/holidays/{holiday_id}/delete",
                     follow_redirects=True,
                 )
                 assert b"Admin privileges required" in response.data
             finally:
-                if original_user is not None:
-                    os.environ["USER_NAME"] = original_user
-                else:
-                    os.environ.pop("USER_NAME", None)
-                if original_admins is not None:
-                    os.environ["ADMIN_USERS"] = original_admins
-                else:
-                    os.environ.pop("ADMIN_USERS", None)
-
-            # Cleanup
-            holiday = db.session.get(Holiday, holiday_id)
-            if holiday:
-                db.session.delete(holiday)
+                persisted_holiday = db.session.get(Holiday, holiday_id)
+                if persisted_holiday:
+                    db.session.delete(persisted_holiday)
                 db.session.commit()
 
 
@@ -339,25 +301,13 @@ class TestRefreshFederalHolidays:
             assert response.status_code == 200
             assert b"already present" in response.data
 
-    def test_refresh_federal_holidays_requires_admin(self, client):
+    def test_refresh_federal_holidays_requires_admin(self, client, monkeypatch):
         """Test that refreshing requires admin."""
-        original_user = os.environ.get("USER_NAME")
-        original_admins = os.environ.get("ADMIN_USERS")
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-            response = client.post("/holidays/refresh", follow_redirects=True)
-            assert b"Admin privileges required" in response.data
-        finally:
-            if original_user is not None:
-                os.environ["USER_NAME"] = original_user
-            else:
-                os.environ.pop("USER_NAME", None)
-            if original_admins is not None:
-                os.environ["ADMIN_USERS"] = original_admins
-            else:
-                os.environ.pop("ADMIN_USERS", None)
+        response = client.post("/holidays/refresh", follow_redirects=True)
+        assert b"Admin privileges required" in response.data
 
     def test_refresh_federal_holidays_adds_new(self, client, app):
         """Test refreshing when some holidays don't exist yet."""

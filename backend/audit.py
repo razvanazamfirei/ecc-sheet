@@ -11,9 +11,9 @@ from typing import Any
 from flask import has_request_context, request
 from sqlalchemy import insert
 
-from .auth import get_current_user
-from .models import AuditLog, db
-from .type_defs import AuditLogs
+from backend.auth import get_current_user
+from backend.models import AuditLog, db
+from backend.type_defs import AuditLogs
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,22 @@ def _write_audit_log(audit_values: Mapping[str, Any], *, strict: bool = False) -
         logger.exception("Audit logging failed")
         if strict:
             raise
+
+
+def _update_details(
+    changes: Mapping[str, Any] | None = None,
+    details: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Merge explicit details with an optional change map."""
+    merged_details = dict(details) if details else {}
+    if changes:
+        merged_details["changes"] = dict(changes)
+    return merged_details or None
+
+
+def _lock_action(*, locked: bool) -> str:
+    """Return the audit action for a sheet lock state."""
+    return "LOCK" if locked else "UNLOCK"
 
 
 def log_action(
@@ -115,10 +131,13 @@ def log_update(
     user: str | None = None,
 ) -> None:
     """Log an UPDATE action"""
-    merged_details = dict(details) if details else {}
-    if changes:
-        merged_details["changes"] = dict(changes)
-    log_action("UPDATE", entity_type, entity_id, merged_details or None, user=user)
+    log_action(
+        "UPDATE",
+        entity_type,
+        entity_id,
+        _update_details(changes, details),
+        user=user,
+    )
 
 
 def log_update_strict(
@@ -129,14 +148,11 @@ def log_update_strict(
     user: str | None = None,
 ) -> None:
     """Log an UPDATE action and re-raise failures."""
-    merged_details = dict(details) if details else {}
-    if changes:
-        merged_details["changes"] = dict(changes)
     log_action_strict(
         "UPDATE",
         entity_type,
         entity_id,
-        merged_details or None,
+        _update_details(changes, details),
         user=user,
     )
 
@@ -161,14 +177,14 @@ def log_delete_strict(
 
 def log_lock(sheet_date: str, *, locked: bool) -> None:
     """Log a lock/unlock action"""
-    action = "LOCK" if locked else "UNLOCK"
-    log_action(action, "DailySheet", details={"date": sheet_date})
+    log_action(_lock_action(locked=locked), "DailySheet", details={"date": sheet_date})
 
 
 def log_lock_strict(sheet_date: str, *, locked: bool) -> None:
     """Log a lock/unlock action and re-raise failures."""
-    action = "LOCK" if locked else "UNLOCK"
-    log_action_strict(action, "DailySheet", details={"date": sheet_date})
+    log_action_strict(
+        _lock_action(locked=locked), "DailySheet", details={"date": sheet_date}
+    )
 
 
 def log_import(

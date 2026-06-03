@@ -13,22 +13,21 @@ from typing import Any
 
 from email_validator import EmailNotValidError
 
-from .audit import log_create, log_import, log_update
-from .db_session import commit_or_rollback
-from .errors import ConflictError, ValidationError
-from .models import Resident, db
-from .parsing import parse_iso_date
-from .payroll_audit import (
+from backend.audit import log_create, log_import, log_update
+from backend.db_session import commit_or_rollback
+from backend.errors import ConflictError, ValidationError
+from backend.models import Resident, db
+from backend.payroll_audit import (
     filter_payroll_resident_changes,
     payroll_resident_details,
 )
-from .resident_normalization import (
+from backend.resident_normalization import (
     CLASS_YEAR_ALIASES,
     canonicalize_class_year,
     clean_text,
-    normalize_email,
     split_name,
 )
+from backend.utils import normalize_email, parse_iso_date
 
 logger = logging.getLogger(__name__)
 
@@ -92,11 +91,6 @@ class ResidentCsvImportResult:
         )
 
 
-def _normalize_header(value: str) -> str:
-    """Normalize a CSV header for alias matching."""
-    return value.strip().lower().replace(" ", "_")
-
-
 def _canonical_headers(fieldnames: Sequence[str | None]) -> list[str]:
     """Return canonical CSV headers or raise when unsupported."""
     if not fieldnames:
@@ -112,8 +106,7 @@ def _canonical_headers(fieldnames: Sequence[str | None]) -> list[str]:
         header = str(raw_header or "").strip()
         if not header:
             raise ValidationError("Resident CSV contains a blank header cell.")
-
-        canonical = _HEADER_ALIASES.get(_normalize_header(header))
+        canonical = _HEADER_ALIASES.get(header.strip().lower().replace(" ", "_"))
         if canonical is None:
             unknown_headers.append(header)
             continue
@@ -140,6 +133,8 @@ def _canonical_headers(fieldnames: Sequence[str | None]) -> list[str]:
 
 def _normalized_email(value: str, *, row_number: int) -> str | None:
     """Validate and normalize an email value."""
+    if not value:
+        return None
     try:
         return normalize_email(value)
     except EmailNotValidError as exc:
@@ -288,14 +283,9 @@ def _format_audit_value(value: Any) -> Any:
     return value
 
 
-def _name_matches(name: str) -> list[Resident]:
-    """Return residents with an exact matching display name."""
-    return Resident.query.filter_by(name=name).all()
-
-
 def _resolve_existing_resident(record: ResidentCsvRecord) -> Resident | None:
     """Resolve a CSV row to an existing resident or raise on conflicts."""
-    residents_by_name = _name_matches(record.name)
+    residents_by_name = Resident.query.filter_by(name=record.name).all()
     if len(residents_by_name) > 1:
         raise ConflictError(
             f"Row {record.row_number}: multiple residents already exist with "

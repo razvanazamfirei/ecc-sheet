@@ -1,6 +1,6 @@
 """Route blueprints for the application."""
 
-from . import (
+from backend.routes import (
     api,
     audit,
     dev,
@@ -13,7 +13,7 @@ from . import (
     sheets,
     sso,
 )
-from ._registry import register_blueprints
+from backend.routes._registry import register_blueprints
 
 __all__ = [
     "api",

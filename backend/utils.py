@@ -1,14 +1,17 @@
 """Utility functions for logging and validation."""
 
+from __future__ import annotations
+
 import logging
 import shutil
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytz
+from email_validator import validate_email
 from flask import request
 
-from .config import Config
+from backend.config import Config
 
 logger = logging.getLogger("ecc_sheet")
 
@@ -45,34 +48,28 @@ def backup_database(
     backup_dir: str | Path = Path("backups"),
 ) -> bool:
     """Create a backup of the database"""
+    db_path = Path(db_path)
+    backup_dir = Path(backup_dir)
+    tz = pytz.timezone(Config.TIMEZONE)
+    timestamp = datetime.now(tz=tz).strftime("%Y%m%d_%H%M%S")
     try:
-        backup_dir = Path(backup_dir)
-        db_path = Path(db_path)
-
-        if not backup_dir.exists():
-            backup_dir.mkdir(parents=True, exist_ok=True)
-
+        backup_dir.mkdir(parents=True, exist_ok=True)
         if not db_path.exists():
             return False
 
-        tz = pytz.timezone(Config.TIMEZONE)
-        timestamp: str = datetime.now(tz=tz).strftime("%Y%m%d_%H%M%S")
-        backup_path: Path = backup_dir / f"ecc_sheet_{timestamp}.db"
-
-        shutil.copy2(db_path, backup_path)
-
-        # Keep only last 30 backups
-        backups = sorted(
-            [f for f in backup_dir.iterdir() if f.name.startswith("ecc_sheet_")]
-        )
-        if len(backups) > 30:
-            for old_backup in backups[:-30]:
-                old_backup.unlink()
-
+        shutil.copy2(db_path, backup_dir / f"ecc_sheet_{timestamp}.db")
+        _prune_database_backups(backup_dir)
         return True
     except OSError:
         logger.exception("Database backup failed")
         return False
+
+
+def _prune_database_backups(backup_dir: Path) -> None:
+    """Keep only the most recent 30 database backup files."""
+    backups = sorted(f for f in backup_dir.iterdir() if f.name.startswith("ecc_sheet_"))
+    for old_backup in backups[:-30]:
+        old_backup.unlink()
 
 
 def get_philadelphia_time() -> datetime:
@@ -108,3 +105,16 @@ def get_effective_date(dt: datetime | None = None) -> date:
         return (dt - timedelta(days=1)).date()
 
     return dt.date()
+
+
+def normalize_email(address: str) -> str:
+    """Validate and normalize a single email address."""
+    return validate_email(address.strip(), check_deliverability=False).normalized
+
+
+def parse_iso_date(raw: str, *, error_message: str = "Invalid date format") -> date:
+    """Parse an ISO date string or raise ValueError with a caller-supplied message."""
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError(error_message) from exc

@@ -8,22 +8,25 @@ import tempfile
 from collections.abc import Iterator
 from datetime import time
 
+import pytest
+from flask import Flask
+from flask.testing import FlaskClient, FlaskCliRunner
+from sqlalchemy.orm import Session
+
 # Set the test database URL before importing the Flask app so that Config
 # reads the test URI at module-import time (backend.app calls db.init_app
 # during import, which reads DATABASE_URL from the environment).
 _TEST_DB_FD, _TEST_DB_PATH = tempfile.mkstemp(prefix="ecc-sheet-tests-", suffix=".db")
 os.close(_TEST_DB_FD)
-os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
-os.environ["USER_NAME"] = "Admin"
-os.environ["ADMIN_USERS"] = "CI-Test-User,Admin,Test User"
+_TEST_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
+_TEST_ENV = pytest.MonkeyPatch()
+_TEST_ENV.setenv("DATABASE_URL", _TEST_DATABASE_URL)
+_TEST_ENV.setenv("USER_NAME", "Admin")
+_TEST_ENV.setenv("ADMIN_USERS", "CI-Test-User,Admin,Test User")
 # Ensure app import does not require optional SAML dependencies.
 # Individual tests opt-in via the saml_enabled_app fixture.
-os.environ["SAML_ENABLED"] = "false"
+_TEST_ENV.setenv("SAML_ENABLED", "false")
 
-import pytest
-from flask import Flask
-from flask.testing import FlaskClient, FlaskCliRunner
-from sqlalchemy.orm import Session
 
 from backend.app import app as flask_app
 from backend.app import init_db
@@ -37,7 +40,7 @@ def app() -> Iterator[Flask]:
     flask_app.config.update(
         {
             "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": os.environ["DATABASE_URL"],
+            "SQLALCHEMY_DATABASE_URI": _TEST_DATABASE_URL,
             "WTF_CSRF_ENABLED": False,  # Disable CSRF for testing
             "SECRET_KEY": "test-secret-key",
             "AUTH_PROXY_USERNAME_HEADER": "",
@@ -63,6 +66,7 @@ def app() -> Iterator[Flask]:
         db.engine.dispose()
 
     pathlib.Path(_TEST_DB_PATH).unlink(missing_ok=True)
+    _TEST_ENV.undo()
 
 
 @pytest.fixture

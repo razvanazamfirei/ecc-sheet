@@ -14,17 +14,13 @@ from flask import (
 from sqlalchemy.orm import joinedload
 from werkzeug.wrappers import Response
 
-from ..audit import log_create_strict, log_delete, log_update_strict
-from ..auth import is_admin, is_first_call
-from ..errors import ValidationError
-from ..models import DailySheet, TimeEntry, db
-from ..utils import _wants_json_response
-from ._forms import form_text
-from ._helpers import (
-    flash_redirect,
-    flash_sheet_redirect,
-    parse_iso_date,
-)
+from backend.audit import log_create_strict, log_delete, log_update_strict
+from backend.auth import is_admin, is_first_call
+from backend.errors import ValidationError
+from backend.models import DailySheet, TimeEntry, db
+from backend.routes._forms import form_text
+from backend.routes._helpers import flash_redirect, flash_sheet_redirect, parse_iso_date
+from backend.utils import _wants_json_response
 
 bp = Blueprint("entries", __name__, url_prefix="/entries")
 logger = logging.getLogger(__name__)

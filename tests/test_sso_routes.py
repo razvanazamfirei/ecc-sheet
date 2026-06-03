@@ -2,9 +2,58 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 import pytest
+
+from backend.saml import saml_logout_enabled
+
+
+def _saml_settings_json(
+    idp_slo_url: str | None = "https://idp.example.test/logout",
+    idp_sso_url: str = "https://idp.example.test/sso",
+):
+    settings = {
+        "strict": True,
+        "debug": False,
+        "sp": {
+            "entityId": "https://app.example.test/auth/metadata",
+            "assertionConsumerService": {
+                "url": "https://app.example.test/auth/acs",
+                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+            },
+            "singleLogoutService": {
+                "url": "https://app.example.test/auth/sls",
+                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
+            },
+            "NameIDFormat": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "x509cert": "",
+            "privateKey": "",
+        },
+        "idp": {
+            "entityId": "https://idp.example.test/metadata",
+            "singleSignOnService": {
+                "url": idp_sso_url,
+                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
+            },
+            "singleLogoutService": {
+                "url": "https://idp.example.test/logout",
+                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
+            },
+            "x509cert": "",
+        },
+        "security": {
+            "wantAssertionsSigned": False,
+            "wantMessagesSigned": False,
+            "requestedAuthnContext": False,
+        },
+    }
+    if idp_slo_url is None:
+        settings["idp"].pop("singleLogoutService")
+    else:
+        settings["idp"]["singleLogoutService"]["url"] = idp_slo_url
+    return json.dumps(settings)
 
 
 class _FakeSamlAuth:
@@ -23,6 +72,7 @@ class _FakeSamlAuth:
         )
         self._sls_redirect_url = overrides.get("sls_redirect_url")
         self.login_calls: list[str | None] = []
+        self.logout_calls: list[dict[str, object]] = []
         self.process_response_request_ids: list[str | None] = []
         self.process_slo_request_ids: list[str | None] = []
 
@@ -54,7 +104,8 @@ class _FakeSamlAuth:
     def get_session_index(self) -> str:
         return self._session_index
 
-    def logout(self, **_: object) -> str:
+    def logout(self, **kwargs: object) -> str:
+        self.logout_calls.append(kwargs)
         return self._logout_url
 
     def process_slo(
@@ -104,117 +155,265 @@ class TestSamlGuard:
 
 
 class TestSamlRoutes:
-    def test_login_redirects_to_idp_and_stores_request_id(self, client, app):
-        original = app.config["SAML_ENABLED"]
+    def test_login_redirects_when_idp_slo_url_is_invalid(
+        self,
+        client,
+        app,
+        monkeypatch,
+    ):
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        monkeypatch.setitem(
+            app.config,
+            "SAML_SETTINGS_JSON",
+            _saml_settings_json(idp_slo_url="IDP_SLO_URL"),
+        )
+        monkeypatch.setitem(app.config, "SAML_SETTINGS_PATH", None)
+
+        response = client.get("/auth/login?next=/reports")
+
+        assert response.status_code == 302
+        assert response.headers["Location"].startswith("https://idp.example.test/sso?")
+        with client.session_transaction() as sess:
+            assert sess["saml_request_id"]
+
+    def test_login_redirects_to_idp_and_stores_request_id(
+        self,
+        client,
+        app,
+        monkeypatch,
+    ):
         fake_auth = _FakeSamlAuth()
-        try:
-            app.config["SAML_ENABLED"] = True
-            with patch("backend.routes.sso.build_saml_auth", return_value=fake_auth):
-                response = client.get("/auth/login?next=/reports")
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        with patch("backend.routes.sso.build_saml_auth", return_value=fake_auth):
+            response = client.get("/auth/login?next=/reports")
 
-            assert response.status_code == 302
-            assert response.headers["Location"] == "https://idp.example.test/sso"
-            assert fake_auth.login_calls == ["/reports"]
-            with client.session_transaction() as sess:
-                assert sess["saml_request_id"] == "req-123"
-        finally:
-            app.config["SAML_ENABLED"] = original
+        assert response.status_code == 302
+        assert response.headers["Location"] == "https://idp.example.test/sso"
+        assert fake_auth.login_calls == ["/reports"]
+        with client.session_transaction() as sess:
+            assert sess["saml_request_id"] == "req-123"
 
-    def test_acs_sets_session_user_and_redirects(self, client, app):
-        original = app.config["SAML_ENABLED"]
+    def test_acs_sets_session_user_and_redirects(self, client, app, monkeypatch):
         fake_auth = _FakeSamlAuth(request_id="req-456")
-        try:
-            app.config["SAML_ENABLED"] = True
-            with client.session_transaction() as sess:
-                sess["saml_request_id"] = "req-123"
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        with client.session_transaction() as sess:
+            sess["saml_request_id"] = "req-123"
 
-            with patch("backend.routes.sso.build_saml_auth", return_value=fake_auth):
-                response = client.post("/auth/acs", data={"RelayState": "/reports"})
+        with patch("backend.routes.sso.build_saml_auth", return_value=fake_auth):
+            response = client.post("/auth/acs", data={"RelayState": "/reports"})
 
-            assert response.status_code == 302
-            assert response.headers["Location"].endswith("/reports")
-            assert fake_auth.process_response_request_ids == ["req-123"]
-            with client.session_transaction() as sess:
-                assert sess["auth_user"] == "SAML User"
-                assert sess["saml_authn"]["name_id"] == "nameid@example.test"
-                assert sess["saml_authn"]["session_index"] == "session-123"
-        finally:
-            app.config["SAML_ENABLED"] = original
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/reports")
+        assert fake_auth.process_response_request_ids == ["req-123"]
+        with client.session_transaction() as sess:
+            assert sess["auth_user"] == "SAML User"
+            assert sess["saml_authn"]["name_id"] == "nameid@example.test"
+            assert sess["saml_authn"]["session_index"] == "session-123"
 
-    def test_acs_prefers_identity_attribute_for_session_user(self, client, app):
-        original = app.config["SAML_ENABLED"]
+    def test_acs_prefers_identity_attribute_for_session_user(
+        self,
+        client,
+        app,
+        monkeypatch,
+    ):
         fake_auth = _FakeSamlAuth(
             request_id="req-456",
             attributes={"Identity": ["AzamfirR"], "name": ["SAML User"]},
         )
-        try:
-            app.config["SAML_ENABLED"] = True
-            with client.session_transaction() as sess:
-                sess["saml_request_id"] = "req-123"
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        with client.session_transaction() as sess:
+            sess["saml_request_id"] = "req-123"
 
-            with patch("backend.routes.sso.build_saml_auth", return_value=fake_auth):
-                response = client.post("/auth/acs", data={"RelayState": "/reports"})
+        with patch("backend.routes.sso.build_saml_auth", return_value=fake_auth):
+            response = client.post("/auth/acs", data={"RelayState": "/reports"})
 
-            assert response.status_code == 302
-            assert response.headers["Location"].endswith("/reports")
-            with client.session_transaction() as sess:
-                assert sess["auth_user"] == "AzamfirR"
-        finally:
-            app.config["SAML_ENABLED"] = original
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/reports")
+        with client.session_transaction() as sess:
+            assert sess["auth_user"] == "AzamfirR"
 
-    def test_metadata_returns_xml(self, client, app):
-        original = app.config["SAML_ENABLED"]
-        try:
-            app.config["SAML_ENABLED"] = True
-            with patch(
-                "backend.routes.sso.build_saml_settings",
-                return_value=_FakeSamlSettings(),
-            ):
-                response = client.get("/auth/metadata")
+    def test_metadata_returns_xml(self, client, app, monkeypatch):
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        with patch(
+            "backend.routes.sso.build_saml_settings",
+            return_value=_FakeSamlSettings(),
+        ):
+            response = client.get("/auth/metadata")
 
-            assert response.status_code == 200
-            assert response.mimetype == "application/samlmetadata+xml"
-            assert response.data == b"<xml>metadata</xml>"
-        finally:
-            app.config["SAML_ENABLED"] = original
+        assert response.status_code == 200
+        assert response.mimetype == "application/samlmetadata+xml"
+        assert response.data == b"<xml>metadata</xml>"
 
-    def test_logout_clears_local_session_when_build_saml_auth_raises(self, client, app):
-        original = app.config["SAML_ENABLED"]
-        try:
-            app.config["SAML_ENABLED"] = True
-            with client.session_transaction() as sess:
-                sess["auth_user"] = "SAML User"
+    def test_logout_clears_local_session_when_build_saml_auth_raises(
+        self,
+        client,
+        app,
+        monkeypatch,
+    ):
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        with client.session_transaction() as sess:
+            sess["auth_user"] = "SAML User"
 
-            with (
-                patch("backend.routes.sso.saml_logout_enabled", return_value=True),
-                patch(
-                    "backend.routes.sso.build_saml_auth",
-                    side_effect=Exception("idp_slo_url_invalid"),
-                ),
-            ):
-                response = client.get("/auth/logout")
+        with (
+            patch("backend.routes.sso.saml_logout_enabled", return_value=True),
+            patch(
+                "backend.routes.sso.build_saml_auth",
+                side_effect=Exception("idp_slo_url_invalid"),
+            ),
+        ):
+            response = client.get("/auth/logout")
 
-            assert response.status_code == 302
-            with client.session_transaction() as sess:
-                assert "auth_user" not in sess
-        finally:
-            app.config["SAML_ENABLED"] = original
+        assert response.status_code == 302
+        with client.session_transaction() as sess:
+            assert "auth_user" not in sess
 
-    def test_logout_clears_local_session_when_slo_not_configured(self, client, app):
-        original = app.config["SAML_ENABLED"]
-        try:
-            app.config["SAML_ENABLED"] = True
-            with client.session_transaction() as sess:
-                sess["auth_user"] = "SAML User"
-                sess["saml_authn"] = {"name_id": "nameid@example.test"}
+    def test_logout_sends_saml_request_to_auth0_samlp_logout_endpoint(
+        self,
+        client,
+        app,
+        monkeypatch,
+    ):
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        monkeypatch.setitem(
+            app.config,
+            "SAML_SETTINGS_JSON",
+            _saml_settings_json(
+                idp_slo_url=None,
+                idp_sso_url="https://example.auth0.com/samlp/client_123",
+            ),
+        )
+        monkeypatch.setitem(app.config, "SAML_SETTINGS_PATH", None)
+        with client.session_transaction() as sess:
+            sess["auth_user"] = "SAML User"
+            sess["saml_authn"] = {
+                "name_id": "nameid@example.test",
+                "session_index": "session-123",
+            }
 
-            with patch("backend.routes.sso.saml_logout_enabled", return_value=False):
-                response = client.get("/auth/logout?next=/reports")
+        response = client.get("/auth/logout?next=/reports")
 
-            assert response.status_code == 302
-            assert response.headers["Location"].endswith("/reports")
-            with client.session_transaction() as sess:
-                assert "auth_user" not in sess
-                assert "saml_authn" not in sess
-        finally:
-            app.config["SAML_ENABLED"] = original
+        assert response.status_code == 302
+        assert response.headers["Location"].startswith(
+            "https://example.auth0.com/samlp/client_123/logout?"
+        )
+        assert "SAMLRequest=" in response.headers["Location"]
+        with client.session_transaction() as sess:
+            assert "auth_user" not in sess
+            assert "saml_authn" not in sess
+            assert sess["saml_logout_request_id"]
+
+    def test_logout_does_not_derive_from_non_samlp_sso_url(
+        self,
+        client,
+        app,
+        monkeypatch,
+    ):
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        monkeypatch.setitem(
+            app.config,
+            "SAML_SETTINGS_JSON",
+            _saml_settings_json(
+                idp_slo_url=None,
+                idp_sso_url="https://idp.example.test/sso",
+            ),
+        )
+        monkeypatch.setitem(app.config, "SAML_SETTINGS_PATH", None)
+        with client.session_transaction() as sess:
+            sess["auth_user"] = "SAML User"
+            sess["saml_authn"] = {"name_id": "nameid@example.test"}
+
+        response = client.get("/auth/logout?next=/reports")
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/reports")
+        with client.session_transaction() as sess:
+            assert "auth_user" not in sess
+            assert "saml_authn" not in sess
+
+    def test_logout_uses_saml_slo_and_clears_local_session_before_redirect(
+        self,
+        client,
+        app,
+        monkeypatch,
+    ):
+        fake_auth = _FakeSamlAuth(request_id="logout-123")
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        with client.session_transaction() as sess:
+            sess["auth_user"] = "SAML User"
+            sess["saml_authn"] = {
+                "name_id": "nameid@example.test",
+                "session_index": "session-123",
+            }
+
+        with (
+            patch("backend.routes.sso.saml_logout_enabled", return_value=True),
+            patch("backend.routes.sso.build_saml_auth", return_value=fake_auth),
+        ):
+            response = client.get("/auth/logout?next=/reports")
+
+        assert response.status_code == 302
+        assert response.headers["Location"] == "https://idp.example.test/logout"
+        assert fake_auth.logout_calls == [
+            {
+                "return_to": "/reports",
+                "name_id": "nameid@example.test",
+                "session_index": "session-123",
+            }
+        ]
+        with client.session_transaction() as sess:
+            assert "auth_user" not in sess
+            assert "saml_authn" not in sess
+            assert sess["saml_logout_request_id"] == "logout-123"
+
+    def test_logout_clears_local_session_when_slo_not_configured(
+        self,
+        client,
+        app,
+        monkeypatch,
+    ):
+        monkeypatch.setitem(app.config, "SAML_ENABLED", True)
+        with client.session_transaction() as sess:
+            sess["auth_user"] = "SAML User"
+            sess["saml_authn"] = {"name_id": "nameid@example.test"}
+
+        with patch("backend.routes.sso.saml_logout_enabled", return_value=False):
+            response = client.get("/auth/logout?next=/reports")
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/reports")
+        with client.session_transaction() as sess:
+            assert "auth_user" not in sess
+            assert "saml_authn" not in sess
+
+
+class TestSamlLogoutSettings:
+    def test_saml_logout_enabled_derives_from_auth0_samlp_sso_url(self):
+        config = {
+            "SAML_SETTINGS_JSON": _saml_settings_json(
+                idp_slo_url=None,
+                idp_sso_url="https://example.auth0.com/samlp/client_123",
+            ),
+            "SAML_SETTINGS_PATH": None,
+        }
+
+        assert saml_logout_enabled(config) is True
+
+    @pytest.mark.parametrize("idp_slo_url", ["IDP_SLO_URL", "   ", ""])
+    def test_saml_logout_disabled_when_idp_slo_url_is_invalid_or_blank(
+        self,
+        idp_slo_url,
+    ):
+        config = {
+            "SAML_SETTINGS_JSON": _saml_settings_json(idp_slo_url=idp_slo_url),
+            "SAML_SETTINGS_PATH": None,
+        }
+
+        assert saml_logout_enabled(config) is False
+
+    def test_saml_logout_enabled_when_idp_slo_url_is_valid(self):
+        config = {
+            "SAML_SETTINGS_JSON": _saml_settings_json(),
+            "SAML_SETTINGS_PATH": None,
+        }
+
+        assert saml_logout_enabled(config) is True

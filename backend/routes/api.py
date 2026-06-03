@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify
 
-from ..models import Resident, Role
+from backend.models import Resident, Role
 
 bp: Blueprint = Blueprint("api", __name__, url_prefix="/api")
 

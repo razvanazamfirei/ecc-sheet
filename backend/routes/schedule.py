@@ -11,27 +11,28 @@ import requests
 from flask import Blueprint, current_app
 from sqlalchemy.exc import IntegrityError
 
-from ..audit import log_create_strict, log_import_strict, log_update_strict
-from ..auth import get_first_call_role_names, is_admin, is_first_call
-from ..holidays import is_weekend_or_holiday
-from ..instance_config import (
+from backend.audit import log_create_strict, log_import_strict, log_update_strict
+from backend.auth import get_first_call_role_names, is_admin, is_first_call
+from backend.config import Config
+from backend.holidays import is_weekend_or_holiday
+from backend.instance_config import (
     CALL_TEAM_ROLE_NAMES,
     LATE_ROLE_NAMES,
     SCHEDULE_ROLE_NAMES,
     WEEKDAY_BACKUP_ROLE_NAMES,
 )
-from ..models import DailySheet, Resident, Role, TimeEntry, db
-from ..payroll_audit import (
+from backend.models import DailySheet, Resident, Role, TimeEntry, db
+from backend.payroll_audit import (
     filter_payroll_resident_changes,
     payroll_resident_details,
 )
-from ..type_defs import ScheduleImportResult, ScheduleResidentChanges
-from ._helpers import (
+from backend.routes._helpers import (
     commit_flash_redirect,
     flash_sheet_redirect,
     parse_iso_date,
     rollback_flash_redirect,
 )
+from backend.type_defs import ScheduleImportResult, ScheduleResidentChanges
 
 bp: Blueprint = Blueprint("schedule", __name__, url_prefix="/schedule")
 logger: Logger = logging.getLogger(__name__)
@@ -88,9 +89,11 @@ def _validate_schedule_import_access(sheet_date: date, date_str: str):
 
 def _build_schedule_import_url(sheet_date: date) -> str:
     """Build the Amion schedule import URL for a sheet date."""
-    schedule_code = current_app.config.get("AMION_SCHEDULE_CODE", "upennane")
+    schedule_code = current_app.config.get(
+        "AMION_SCHEDULE_CODE", Config.AMION_SCHEDULE_CODE
+    )
     amion_base_url = current_app.config.get(
-        "AMION_BASE_URL", "https://www.amion.com/cgi-bin/ocs"
+        "AMION_BASE_URL", Config.AMION_BASE_URL
     ).strip()
     return (
         f"{amion_base_url}?Lo={schedule_code}&Rpt=619&Day={sheet_date.day}"

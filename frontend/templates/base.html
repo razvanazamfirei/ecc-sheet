@@ -108,26 +108,6 @@
                   {{ current_user }}
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
-                  {% if can_escalate_to_admin %}
-                    <li>
-                      <form
-                        method="POST"
-                        action="{{ url_for('dev.become_admin') }}"
-                        class="d-inline">
-                        <input
-                          type="hidden"
-                          name="csrf_token"
-                          value="{{ csrf_token() }}" />
-                        <button
-                          type="submit"
-                          class="dropdown-item text-warning">
-                          <i class="bi bi-shield-fill-exclamation me-1"></i
-                          >Become Admin
-                        </button>
-                      </form>
-                    </li>
-                    <li><hr class="dropdown-divider" /></li>
-                  {% endif %}
                   <li>
                     <h6 class="dropdown-header">Quick Personas</h6>
                   </li>

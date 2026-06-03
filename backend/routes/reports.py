@@ -8,8 +8,8 @@ from logging import Logger
 from flask import Blueprint, render_template, request
 from werkzeug.wrappers import Response
 
-from ..audit import log_update
-from ..auth import (
+from backend.audit import log_update
+from backend.auth import (
     admin_required,
     can_filter_reports_by_resident,
     can_view_all_reports,
@@ -17,24 +17,24 @@ from ..auth import (
     is_payroll_admin,
     payroll_admin_required,
 )
-from ..errors import ValidationError
-from ..models import PayrollSettings, TimeEntry
-from ..type_defs import ResidentData
-from ..report_utils import (
+from backend.errors import ValidationError
+from backend.models import PayrollSettings, TimeEntry
+from backend.report_utils import (
     aggregate_entries_by_resident,
     build_entries_query,
     generate_csv_content,
     generate_payroll_xlsx,
     get_resident_name,
 )
-from ._forms import form_text, optional_form_int
-from ._helpers import (
+from backend.routes._forms import form_text, optional_form_int
+from backend.routes._helpers import (
     commit_flash_redirect,
     diff_snapshots,
     flash_redirect,
     parse_iso_date,
     rollback_flash_redirect,
 )
+from backend.type_defs import ResidentData
 
 bp: Blueprint = Blueprint("reports", __name__)
 logger: Logger = logging.getLogger(__name__)
@@ -98,13 +98,6 @@ def _file_response(content: str | bytes, mimetype: str, filename: str) -> Respon
     )
 
 
-def _require_extended_report_permission(message: str) -> Response | None:
-    """Return an error redirect when extended report access is unavailable."""
-    if can_view_all_reports():
-        return None
-    return flash_redirect("reports.index", message)
-
-
 def _exclude_zero_overtime_flag() -> bool:
     """Return True when the form requests zero-overtime residents be excluded."""
     return request.form.get("exclude_zero_overtime", "0") == "1"
@@ -166,17 +159,6 @@ def _run_file_report_action(
         log_message=log_message,
         error_message=error_message,
     )
-
-
-def _run_extended_file_report_action(
-    permission_message: str,
-    **file_action_kwargs,
-) -> Response:
-    """Run a file report action that requires extended report permissions."""
-    if resp := _require_extended_report_permission(permission_message):
-        return resp
-
-    return _run_file_report_action(**file_action_kwargs)
 
 
 def _run_report_action(
@@ -282,9 +264,14 @@ def export_csv():
 @bp.route("/api/report/export_payroll_xlsx", methods=["POST"])
 def export_payroll_xlsx():
     """Export payroll data as Lawson/UPHS formatted .xlsx file."""
+    if not can_view_all_reports():
+        return flash_redirect(
+            "reports.index",
+            "You do not have permission to export the payroll report.",
+        )
+
     suffix = "_excl_zero" if _exclude_zero_overtime_flag() else ""
-    return _run_extended_file_report_action(
-        "You do not have permission to export the payroll report.",
+    return _run_file_report_action(
         filename=f"payroll_{{start_date}}_{{end_date}}{suffix}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         content_builder=_payroll_xlsx_content,

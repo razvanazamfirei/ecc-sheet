@@ -148,6 +148,13 @@ SESSION_COOKIE_SAMESITE=None
 SESSION_COOKIE_SECURE=true
 ```
 
+If sign-out appears to immediately log you back in, the app is probably only
+clearing its local Flask session while the IdP SSO session remains active. Use a
+real IdP `singleLogoutService.url` only when the provider supports SAML Single
+Logout. For Auth0 SAML apps, the IdP SSO URL is typically
+`https://{yourDomain}/samlp/{client_id}` and the SLO URL should be
+`https://{yourDomain}/samlp/{client_id}/logout`.
+
 **Reverse proxy headers required for SAML:**
 
 The app uses `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-Port` to

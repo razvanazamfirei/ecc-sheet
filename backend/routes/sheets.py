@@ -7,18 +7,22 @@ from flask import Blueprint, jsonify, render_template
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
-from ..audit import log_lock
-from ..auth import get_current_user, is_admin, is_first_call
-from ..db_session import commit_or_rollback
-from ..holidays import is_weekend_or_holiday
-from ..models import DailySheet, Role, TimeEntry, db
-from ..utils import _wants_json_response, get_effective_date, get_philadelphia_time
-from ._helpers import (
+from backend.audit import log_lock
+from backend.auth import get_current_user, is_admin, is_first_call
+from backend.db_session import commit_or_rollback
+from backend.holidays import is_weekend_or_holiday
+from backend.models import DailySheet, Role, TimeEntry, db
+from backend.routes._helpers import (
     commit_flash_redirect,
     flash_sheet_redirect,
     parse_iso_date_or_none,
     redirect_to,
     rollback_flash_redirect,
+)
+from backend.utils import (
+    _wants_json_response,
+    get_effective_date,
+    get_philadelphia_time,
 )
 
 bp: Blueprint = Blueprint(
@@ -26,11 +30,6 @@ bp: Blueprint = Blueprint(
     __name__,
 )
 logger = logging.getLogger(__name__)
-
-
-def _parse_sheet_date(date_str: str) -> date | None:
-    """Parse a sheet date or flash an error when invalid."""
-    return parse_iso_date_or_none(date_str)
 
 
 def _get_or_create_daily_sheet(sheet_date: date, *, commit: bool = True) -> DailySheet:
@@ -134,7 +133,7 @@ def index():
 @bp.route("/sheets/<date_str>")
 def view(date_str):
     """View sheet for a specific date."""
-    sheet_date = _parse_sheet_date(date_str)
+    sheet_date = parse_iso_date_or_none(date_str)
     if sheet_date is None:
         return redirect_to("sheets.index")
 
@@ -145,7 +144,7 @@ def view(date_str):
 @bp.route("/sheets/<date_str>/lock", methods=["POST"])
 def lock(date_str):
     """Lock/unlock a daily sheet."""
-    sheet_date = _parse_sheet_date(date_str)
+    sheet_date = parse_iso_date_or_none(date_str)
     if sheet_date is None:
         return redirect_to("sheets.index")
 

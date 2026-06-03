@@ -811,17 +811,6 @@ function buildBulkSaveRequest(rows) {
 }
 
 /**
- * Enables or disables row-level inline-edit controls during bulk save
- * @param {object[]} controls - Row control descriptors from buildBulkSaveRequest
- * @param {boolean} disabled - Whether controls should be disabled
- */
-function setBulkSaveDisabled(controls, disabled) {
-  controls.forEach((controlsForEntry) => {
-    setEntryControlsDisabled(controlsForEntry, disabled);
-  });
-}
-
-/**
  * Saves all entries asynchronously
  */
 async function saveAll() {
@@ -851,7 +840,9 @@ async function saveAll() {
   if (editAllBtn) {
     editAllBtn.disabled = true;
   }
-  setBulkSaveDisabled(controls, true);
+  controls.forEach((controlsForEntry) => {
+    setEntryControlsDisabled(controlsForEntry, true);
+  });
 
   try {
     const response = await fetch("/entries/update-all", {
@@ -887,7 +878,9 @@ async function saveAll() {
     notify(error.message || "Error saving entries. Please try again.", "error");
     console.error("Save all error:", error);
   } finally {
-    setBulkSaveDisabled(controls, false);
+    controls.forEach((controlsForEntry) => {
+      setEntryControlsDisabled(controlsForEntry, false);
+    });
     if (saveAllBtn) {
       saveAllBtn.disabled = false;
       saveAllBtn.innerHTML = '<i class="bi bi-check-all me-1"></i>Save All';
@@ -1495,17 +1488,7 @@ function removeEntryRow(entryId) {
     row.remove();
   }
   updateTotalOvertime();
-
-  // Update the summary entry count
-  const rows = getEntryRows();
-  const summaryEl = document.getElementById("sheet-summary");
-  if (summaryEl) {
-    const count = rows.length;
-    const countEl = summaryEl.querySelector(".entry-count");
-    if (countEl) {
-      countEl.textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
-    }
-  }
+  updateEntrySummaryCount();
 }
 
 /**

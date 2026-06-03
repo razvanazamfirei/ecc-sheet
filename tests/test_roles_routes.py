@@ -8,26 +8,14 @@ from backend.models import AuditLog, Role, db
 class TestRolesIndex:
     """Tests for the roles index page."""
 
-    def test_roles_index_requires_admin(self, client):
+    def test_roles_index_requires_admin(self, client, monkeypatch):
         """Test that roles index requires admin privileges."""
-        import os
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        # Save current admin users
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
-
-        try:
-            # Set up non-admin user
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            response = client.get("/roles/", follow_redirects=True)
-            assert response.status_code == 200
-            assert b"Admin privileges required" in response.data
-        finally:
-            # Restore original values
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        response = client.get("/roles/", follow_redirects=True)
+        assert response.status_code == 200
+        assert b"Admin privileges required" in response.data
 
     def test_roles_index_lists_all_roles(self, client, app, sample_role):
         """Test that roles index displays all roles."""
@@ -243,28 +231,19 @@ class TestRolesUpdate:
             assert updated_role.cutoff_hour == 23
             assert updated_role.cutoff_minute == 59
 
-    def test_update_role_requires_admin(self, client, app, sample_role):
+    def test_update_role_requires_admin(self, client, app, sample_role, monkeypatch):
         """Test that update requires admin privileges."""
-        import os
+        monkeypatch.setenv("USER_NAME", "Regular User")
+        monkeypatch.setenv("ADMIN_USERS", "Admin Only")
 
-        original_admin_users = os.environ.get("ADMIN_USERS", "")
-        original_user_name = os.environ.get("USER_NAME", "")
-
-        try:
-            os.environ["USER_NAME"] = "Regular User"
-            os.environ["ADMIN_USERS"] = "Admin Only"
-
-            with app.app_context():
-                response = client.post(
-                    f"/roles/{sample_role.id}/update",
-                    data={"cutoff_hour": "18", "cutoff_minute": "45"},
-                    follow_redirects=True,
-                )
-                assert response.status_code == 200
-                assert b"Admin privileges required" in response.data
-        finally:
-            os.environ["ADMIN_USERS"] = original_admin_users
-            os.environ["USER_NAME"] = original_user_name
+        with app.app_context():
+            response = client.post(
+                f"/roles/{sample_role.id}/update",
+                data={"cutoff_hour": "18", "cutoff_minute": "45"},
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            assert b"Admin privileges required" in response.data
 
 
 class TestRolesEdgeCases:
